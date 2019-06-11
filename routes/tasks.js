@@ -11,14 +11,37 @@ router.get('/', function(req, res, next) {
 });
 
 //Task
-router.get('/getAllTask', function(req, res, next) {
-    Task.findAll().then(function(task) {
-      if(task.length > 0) {
-        return res.json(responseMessage(0, task, ''));
-      } else {
-        return res.json(responseMessage(1, null, 'No task exist'));
+router.get('/getAllTasksLimited', function(req, res, next) {
+  var rtnResult = [];
+  Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name']
+    }],
+    order: [
+      ['updatedAt', 'DESC']
+    ],
+    limit:300
+  }).then(function(task) {
+    if(task.length > 0) {
+      for(var i=0;i<task.length;i++){
+        var resJson = {};
+        resJson.task_id = task[i].Id;
+        resJson.task_nbr = task[i].TaskNumber;
+        resJson.task_type = task[i].task_type.Name;
+        if(task[i].Estimation != null){
+          var percentage =  "" + toPercent(task[i].Effort / task[i].Estimation);
+          resJson.task_progress = percentage.replace("%","");
+        } else {
+          resJson.task_progress = "-1";
+        }
+        rtnResult.push(resJson);
       }
-    })
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
 });
 
 router.post('/getTaskByCreatedDate', function(req, res, next) {
@@ -39,15 +62,29 @@ router.post('/getTaskByCreatedDate', function(req, res, next) {
 router.post('/getTaskByNumber', function(req, res, next) {
   var rtnResult = [];
   Task.findAll({
-      where: {
-          TaskNumber: {[Op.like]:'%' + req.body.tNumber + '%'}
-      }
+    include: [{
+      model: TaskType, 
+      attributes: ['Name']
+    }],
+    where: {
+      TaskNumber: {[Op.like]:'%' + req.body.tNumber + '%'}
+    },
+    order: [
+      ['updatedAt', 'DESC']
+    ]
   }).then(function(task) {
       if(task.length > 0) {
           for(var i=0;i<task.length;i++){
             var resJson = {};
             resJson.task_id = task[i].Id;
             resJson.task_nbr = task[i].TaskNumber;
+            resJson.task_type = task[i].task_type.Name;
+            if(task[i].Estimation != null){
+              var percentage =  "" + toPercent(task[i].Effort / task[i].Estimation);
+              resJson.task_progress = percentage.replace("%","");
+            } else {
+              resJson.task_progress = "-1";
+            }
             rtnResult.push(resJson);
           }
           return res.json(responseMessage(0, rtnResult, ''));
@@ -75,13 +112,17 @@ router.post('/getTaskById', function(req, res, next) {
             resJson.task_nbr = task[i].TaskNumber;
             resJson.task_type = task[i].task_type.Name;
             resJson.task_status = task[i].Status;
+            resJson.task_desc = task[i].Description;
             resJson.task_currenteffort = task[i].Effort;
             if(task[i].Estimation != null){
               resJson.task_totaleffort =  task[i].Estimation;
               resJson.task_progress = toPercent(task[i].Effort / task[i].Estimation);
+              var percentage =  "" + toPercent(task[i].Effort / task[i].Estimation);
+              resJson.task_progress_nosymbol = percentage.replace("%","");
             } else {
               resJson.task_totaleffort = "0"
               resJson.task_progress = "0";
+              resJson.task_progress_nosymbol = "0";
             }
             rtnResult.push(resJson);
           }
