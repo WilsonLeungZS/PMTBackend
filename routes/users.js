@@ -1,6 +1,7 @@
 var express = require('express');
 var router = express.Router();
 var User = require('../model/user');
+var Team = require('../model/team/team');
 
 /* GET users listing. */
 router.get('/', function(req, res, next) {
@@ -13,6 +14,10 @@ router.get('/login', function(req, res, next) {
     return res.json({status: 1, message: 'User EID is empty'});
   }
   User.findOne({
+    include: [{
+      model: Team,
+      attributes: ['Name']
+    }],
     where: {Name: req.query.userEid},
   }).then(function(user) {
     if(user != null && user.Name == req.query.userEid) {

@@ -1,11 +1,11 @@
 var Sequelize = require('sequelize');
 var moment = require('moment');
 var sequelize = require('../../config/db');
-var TaskType = require('../task/task_type');
+var TaskType = require('./task_type');
+var Team = require('../team/team');
 
 var Task = sequelize.define('task', {
     Id: { type:Sequelize.INTEGER, primaryKey: true, autoIncrement:true },
-    ParentTaskId: { type:Sequelize.INTEGER },
     TaskNumber: { type: Sequelize.STRING, allowNull: false },
     Description: { type: Sequelize.STRING },
     Priority: { type: Sequelize.STRING },
@@ -36,6 +36,8 @@ var Task = sequelize.define('task', {
 });
 
 Task.belongsTo(TaskType, {foreignKey: 'TaskTypeId'});
+Task.belongsTo(Team, {foreignKey: 'AssignTeamId'});
+Task.belongsTo(Task, {foreignKey: 'ParentTaskId'});
 
 //Task.sync({force: true});
 Task.sync();

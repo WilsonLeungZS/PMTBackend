@@ -12,9 +12,7 @@ var Team = sequelize.define('team', {
         type: Sequelize.STRING,
         allowNull: false
     },
-    TotalHrsPerMonth: {
-        type: Sequelize.INTEGER
-    },
+    Description: { type: Sequelize.STRING },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
