@@ -24,7 +24,7 @@ router.post('/getWorklogByUserAndMonth', function(req, res, next) {
   Worklog.findAll({
     include: [{
         model: Task,
-        attributes: ['TaskNumber'],
+        attributes: ['TaskName'],
         include: [{model: TaskType, attributes: ['Category'],}]
     }],
     where: {
@@ -82,7 +82,7 @@ router.post('/getWorklogByUserAndDate', function(req, res, next) {
   Worklog.findAll({
     include: [{
         model: Task,
-        attributes: ['TaskNumber', 'Status', 'Effort', 'Description'],
+        attributes: ['TaskName', 'Status', 'Effort', 'Description'],
         include: [{model: TaskType, attributes: ['Name'],}]
     }],
     where: {
@@ -95,7 +95,7 @@ router.post('/getWorklogByUserAndDate', function(req, res, next) {
           for(var i=0; i<worklog.length;i++){
             var resJson = {};
             resJson.worklog_id = worklog[i].Id;
-            resJson.worklog_nbr = worklog[i].task.TaskNumber;
+            resJson.worklog_name = worklog[i].task.TaskName;
             resJson.worklog_desc = worklog[i].task.Description;
             resJson.worklog_type = worklog[i].task.task_type.Name;
             resJson.worklog_status = worklog[i].task.Status;
@@ -116,7 +116,7 @@ router.post('/getWorklogById', function(req, res, next) {
   Worklog.findAll({
     include: [{
         model: Task,
-        attributes: ['Id', 'TaskNumber', 'Status', 'Effort', 'Estimation', 'Description'],
+        attributes: ['Id', 'TaskName', 'Status', 'Effort', 'Estimation', 'Description'],
         include: [{model: TaskType, attributes: ['Name'],}]
     }],
     where: {
@@ -128,7 +128,7 @@ router.post('/getWorklogById', function(req, res, next) {
             var resJson = {};
             resJson.worklog_id = worklog[i].Id;
             resJson.worklog_taskid = worklog[i].task.Id;
-            resJson.worklog_nbr = worklog[i].task.TaskNumber;
+            resJson.worklog_name = worklog[i].task.TaskName;
             resJson.worklog_desc = worklog[i].task.Description;
             resJson.worklog_type = worklog[i].task.task_type.Name;
             resJson.worklog_status = worklog[i].task.Status;
