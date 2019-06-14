@@ -2,7 +2,8 @@ var Sequelize = require('sequelize');
 var express = require('express');
 var router = express.Router();
 var TaskType = require('../model/task/task_type');
-var Task = require('../model/task/task')
+var Task = require('../model/task/task');
+var Team = require('../model/team/team');
 
 const Op = Sequelize.Op;
 
@@ -100,6 +101,10 @@ router.post('/getTaskById', function(req, res, next) {
       include: [{
         model: TaskType, 
         attributes: ['Name']
+      },
+      {
+          model: Team, 
+          attributes: ['Name']
       }],
       where: {
         Id: req.body.tId 
@@ -112,6 +117,56 @@ router.post('/getTaskById', function(req, res, next) {
             resJson.task_parenttaskname = task[i].ParentTaskName;
             resJson.task_name = task[i].TaskName;
             resJson.task_type = task[i].task_type.Name;
+            resJson.task_assign_team =  task[i].team.Name;
+            if(task[i].Status != null && !task[i].Status == ""){
+              resJson.task_status = task[i].Status;
+            } else {
+              resJson.task_status = "N/A";
+            }
+            resJson.task_desc = task[i].Description;
+            resJson.task_currenteffort = task[i].Effort;
+            if(task[i].Estimation != null && task[i].Estimation >0){
+              resJson.task_totaleffort =  task[i].Estimation;
+              resJson.task_progress = toPercent(task[i].Effort / task[i].Estimation);
+              var percentage =  "" + toPercent(task[i].Effort / task[i].Estimation);
+              resJson.task_progress_nosymbol = percentage.replace("%","");
+            } else {
+              resJson.task_totaleffort = "0"
+              resJson.task_progress = "0";
+              resJson.task_progress_nosymbol = "0";
+            }
+            rtnResult.push(resJson);
+          }
+          return res.json(responseMessage(0, rtnResult, ''));
+      } else {
+          return res.json(responseMessage(1, null, 'No task exist'));
+      }
+  })
+});
+
+router.post('/getTaskByCompletedName', function(req, res, next) {
+  var rtnResult = [];
+  Task.findAll({
+      include: [{
+        model: TaskType, 
+        attributes: ['Name']
+      },
+      {
+          model: Team, 
+          attributes: ['Name']
+      }],
+      where: {
+        TaskName: req.body.tTaskName 
+      }
+  }).then(function(task) {
+      if(task.length > 0) {
+          for(var i=0;i<task.length;i++){
+            var resJson = {};
+            resJson.task_id = task[i].Id;
+            resJson.task_parenttaskname = task[i].ParentTaskName;
+            resJson.task_name = task[i].TaskName;
+            resJson.task_type = task[i].task_type.Name;
+            resJson.task_assign_team =  task[i].team.Name;
             if(task[i].Status != null && !task[i].Status == ""){
               resJson.task_status = task[i].Status;
             } else {

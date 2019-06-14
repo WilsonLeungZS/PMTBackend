@@ -113,7 +113,7 @@ router.post('/getWorklogByUserAndDate', function(req, res, next) {
 router.post('/getWorklogById', function(req, res, next) {
   var reqWorklogId = req.body.wId;
   var rtnResult = [];
-  Worklog.findAll({
+  Worklog.findOne({
     include: [{
         model: Task,
         attributes: ['Id', 'TaskName', 'Status', 'Effort', 'Estimation', 'Description'],
@@ -123,27 +123,25 @@ router.post('/getWorklogById', function(req, res, next) {
         Id: reqWorklogId
     }
     }).then(function(worklog) {
-        if(worklog.length > 0) {
-          for(var i=0; i<worklog.length;i++){
-            var resJson = {};
-            resJson.worklog_id = worklog[i].Id;
-            resJson.worklog_taskid = worklog[i].task.Id;
-            resJson.worklog_name = worklog[i].task.TaskName;
-            resJson.worklog_desc = worklog[i].task.Description;
-            resJson.worklog_type = worklog[i].task.task_type.Name;
-            resJson.worklog_status = worklog[i].task.Status;
-            resJson.worklog_currenteffort = worklog[i].task.Effort;
-            if(worklog[i].task.Estimation != null){
-              resJson.worklog_totaleffort =  worklog[i].task.Estimation;
-              resJson.worklog_progress = toPercent(worklog[i].task.Effort / worklog[i].task.Estimation);
-            } else {
-              resJson.worklog_totaleffort = "0"
-              resJson.worklog_progress = "0";
-            }
-            resJson.worklog_hours = worklog[i].Effort;
-            resJson.worklog_remark = worklog[i].Remark;
-            rtnResult.push(resJson);
+        if(worklog != null) {
+          var resJson = {};
+          resJson.worklog_id = worklog.Id;
+          resJson.worklog_taskid = worklog.task.Id;
+          resJson.worklog_name = worklog.task.TaskName;
+          resJson.worklog_desc = worklog.task.Description;
+          resJson.worklog_type = worklog.task.task_type.Name;
+          resJson.worklog_status = worklog.task.Status;
+          resJson.worklog_currenteffort = worklog.task.Effort;
+          if(worklog.task.Estimation != null){
+            resJson.worklog_totaleffort =  worklog.task.Estimation;
+            resJson.worklog_progress = toPercent(worklog.task.Effort / worklog.task.Estimation);
+          } else {
+            resJson.worklog_totaleffort = "0"
+            resJson.worklog_progress = "0";
           }
+          resJson.worklog_hours = worklog.Effort;
+          resJson.worklog_remark = worklog.Remark;
+          rtnResult.push(resJson);
           return res.json(responseMessage(0, rtnResult, ''));
         } else {
           return res.json(responseMessage(1, null, 'No worklog existed'));
@@ -153,6 +151,7 @@ router.post('/getWorklogById', function(req, res, next) {
 
 //Add New Work Log
 router.post('/addOrUpdateWorklog', function(req, res, next) {
+  var newWorklogEffort = req.body.wEffort;
   console.log('Request: ' + JSON.stringify(req.body));
   Worklog.findOrCreate({
       where: {Id: req.body.wId}, 
@@ -166,36 +165,48 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
       }
     })
   .spread((worklog, created) => {
-    Task.findAll({
-      where: {Id: req.body.wTaskId}
-    }).then(function(task){
-      if(task != null && task.length >0) {
-        var taskEffort = task[0].Effort;
-        var newWorklogEffort = req.body.wEffort;
-        if(worklog != null && !created) {
-          var oldWorklogEffort = worklog.Effort;
-          if(oldWorklogEffort != newWorklogEffort){
-            taskEffort = Number(taskEffort) + Number(newWorklogEffort) - Number(oldWorklogEffort);
-            Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}});
+    Task.findOne({where: {Id: req.body.wTaskId}}).then(function(task){
+      if(task != null) {
+        var taskEffort = task.Effort;
+        var parentTaskName = task.ParentTaskName;
+        Task.findOne({where: {TaskName: parentTaskName}}).then(function(parentTask){
+          var parentTaskEffort = "-1";
+          if(parentTask != null){
+            parentTaskEffort = parentTask.Effort;
           }
-          worklog.update({
-            Remark: req.body.wRemark,
-            Effort: req.body.wEffort,
-            WorklogMonth: req.body.wWorklogMonth,
-            WorklogDay: req.body.wWorklogDay,
-            TaskId: req.body.wTaskId,
-            UserId: req.body.wUserId
-          });
-          return res.json(responseMessage(0, worklog, 'Update worklog successfully'));
-        } 
-        else if(created){
-          taskEffort = Number(taskEffort) + Number(newWorklogEffort);
-          Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}});
-          return res.json(responseMessage(0, worklog, 'Create worklog successfully'));
-        }
-        else {
-          return res.json(responseMessage(1, null, 'Create or update worklog fail'));
-        }
+          if(worklog != null && !created) {
+            var oldWorklogEffort = worklog.Effort;
+            if(oldWorklogEffort != newWorklogEffort){
+              if(parentTaskEffort != "-1"){
+                parentTaskEffort = Number(parentTaskEffort) + Number(newWorklogEffort) - Number(oldWorklogEffort);
+                parentTask.save({Effort: parentTaskEffort});
+              }
+              taskEffort = Number(taskEffort) + Number(newWorklogEffort) - Number(oldWorklogEffort);
+              Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}});
+            }
+            worklog.update({
+              Remark: req.body.wRemark,
+              Effort: req.body.wEffort,
+              WorklogMonth: req.body.wWorklogMonth,
+              WorklogDay: req.body.wWorklogDay,
+              TaskId: req.body.wTaskId,
+              UserId: req.body.wUserId
+            });
+            return res.json(responseMessage(0, worklog, 'Update worklog successfully'));
+          } 
+          else if(created){
+            if(parentTaskEffort != "-1"){
+              parentTaskEffort = Number(parentTaskEffort) + Number(newWorklogEffort);
+              parentTask.save({Effort: parentTaskEffort});
+            }
+            taskEffort = Number(taskEffort) + Number(newWorklogEffort);
+            Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}});
+            return res.json(responseMessage(0, worklog, 'Create worklog successfully'));
+          }
+          else {
+            return res.json(responseMessage(1, null, 'Create or update worklog fail'));
+          }
+        });
       }
     });
   })
