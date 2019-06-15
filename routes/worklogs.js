@@ -179,7 +179,7 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
             if(oldWorklogEffort != newWorklogEffort){
               if(parentTaskEffort != "-1"){
                 parentTaskEffort = Number(parentTaskEffort) + Number(newWorklogEffort) - Number(oldWorklogEffort);
-                parentTask.save({Effort: parentTaskEffort});
+                parentTask.update({Effort: parentTaskEffort});
               }
               taskEffort = Number(taskEffort) + Number(newWorklogEffort) - Number(oldWorklogEffort);
               Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}});
@@ -197,7 +197,7 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
           else if(created){
             if(parentTaskEffort != "-1"){
               parentTaskEffort = Number(parentTaskEffort) + Number(newWorklogEffort);
-              parentTask.save({Effort: parentTaskEffort});
+              parentTask.update({Effort: parentTaskEffort});
             }
             taskEffort = Number(taskEffort) + Number(newWorklogEffort);
             Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}});

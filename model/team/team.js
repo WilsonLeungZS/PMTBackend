@@ -13,6 +13,7 @@ var Team = sequelize.define('team', {
         allowNull: false
     },
     Description: { type: Sequelize.STRING },
+    IsActive: { type: Sequelize.BOOLEAN },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
