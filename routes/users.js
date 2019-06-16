@@ -228,7 +228,7 @@ router.get('/getTeamList', function(req, res, next) {
       }
       return res.json(responseMessage(0, rtnResult, ''));
     } else {
-      return res.json(responseMessage(1, null, 'No active user exist'));
+      return res.json(responseMessage(1, null, 'No active team exist'));
     }
   })
 });

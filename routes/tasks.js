@@ -70,6 +70,7 @@ router.post('/getTaskByName', function(req, res, next) {
     where: {
       TaskName: {[Op.like]:'%' + req.body.tTaskName + '%'}
     },
+    limit:100,
     order: [
       ['updatedAt', 'DESC']
     ]

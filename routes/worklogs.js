@@ -3,6 +3,7 @@ var router = express.Router();
 var Worklog = require('../model/worklog');
 var Task = require('../model/task/task');
 var TaskType = require('../model/task/task_type');
+var Reference = require('../model/reference');
 
 /* GET users listing. */
 router.get('/', function(req, res, next) {
@@ -21,16 +22,26 @@ router.post('/getWorklogByUserAndMonth', function(req, res, next) {
     monthLength = 31;
   }
   var rtnResult = [];
-  Worklog.findAll({
-    include: [{
-        model: Task,
-        attributes: ['TaskName'],
-        include: [{model: TaskType, attributes: ['Category'],}]
-    }],
-    where: {
-        UserId: reqWorklogUserId,
-        WorklogMonth: reqWorklogMonth
+  var weekdate = 0;
+  Reference.findOne({where: {Name: "WeekDate"}}).then(function(reference){
+    if(reference != null) {
+      var weekdateJsonArray = JSON.parse(reference.Value);
+      for(var i in weekdateJsonArray){
+        if(weekdateJsonArray[i].Month == reqWorklogMonth) {
+          weekdate = Number(weekdateJsonArray[i].Week);
+        }
+      }
     }
+    Worklog.findAll({
+      include: [{
+          model: Task,
+          attributes: ['TaskName'],
+          include: [{model: TaskType, attributes: ['Category'],}]
+      }],
+      where: {
+          UserId: reqWorklogUserId,
+          WorklogMonth: reqWorklogMonth
+      }
     }).then(function(worklog) {
         for(var a=1; a<monthLength;a++) {
             var resJson = {};
@@ -43,6 +54,11 @@ router.post('/getWorklogByUserAndMonth', function(req, res, next) {
             resJson.am_hrs = 0;
             resJson.others_hrs = 0;
             resJson.total_hrs = 0;
+            resJson.week_date = weekdate;
+            weekdate = weekdate + 1;
+            if(weekdate == 8){
+              weekdate = 1;
+            }
             rtnResult.push(resJson);
         }
         console.log('Request: ' + JSON.stringify(rtnResult));
@@ -68,6 +84,7 @@ router.post('/getWorklogByUserAndMonth', function(req, res, next) {
             return res.json(responseMessage(1, rtnResult, 'No worklog existed'));
         }
     })
+  });
 });
 
 //Get worklog by user id and Date
