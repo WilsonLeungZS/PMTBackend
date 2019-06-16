@@ -4,6 +4,8 @@ var Reference = require('../model/reference');
 var Task = require('../model/task/task');
 var User = require('../model/user');
 var Team = require('../model//team/team');
+var TaskType = require('../model/task/task_type');
+var Worklog = require('../model/worklog');
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -27,6 +29,45 @@ router.get('/getInfo', function(req, res, next) {
       });
     });
   });
+});
+
+//External interface
+//Spider job to receive task list
+router.post('/receiveTaskList', function(req, res, next) {
+  var taskNumber = req.body.number;
+  var taskdesc = req.body.short_description;
+  var taskStatus = req.body.state;
+  var taskAssignTeam = req.body.assignment_group;
+  var taskAssignTo = req.body.assigned_to;
+  var taskCreatedTime = req.body.created;
+  var taskType = req.body.task_type;
+  var session = req.body.session;
+  var taskTotalEffort = req.body.task_effort;
+
+  Task.findOrCreate({
+    where: {TaskName: taskNumber}, 
+    defaults: {
+        ParentTaskName: req.body.tParentTaskName,
+        TaskName: req.body.tTaskName,
+        Description: req.body.tDescription,
+        TaskTypeId: req.body.tTaskTypeId,
+        Priority: req.body.tPriority,
+        Status: req.body.tStatus,
+        Creator: req.body.tCreator,
+        Effort: req.body.tEffort,
+        Estimation: req.body.tEstimation,
+        StartDate: req.body.tStartDate,
+        DueDate: req.body.tDueDate
+    }})
+  .spread(function(task, created) {
+    if(created) {
+      console.log("Task created");
+      return res.json(responseMessage(0, task, ''));
+    } else {
+      console.log("Task existed");
+      return res.json(responseMessage(1, null, 'Task existed'));
+    }
+});
 });
 
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
