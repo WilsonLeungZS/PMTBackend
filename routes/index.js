@@ -1,3 +1,4 @@
+var Logger  = require("../config/logConfig");
 var express = require('express');
 var router = express.Router();
 var Reference = require('../model/reference');
@@ -9,6 +10,7 @@ var Worklog = require('../model/worklog');
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
+  Logger.info('Index log');
   return res.json({message: 'Response index resource'});
 });
 
@@ -124,7 +126,7 @@ router.post('/receiveTaskList', function(req, res, next) {
         });
       }); //End find team
     }); // End find task type
-  }// End loop
+  } // End loop
 });
 
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
