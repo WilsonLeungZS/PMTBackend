@@ -14,6 +14,7 @@ var Team = sequelize.define('team', {
     },
     Description: { type: Sequelize.STRING },
     IsActive: { type: Sequelize.BOOLEAN },
+    Mapping: { type: Sequelize.STRING},
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,

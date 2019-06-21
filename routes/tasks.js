@@ -269,7 +269,7 @@ router.post('/addTaskType', function(req, res, next) {
         where: {Name: req.body.taskTypeName}, 
         defaults: {
           Name: req.body.taskTypeName,
-          Category: req.body.taskTypeCategory,
+          Category: req.body.taskTypeCategory
         }})
       .spread(function(taskType, created) {
         if(created) {

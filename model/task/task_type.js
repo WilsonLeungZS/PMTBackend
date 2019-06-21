@@ -16,6 +16,7 @@ var TaskType = sequelize.define('task_type', {
         type: Sequelize.STRING,
         allowNull: false
     },
+    Value: { type: Sequelize.STRING },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
