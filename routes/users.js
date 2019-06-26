@@ -3,6 +3,7 @@ var express = require('express');
 var router = express.Router();
 var User = require('../model/user');
 var Team = require('../model/team/team');
+var Logger  = require("../config/logConfig");
 
 const Op = Sequelize.Op;
 

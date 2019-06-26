@@ -80,6 +80,7 @@ router.post('/getTaskByName', function(req, res, next) {
             var resJson = {};
             resJson.task_id = task[i].Id;
             resJson.task_name = task[i].TaskName;
+            resJson.task_desc = task[i].Description;
             resJson.task_type = task[i].task_type.Name;
             if(task[i].Estimation != null && task[i].Estimation > 0){
               var percentage =  "" + toPercent(task[i].Effort / task[i].Estimation);
