@@ -68,7 +68,10 @@ router.post('/getTaskByName', function(req, res, next) {
       attributes: ['Name']
     }],
     where: {
-      TaskName: {[Op.like]:'%' + req.body.tTaskName + '%'}
+      [Op.or]: [
+        {TaskName: {[Op.like]:'%' + req.body.tTaskName + '%'}},
+        {Description: {[Op.like]:'%' + req.body.tTaskName + '%'}}
+      ]
     },
     limit:100,
     order: [
