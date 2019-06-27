@@ -46,6 +46,21 @@ router.post('/receiveTaskList', function(req, res, next) {
   var taskTotalEffort = req.body.task_effort;
   var taskCategorization = req.body.path;
 
+  try{
+    Logger.info('Start 1');
+    Logger.info(req);
+    Logger.info('Request Data: ' + JSON.stringify(req.body));
+    Logger.info('Task Number: ' + taskNumber + ', Length: ' + taskNumber.length);
+    Logger.info('Task Desc: ' + taskdesc + ', Length: ' + taskdesc.length);
+    Logger.info('Task Status: ' + taskStatus + ', Length: ' + taskStatus.length);
+    Logger.info('Task Assign Team: ' + taskAssignTeam + ', Length: ' + taskAssignTeam.length);
+    Logger.info('Task Effort: ' + taskTotalEffort);
+    Logger.info('Task Path: ' + taskCategorization);
+  } catch(err) {
+    Logger.info('Error occurred: ' + err);
+  }
+  Logger.info('End 1');
+
   var taskCollection = [];
   for(var i=0; i<taskNumber.length; i++){
     var taskJson = {};
@@ -55,7 +70,7 @@ router.post('/receiveTaskList', function(req, res, next) {
     taskJson.AssignTeam = taskAssignTeam[i].toUpperCase();
     taskJson.NeedSubTask = false;
     var taskTotalEffortNum = 0;
-    if(taskTotalEffort != null && taskTotalEffort.length > 0){
+    if(taskTotalEffort != null && taskTotalEffort != undefined){
       taskTotalEffortNum = Number(taskTotalEffort[i]);
       console.log('Task Number: '+ taskTotalEffortNum);
     }
@@ -72,7 +87,7 @@ router.post('/receiveTaskList', function(req, res, next) {
     else if(taskNumber[i].toUpperCase().startsWith('LEAVE')){
       taskJson.TaskType = 'Leave';
     }
-    else if(taskCategorization != null && taskCategorization.length > 0){
+    else if(taskCategorization != null && taskCategorization != undefined ){
       if(taskCategorization[i].toUpperCase().startsWith("SERVICE")){
         taskJson.TaskType = 'Service Request';
       } else {
