@@ -282,11 +282,13 @@ router.get('/queryTimesheet', function(req, res, next) {
         TaskName: reqTaskName.toUpperCase()
       }
     }).then(function(task) {
-      var resJson = {};
-      resJson.effort = task.Effort;
-      resJson.task_number = task.TaskName;
-      resJson.task_type = task.task_type.Name;
-      rtnResult.push(resJson);
+      if(task != null){
+        var resJson = {};
+        resJson.effort = task.Effort;
+        resJson.task_number = task.TaskName;
+        resJson.task_type = task.task_type.Name;
+        rtnResult.push(resJson);
+      }
       return res.json({result: rtnResult, error: ''});
     });
   }
