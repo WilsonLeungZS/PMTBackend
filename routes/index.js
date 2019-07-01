@@ -238,7 +238,7 @@ router.get('/queryTimesheet', function(req, res, next) {
       include: [{
           model: Task,
           attributes: ['ParentTaskName', 'TaskName'],
-          include: [{model: TaskType, attributes: ['Name'],}]
+          include: [{model: TaskType, attributes: ['Name', 'Category'],}]
       },{
         model: User,
         attributes: ['Name']
@@ -262,7 +262,15 @@ router.get('/queryTimesheet', function(req, res, next) {
           } else {
             resJson.task_number = worklogs[i].task.TaskName;
           }
-          resJson.task_type = worklogs[i].task.task_type.Name;
+          if(worklogs[i].task.task_type.Name == 'Change'){
+            resJson.task_type = worklogs[i].task.task_type.Category;
+          }
+          else if(worklogs[i].task.task_type.Category == 'AM'){
+            resJson.task_type = worklogs[i].task.task_type.Category;
+          }
+          else {
+            resJson.task_type = worklogs[i].task.task_type.Name;
+          }
           resJson.user_name = worklogs[i].user.Name;
           resJson.work_date = worklogs[i].WorklogMonth + '-' + worklogs[i].WorklogDay;
           rtnResult.push(resJson);
@@ -286,7 +294,6 @@ router.get('/queryTimesheet', function(req, res, next) {
         var resJson = {};
         resJson.effort = task.Effort;
         resJson.task_number = task.TaskName;
-        resJson.task_type = task.task_type.Name;
         rtnResult.push(resJson);
       }
       return res.json({result: rtnResult, error: ''});
