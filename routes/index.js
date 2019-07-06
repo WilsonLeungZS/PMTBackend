@@ -18,6 +18,7 @@ router.get('/', function(req, res, next) {
 });
 
 router.get('/getInfo', function(req, res, next) {
+  Logger.info('Start to get Information');
   var rtnResult = [];
   var resJson = {}
   Reference.findOne({where: {Name: 'ProjectName'}}).then(function(reference){
@@ -45,21 +46,6 @@ router.post('/receiveTaskList', function(req, res, next) {
   var taskAssignTeam = req.body.assignment_group;
   var taskTotalEffort = req.body.task_effort;
   var taskCategorization = req.body.path;
-
-  try{
-    Logger.info('Start 1');
-    Logger.info(req);
-    Logger.info('Request Data: ' + JSON.stringify(req.body));
-    Logger.info('Task Number: ' + taskNumber + ', Length: ' + taskNumber.length);
-    Logger.info('Task Desc: ' + taskdesc + ', Length: ' + taskdesc.length);
-    Logger.info('Task Status: ' + taskStatus + ', Length: ' + taskStatus.length);
-    Logger.info('Task Assign Team: ' + taskAssignTeam + ', Length: ' + taskAssignTeam.length);
-    Logger.info('Task Effort: ' + taskTotalEffort);
-    Logger.info('Task Path: ' + taskCategorization);
-  } catch(err) {
-    Logger.info('Error occurred: ' + err);
-  }
-  Logger.info('End 1');
 
   var taskCollection = [];
   for(var i=0; i<taskNumber.length; i++){
