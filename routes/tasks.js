@@ -2,7 +2,8 @@ var Sequelize = require('sequelize');
 var express = require('express');
 var router = express.Router();
 var TaskType = require('../model/task/task_type');
-var Task = require('../model/task/task')
+var Task = require('../model/task/task');
+var Team = require('../model/team/team');
 
 const Op = Sequelize.Op;
 
@@ -27,9 +28,9 @@ router.get('/getAllTasksLimited', function(req, res, next) {
       for(var i=0;i<task.length;i++){
         var resJson = {};
         resJson.task_id = task[i].Id;
-        resJson.task_nbr = task[i].TaskNumber;
+        resJson.task_name = task[i].TaskName;
         resJson.task_type = task[i].task_type.Name;
-        if(task[i].Estimation != null){
+        if(task[i].Estimation != null && task[i].Estimation > 0){
           var percentage =  "" + toPercent(task[i].Effort / task[i].Estimation);
           resJson.task_progress = percentage.replace("%","");
         } else {
@@ -47,7 +48,7 @@ router.get('/getAllTasksLimited', function(req, res, next) {
 router.post('/getTaskByCreatedDate', function(req, res, next) {
     Task.findAll({
         where: {
-            TaskNumber: req.body.tTaskNumber,
+            TaskName: req.body.tTaskName,
             createdAt: { [Op.gt]: req.body.tCreatedDate}
         }
     }).then(function(task) {
@@ -59,7 +60,7 @@ router.post('/getTaskByCreatedDate', function(req, res, next) {
     })
 });
 
-router.post('/getTaskByNumber', function(req, res, next) {
+router.post('/getTaskByName', function(req, res, next) {
   var rtnResult = [];
   Task.findAll({
     include: [{
@@ -67,8 +68,12 @@ router.post('/getTaskByNumber', function(req, res, next) {
       attributes: ['Name']
     }],
     where: {
-      TaskNumber: {[Op.like]:'%' + req.body.tNumber + '%'}
+      [Op.or]: [
+        {TaskName: {[Op.like]:'%' + req.body.tTaskName + '%'}},
+        {Description: {[Op.like]:'%' + req.body.tTaskName + '%'}}
+      ]
     },
+    limit:100,
     order: [
       ['updatedAt', 'DESC']
     ]
@@ -77,9 +82,10 @@ router.post('/getTaskByNumber', function(req, res, next) {
           for(var i=0;i<task.length;i++){
             var resJson = {};
             resJson.task_id = task[i].Id;
-            resJson.task_nbr = task[i].TaskNumber;
+            resJson.task_name = task[i].TaskName;
+            resJson.task_desc = task[i].Description;
             resJson.task_type = task[i].task_type.Name;
-            if(task[i].Estimation != null){
+            if(task[i].Estimation != null && task[i].Estimation > 0){
               var percentage =  "" + toPercent(task[i].Effort / task[i].Estimation);
               resJson.task_progress = percentage.replace("%","");
             } else {
@@ -100,6 +106,10 @@ router.post('/getTaskById', function(req, res, next) {
       include: [{
         model: TaskType, 
         attributes: ['Name']
+      },
+      {
+          model: Team, 
+          attributes: ['Name']
       }],
       where: {
         Id: req.body.tId 
@@ -109,12 +119,18 @@ router.post('/getTaskById', function(req, res, next) {
           for(var i=0;i<task.length;i++){
             var resJson = {};
             resJson.task_id = task[i].Id;
-            resJson.task_nbr = task[i].TaskNumber;
+            resJson.task_parenttaskname = task[i].ParentTaskName;
+            resJson.task_name = task[i].TaskName;
             resJson.task_type = task[i].task_type.Name;
-            resJson.task_status = task[i].Status;
+            resJson.task_assign_team =  task[i].team.Name;
+            if(task[i].Status != null && !task[i].Status == ""){
+              resJson.task_status = task[i].Status;
+            } else {
+              resJson.task_status = "N/A";
+            }
             resJson.task_desc = task[i].Description;
             resJson.task_currenteffort = task[i].Effort;
-            if(task[i].Estimation != null){
+            if(task[i].Estimation != null && task[i].Estimation >0){
               resJson.task_totaleffort =  task[i].Estimation;
               resJson.task_progress = toPercent(task[i].Effort / task[i].Estimation);
               var percentage =  "" + toPercent(task[i].Effort / task[i].Estimation);
@@ -133,15 +149,90 @@ router.post('/getTaskById', function(req, res, next) {
   })
 });
 
+router.post('/getTaskByCompletedName', function(req, res, next) {
+  var rtnResult = [];
+  Task.findAll({
+      include: [{
+        model: TaskType, 
+        attributes: ['Name']
+      },
+      {
+          model: Team, 
+          attributes: ['Name']
+      }],
+      where: {
+        TaskName: req.body.tTaskName 
+      }
+  }).then(function(task) {
+      if(task.length > 0) {
+          for(var i=0;i<task.length;i++){
+            var resJson = {};
+            resJson.task_id = task[i].Id;
+            resJson.task_parenttaskname = task[i].ParentTaskName;
+            resJson.task_name = task[i].TaskName;
+            resJson.task_type = task[i].task_type.Name;
+            resJson.task_assign_team =  task[i].team.Name;
+            if(task[i].Status != null && !task[i].Status == ""){
+              resJson.task_status = task[i].Status;
+            } else {
+              resJson.task_status = "N/A";
+            }
+            resJson.task_desc = task[i].Description;
+            resJson.task_currenteffort = task[i].Effort;
+            if(task[i].Estimation != null && task[i].Estimation >0){
+              resJson.task_totaleffort =  task[i].Estimation;
+              resJson.task_progress = toPercent(task[i].Effort / task[i].Estimation);
+              var percentage =  "" + toPercent(task[i].Effort / task[i].Estimation);
+              resJson.task_progress_nosymbol = percentage.replace("%","");
+            } else {
+              resJson.task_totaleffort = "0"
+              resJson.task_progress = "0";
+              resJson.task_progress_nosymbol = "0";
+            }
+            rtnResult.push(resJson);
+          }
+          return res.json(responseMessage(0, rtnResult, ''));
+      } else {
+          return res.json(responseMessage(1, null, 'No task exist'));
+      }
+  })
+});
+
+router.post('/getSubTaskByParentTaskName', function(req, res, next) {
+  var rtnResult = [];
+  Task.findAll({
+    attributes: ['Id', 'TaskName'],
+    where: {
+      ParentTaskName: req.body.tTaskName
+    },
+    order: [
+      ['Id', 'ASC']
+    ]
+  }).then(function(task) {
+      if(task.length > 0) {
+          for(var i=0;i<task.length;i++){
+            var resJson = {};
+            resJson.task_subtask_id = task[i].Id;
+            resJson.task_subtask_name = task[i].TaskName;
+            rtnResult.push(resJson);
+          }
+          return res.json(responseMessage(0, rtnResult, ''));
+      } else {
+          return res.json(responseMessage(1, null, 'No task exist'));
+      }
+  })
+});
+
+
 router.post('/addTask', function(req, res, next) {
-    if (req.body.tTaskNumber == undefined || req.body.tTaskNumber == '') {
+    if (req.body.tTaskName == undefined || req.body.tTaskName == '') {
         return res.json(responseMessage(1, null, 'Task number is empty'));
     }
     Task.findOrCreate({
-        where: {TaskNumber: req.body.tTaskNumber}, 
+        where: {TaskName: req.body.tTaskName}, 
         defaults: {
-            ParentTaskId: req.body.tParentTaskId,
-            TaskNumber: req.body.tTaskNumber,
+            ParentTaskName: req.body.tParentTaskName,
+            TaskName: req.body.tTaskName,
             Description: req.body.tDescription,
             TaskTypeId: req.body.tTaskTypeId,
             Priority: req.body.tPriority,
@@ -182,7 +273,7 @@ router.post('/addTaskType', function(req, res, next) {
         where: {Name: req.body.taskTypeName}, 
         defaults: {
           Name: req.body.taskTypeName,
-          Category: req.body.taskTypeCategory,
+          Category: req.body.taskTypeCategory
         }})
       .spread(function(taskType, created) {
         if(created) {

@@ -1,6 +1,7 @@
 var Sequelize = require('sequelize');
 var sequelize = require('../config/db');
 var moment = require('moment');
+var Team = require('./team/team');
 
 var User = sequelize.define('user', {
     Id:{ 
@@ -15,15 +16,12 @@ var User = sequelize.define('user', {
     Email: {
         type: Sequelize.STRING
     },
-    Team: {
-        type: Sequelize.INTEGER
-    },
-    Enabled: {
+    IsActive: {
         type: Sequelize.BOOLEAN,
         allowNull: false
     },
-    Admin: {
-        type: Sequelize.BOOLEAN,
+    Role: {
+        type: Sequelize.STRING,
         allowNull: false
     },
     createdAt: {
@@ -45,6 +43,8 @@ var User = sequelize.define('user', {
 }, {
     freezeTableName: false
 });
+
+User.belongsTo(Team, {foreignKey: 'TeamId'});
 
 User.sync();
 module.exports = User;

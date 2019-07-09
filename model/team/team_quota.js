@@ -1,21 +1,19 @@
 var Sequelize = require('sequelize');
 var sequelize = require('../../config/db');
 var moment = require('moment');
+var Team = require('./team');
+var TaskType = require('../task/task_type');
 
-var TeamTask = sequelize.define('team_task', {
+var TeamQuota = sequelize.define('team_quota', {
     Id:{ 
         type:Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement:true
     },
-    TeamId: {
-        type:Sequelize.INTEGER,
-        allowNull: false
-    },
-    TaskId: {
-        type:Sequelize.INTEGER,
-        allowNull: false
-    },
+    Team: { type:Sequelize.STRING },
+    Quota: { type:Sequelize.STRING },
+    Value: { type:Sequelize.STRING },
+    Period: { type:Sequelize.STRING },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
@@ -36,5 +34,8 @@ var TeamTask = sequelize.define('team_task', {
     freezeTableName: false
 });
 
-TeamTask.sync();
-module.exports = TeamTask;
+TeamQuota.belongsTo(TaskType, {foreignKey: 'TaskTypeId'});
+TeamQuota.belongsTo(Team, {foreignKey: 'TeamId'});
+
+TeamQuota.sync();
+module.exports = TeamQuota;
