@@ -1,21 +1,17 @@
 var Sequelize = require('sequelize');
-var sequelize = require('../../config/db');
+var sequelize = require('../config/db');
 var moment = require('moment');
 
-var TeamUser = sequelize.define('team_user', {
+var Reference = sequelize.define('reference', {
     Id:{ 
         type:Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement:true
     },
-    TeamId: {
-        type:Sequelize.INTEGER,
-        allowNull: false
-    },
-    UserId: {
-        type:Sequelize.INTEGER,
-        allowNull: false
-    },
+    Name: { type: Sequelize.STRING },
+    Type: { type: Sequelize.STRING },
+    Value: { type: Sequelize.STRING },
+    Remark: { type: Sequelize.STRING },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
@@ -36,5 +32,6 @@ var TeamUser = sequelize.define('team_user', {
     freezeTableName: false
 });
 
-TeamUser.sync();
-module.exports = TeamUser;
+Reference.sync();
+module.exports = Reference;
+
