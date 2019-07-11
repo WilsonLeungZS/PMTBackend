@@ -10,8 +10,8 @@ var http = require('https');
 var fs = require("fs");
 // Configuare https
 const httpsOption = {
-    key : fs.readFileSync("./bin/https/2256614_pmt.gzatcc.com.key"),
-    cert: fs.readFileSync("./bin/https/2256614_pmt.gzatcc.com.crt")
+    key : fs.readFileSync("./bin/https/ipo.getsvc.com.key"),
+    cert: fs.readFileSync("./bin/https/ipo.getsvc.com.crt")
 }
 
 /**
