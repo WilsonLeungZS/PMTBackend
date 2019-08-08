@@ -4,6 +4,8 @@ var Worklog = require('../model/worklog');
 var Task = require('../model/task/task');
 var TaskType = require('../model/task/task_type');
 var Reference = require('../model/reference');
+var User = require('../model/user')
+var Team = require('../model/team/team')
 
 /* GET users listing. */
 router.get('/', function(req, res, next) {
@@ -85,6 +87,91 @@ router.post('/getWorklogByUserAndMonth', function(req, res, next) {
         }
     })
   });
+});
+
+//Get worklog by user id and month for web timesheet
+router.post('/getWorklogByUserAndMonthForWeb', function(req, res, next) {
+  var reqWorklogUserId = req.body.wUserId;
+  var reqWorklogMonth = req.body.wWorklogMonth;
+  var rtnResult = [];
+  Worklog.findAll({
+    include: [{
+        model: Task,
+        attributes: ['Id', 'TaskName']
+    }],
+    where: {
+        UserId: reqWorklogUserId,
+        WorklogMonth: reqWorklogMonth
+    }
+  }).then(function(worklog) {
+    if(worklog.length > 0) {
+      for(var i=0; i< worklog.length; i++) {
+        var resJson = {};
+        var index = getIndexOfValueInArr(rtnResult, 'task_id', worklog[i].task.Id);
+        if (index == -1 ) {
+          resJson['task_id'] = worklog[i].task.Id;
+          resJson['task'] = worklog[i].task.TaskName;
+          resJson['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+          rtnResult.push(resJson);
+        } else {
+          var item = rtnResult[index];
+          if(item['task_id'] == worklog[i].task.Id) {
+            item['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+          }
+        }
+      }
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No worklog existed'));
+    }
+  })
+});
+
+//Get team worklog by team and month for web timesheet
+router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
+  var reqWorklogTeamId = req.body.wTeamId;
+  var reqWorklogMonth = req.body.wWorklogMonth;
+  var rtnResult = [];
+  Worklog.findAll({
+    include: [{
+        model: Task,
+        attributes: ['TaskName']
+    },{
+      model: User,
+      attributes: ['Name'],
+      include: [{
+        model: Team, 
+        attributes: ['Id', 'Name'],
+        where: {
+          Id: reqWorklogTeamId
+        }
+      }]
+    }],
+    where: {
+      WorklogMonth: reqWorklogMonth
+    }
+  }).then(function(worklog) {
+    if(worklog.length > 0) {
+      /*for(var i=0; i< worklog.length; i++) {
+        var resJson = {};
+        var index = getIndexOfValueInArr(rtnResult, 'task_id', worklog[i].task.Id);
+        if (index == -1 ) {
+          resJson['task_id'] = worklog[i].task.Id;
+          resJson['task'] = worklog[i].task.TaskName;
+          resJson['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+          rtnResult.push(resJson);
+        } else {
+          var item = rtnResult[index];
+          if(item['task_id'] == worklog[i].task.Id) {
+            item['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+          }
+        }
+      }*/
+      return res.json(responseMessage(0, worklog, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No worklog existed'));
+    }
+  })
 });
 
 //Get worklog by user id and Date
@@ -265,6 +352,16 @@ function toPercent(point){
   var str=Number(point*100).toFixed(0);
   str+="%";
   return str;
+}
+
+function getIndexOfValueInArr(iArray, iKey, iValue) {
+  for(var i=0; i<iArray.length;i++) {
+    var item = iArray[i];
+    if(item[iKey] == iValue){
+      return i;
+    }
+  }
+  return -1;
 }
 
 module.exports = router;
