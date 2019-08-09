@@ -5,8 +5,14 @@
  */
 
 var app = require('../app');
-var debug = require('debug')('pmtbackend:server');
-var http = require('http');
+var debug = require('debug')('pmtserver:server');
+var http = require('https');
+var fs = require("fs");
+// Configuare https
+const httpsOption = {
+    key : fs.readFileSync("./bin/https/2256614_pmt.gzatcc.com.key"),
+    cert: fs.readFileSync("./bin/https/2256614_pmt.gzatcc.com.crt")
+}
 
 /**
  * Get port from environment and store in Express.
@@ -19,7 +25,7 @@ app.set('port', port);
  * Create HTTP server.
  */
 
-var server = http.createServer(app);
+var server = http.createServer(httpsOption, app);
 
 /**
  * Listen on provided port, on all network interfaces.

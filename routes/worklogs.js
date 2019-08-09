@@ -1,3 +1,5 @@
+var Sequelize = require('sequelize');
+const Op = Sequelize.Op;
 var express = require('express');
 var router = express.Router();
 var Worklog = require('../model/worklog');
@@ -135,10 +137,13 @@ router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
   Worklog.findAll({
     include: [{
         model: Task,
-        attributes: ['TaskName']
+        attributes: ['Id', 'TaskName']
     },{
       model: User,
       attributes: ['Name'],
+      where: {
+        Id: { [Op.ne]: null }
+      },
       include: [{
         model: Team, 
         attributes: ['Id', 'Name'],
@@ -152,22 +157,41 @@ router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
     }
   }).then(function(worklog) {
     if(worklog.length > 0) {
-      /*for(var i=0; i< worklog.length; i++) {
+      for(var i=0; i<worklog.length; i++) {
         var resJson = {};
-        var index = getIndexOfValueInArr(rtnResult, 'task_id', worklog[i].task.Id);
+        var index = getIndexOfValueInArr(rtnResult, 'user', worklog[i].user.Name);
         if (index == -1 ) {
-          resJson['task_id'] = worklog[i].task.Id;
-          resJson['task'] = worklog[i].task.TaskName;
-          resJson['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+          resJson['team'] = worklog[i].user.team.Name;
+          resJson['user'] = worklog[i].user.Name;
+          resJson['month'] = worklog[i].WorklogMonth;
+          resJson['timesheetData'] = [];
           rtnResult.push(resJson);
         } else {
-          var item = rtnResult[index];
-          if(item['task_id'] == worklog[i].task.Id) {
-            item['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+          continue;
+        }
+      }
+      for(var a=0; a<rtnResult.length; a++) {
+        var timesheetDataArray = [];
+        for(var i=0; i<worklog.length; i++) {
+          if(worklog[i].user.Name == rtnResult[a].user) {
+            var resJson = {};
+            var index = getIndexOfValueInArr(timesheetDataArray, 'task_id', worklog[i].task.Id);
+            if (index == -1 ) {
+              resJson['task_id'] = worklog[i].task.Id;
+              resJson['task'] = worklog[i].task.TaskName;
+              resJson['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+              timesheetDataArray.push(resJson);
+            } else {
+              var item = timesheetDataArray[index];
+              if(item['task_id'] == worklog[i].task.Id) {
+                item['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+              }
+            }
+            rtnResult[a].timesheetData = timesheetDataArray;
           }
         }
-      }*/
-      return res.json(responseMessage(0, worklog, ''));
+      }
+      return res.json(responseMessage(0, rtnResult, ''));
     } else {
       return res.json(responseMessage(1, null, 'No worklog existed'));
     }
