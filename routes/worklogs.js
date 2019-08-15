@@ -198,6 +198,40 @@ router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
   })
 });
 
+//Get worklog by worklog information
+router.post('/getWorklogForWeb', function(req, res, next) {
+  var reqUserId = req.body.wUserId;
+  var reqTaskId = req.body.wTaskId;
+  var reqWorklogMonth = req.body.wWorklogMonth;
+  var reqWorklogDay = req.body.wWorklogDay;
+  var rtnResult = [];
+  Worklog.findOne({
+    include: [{
+        model: Task,
+        attributes: ['Id', 'TaskName']
+    }],
+    where: {
+        UserId: reqUserId,
+        TaskId: reqTaskId,
+        WorklogMonth: reqWorklogMonth,
+        WorklogDay: reqWorklogDay
+    }
+    }).then(function(worklog) {
+      if(worklog != null) {
+        var resJson = {};
+        resJson.worklog_id = worklog.Id;
+        resJson.worklog_task_id = worklog.task.Id;
+        resJson.worklog_task_name = worklog.task.TaskName;
+        resJson.worklog_effort = worklog.Effort;
+        resJson.worklog_remark = worklog.Remark;
+        rtnResult.push(resJson);
+        return res.json(responseMessage(0, rtnResult, ''));
+      } else {
+        return res.json(responseMessage(1, null, 'No worklog existed'));
+      }
+    })
+});
+
 //Get worklog by user id and Date
 router.post('/getWorklogByUserAndDate', function(req, res, next) {
   var reqWorklogUserId = req.body.wUserId;
@@ -282,7 +316,17 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
   var newWorklogEffort = req.body.wEffort;
   console.log('Request: ' + JSON.stringify(req.body));
   Worklog.findOrCreate({
-      where: {Id: req.body.wId}, 
+      where: {
+        [Op.or]: [
+          // { Id: req.body.wId }, 
+          {
+            UserId: req.body.wUserId,
+            TaskId: req.body.wTaskId,
+            WorklogMonth: req.body.wWorklogMonth,
+            WorklogDay: req.body.wWorklogDay,
+          }
+        ]
+      }, 
       defaults: {
         Remark: req.body.wRemark,
         Effort: req.body.wEffort,
@@ -358,7 +402,7 @@ router.post('/removeWorklogById', function(req, res, next) {
             Task.update({Effort: taskEffort}, {where: {Id: worklog[0].TaskId}});
           }
         });
-        Worklog.destroy({where: {Id: req.body.wId}});
+        Worklog.update({Effort: -1}, {where: {Id: req.body.wId}});
         return res.json(responseMessage(0, null, 'Remove worklog successfully'));
       } else {
         return res.json(responseMessage(1, null, 'Remove worklog fail'));
