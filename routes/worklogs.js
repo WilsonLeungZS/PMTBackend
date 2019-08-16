@@ -98,12 +98,13 @@ router.post('/getWorklogByUserAndMonthForWeb', function(req, res, next) {
   var rtnResult = [];
   Worklog.findAll({
     include: [{
-        model: Task,
-        attributes: ['Id', 'TaskName']
+      model: Task,
+      attributes: ['Id', 'TaskName']
     }],
     where: {
-        UserId: reqWorklogUserId,
-        WorklogMonth: reqWorklogMonth
+      UserId: reqWorklogUserId,
+      WorklogMonth: reqWorklogMonth,
+      Effort: { [Op.ne]: 0 }
     }
   }).then(function(worklog) {
     if(worklog.length > 0) {
@@ -153,7 +154,8 @@ router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
       }]
     }],
     where: {
-      WorklogMonth: reqWorklogMonth
+      WorklogMonth: reqWorklogMonth,
+      Effort: { [Op.ne]: 0 }
     }
   }).then(function(worklog) {
     if(worklog.length > 0) {
@@ -277,12 +279,12 @@ router.post('/getWorklogById', function(req, res, next) {
   var rtnResult = [];
   Worklog.findOne({
     include: [{
-        model: Task,
-        attributes: ['Id', 'TaskName', 'Status', 'Effort', 'Estimation', 'Description'],
-        include: [{model: TaskType, attributes: ['Name'],}]
+      model: Task,
+      attributes: ['Id', 'TaskName', 'Status', 'Effort', 'Estimation', 'Description'],
+      include: [{model: TaskType, attributes: ['Name'],}]
     }],
     where: {
-        Id: reqWorklogId
+      Id: reqWorklogId
     }
     }).then(function(worklog) {
         if(worklog != null) {
