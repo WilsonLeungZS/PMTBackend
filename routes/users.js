@@ -145,7 +145,7 @@ router.post('/getUserById', function(req, res, next) {
     },
     include: [{
       model: Team,
-      attributes: ['Name']
+      attributes: ['Id', 'Name']
     }]
   })
   .then(function(user) {
@@ -156,6 +156,7 @@ router.post('/getUserById', function(req, res, next) {
         resJson.user_eid = user.Name;
         resJson.user_email = user.Email;
         resJson.user_team = user.team.Name;
+        resJson.user_teamid = user.team.Id;
         resJson.user_role = user.Role;
         if(team != null){
           var teamArray = [];
@@ -165,7 +166,6 @@ router.post('/getUserById', function(req, res, next) {
           resJson.user_team_array = teamArray;
           resJson.user_team_index = teamArray.indexOf(user.team.Name);
         } else {
-          console.log("Debug3");
           resJson.user_team_array = [];
           resJson.user_team_index = 0;
         }

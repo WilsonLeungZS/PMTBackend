@@ -387,10 +387,13 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
 });
 
 //Remove worklog
-router.post('/removeWorklogById', function(req, res, next) {
+router.post('/removeWorklog', function(req, res, next) {
   Worklog.findAll({
     where: {
-        Id: req.body.wId
+      UserId: req.body.wUserId,
+      TaskId: req.body.wTaskId,
+      WorklogMonth: req.body.wWorklogMonth,
+      WorklogDay: req.body.wWorklogDay
     },
     limit: 1
     }).then(function(worklog) {
@@ -404,7 +407,12 @@ router.post('/removeWorklogById', function(req, res, next) {
             Task.update({Effort: taskEffort}, {where: {Id: worklog[0].TaskId}});
           }
         });
-        Worklog.update({Effort: -1}, {where: {Id: req.body.wId}});
+        Worklog.update({Effort: 0}, {where: {
+          UserId: req.body.wUserId,
+          TaskId: req.body.wTaskId,
+          WorklogMonth: req.body.wWorklogMonth,
+          WorklogDay: req.body.wWorklogDay
+        }});
         return res.json(responseMessage(0, null, 'Remove worklog successfully'));
       } else {
         return res.json(responseMessage(1, null, 'Remove worklog fail'));
