@@ -236,10 +236,6 @@ router.get('/getTeamList', function(req, res, next) {
 
 //Add or update User
 router.post('/addOrUpdateTeam', function(req, res, next) {
-  //console.log('Request: ' + JSON.stringify(req.body));
-  if (req.body.reqTeamName == undefined || req.body.reqTeamName == '') {
-      return res.json(responseMessage(1, null, 'Team Name is empty'));
-  }
   var reqData = {};
   if( req.body.reqTeamId != "0"){
     reqData = { Id: req.body.reqTeamId };

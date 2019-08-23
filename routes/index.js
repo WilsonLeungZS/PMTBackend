@@ -104,7 +104,7 @@ router.post('/receiveTaskList', function(req, res, next) {
     var tName = taskObj.TaskName;
     var tDescription = taskObj.Description;
     var tStatus = taskObj.Status;
-    var tCreator = 'admin';
+    var tCreator = 'Default';
     var tEffort = 0;
     var tEstimation = taskObj.TotalEffort;
     var tTaskType = taskObj.TaskType;
@@ -161,7 +161,7 @@ router.post('/receiveTaskList', function(req, res, next) {
                 subtaskJson.TaskName = tName + ' - ' + subtaskArray[j];
                 subtaskJson.Description = tName + ' ' + subtaskArray[j] + ' Task';
                 subtaskJson.Status = 'N/A';
-                subtaskJson.Creator = 'admin';
+                subtaskJson.Creator = 'Default';
                 subtaskJson.Effort = 0;
                 subtaskJson.Estimation = 0;
                 subtaskJson.TaskTypeId = tTaskTypeId;
@@ -182,7 +182,7 @@ router.post('/receiveTaskList', function(req, res, next) {
                   TaskName:subtaskObj.TaskName, 
                   Description:subtaskObj.Description, 
                   Status:subtaskObj.Status, 
-                  Creator:subtaskObj.Creator = 'admin', 
+                  Creator:subtaskObj.Creator = 'Default', 
                   Effort:subtaskObj.Effort, 
                   Estimation:subtaskObj.Estimation, 
                   TaskTypeId:subtaskObj.TaskTypeId, 
