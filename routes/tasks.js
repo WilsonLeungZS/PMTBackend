@@ -126,7 +126,7 @@ router.post('/getTaskByCreatedDate', function(req, res, next) {
 
 router.post('/getTaskByName', function(req, res, next) {
   var rtnResult = [];
-  var taskKeyWord = req.body.tTaskName;
+  var taskKeyWord = req.body.tTaskName.trim();
   var criteria = {};
   if( req.body.tTaskTypeId == null || req.body.tTaskTypeId === '0'){
     criteria = {
@@ -207,6 +207,7 @@ router.post('/getTaskById', function(req, res, next) {
             resJson.task_id = task[i].Id;
             resJson.task_parenttaskname = task[i].ParentTaskName;
             resJson.task_name = task[i].TaskName;
+            resJson.task_creator = task[i].Creator;
             resJson.task_type = task[i].task_type.Name;
             resJson.task_type_id = task[i].task_type.Id;
             resJson.task_assign_team =  task[i].team.Name;
@@ -358,6 +359,7 @@ router.get('/getAllTaskType', function(req, res, next) {
         var resJson = {};
         resJson.type_id = taskType[i].Id;
         resJson.type_name = taskType[i].Name;
+        resJson.type_category = taskType[i].Category;
         resJson.type_value = taskType[i].Value;
         rtnResult.push(resJson);
       }
@@ -369,24 +371,35 @@ router.get('/getAllTaskType', function(req, res, next) {
 });
 
 router.post('/addTaskType', function(req, res, next) {
-    if (req.body.taskTypeName == undefined || req.body.taskTypeName == '') {
-        return res.json(responseMessage(1, null, 'Task type name is empty'));
+  var reqData = {}
+  if( req.body.taskTypeId != "0"){
+    reqData = { Id: req.body.taskTypeId };
+  } else {
+    reqData = { Name: req.body.taskTypeName };
+  }
+  TaskType.findOrCreate({
+    where: reqData, 
+    defaults: {
+      Name: req.body.taskTypeName,
+      Category: req.body.taskTypeCategory,
+      Value: req.body.taskTypeValue
+    }})
+  .spread(function(taskType, created) {
+    if(created) {
+      return res.json(responseMessage(0, taskType, 'Created task type successfully!'));
+    } 
+    else if(taskType != null && !created) {
+      taskType.update({
+        Name: req.body.taskTypeName,
+        Category: req.body.taskTypeCategory,
+        Value: req.body.taskTypeValue
+      });
+      return res.json(responseMessage(0, taskType, 'Updated task type successfully!'));
     }
-    TaskType.findOrCreate({
-        where: {Name: req.body.taskTypeName}, 
-        defaults: {
-          Name: req.body.taskTypeName,
-          Category: req.body.taskTypeCategory
-        }})
-      .spread(function(taskType, created) {
-        if(created) {
-          console.log("Task type created");
-          return res.json(responseMessage(0, taskType, ''));
-        } else {
-          console.log("Task type existed");
-          return res.json(responseMessage(1, null, 'Created failed: task type existed'));
-        }
-    });
+    else {
+      return res.json(responseMessage(1, null, 'Created task type failed'));
+    }
+  });
 });
 
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
