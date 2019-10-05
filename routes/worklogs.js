@@ -1,9 +1,13 @@
+var Sequelize = require('sequelize');
+const Op = Sequelize.Op;
 var express = require('express');
 var router = express.Router();
 var Worklog = require('../model/worklog');
 var Task = require('../model/task/task');
 var TaskType = require('../model/task/task_type');
 var Reference = require('../model/reference');
+var User = require('../model/user')
+var Team = require('../model/team/team')
 
 /* GET users listing. */
 router.get('/', function(req, res, next) {
@@ -87,6 +91,149 @@ router.post('/getWorklogByUserAndMonth', function(req, res, next) {
   });
 });
 
+//Get worklog by user id and month for web timesheet
+router.post('/getWorklogByUserAndMonthForWeb', function(req, res, next) {
+  var reqWorklogUserId = req.body.wUserId;
+  var reqWorklogMonth = req.body.wWorklogMonth;
+  var rtnResult = [];
+  Worklog.findAll({
+    include: [{
+      model: Task,
+      attributes: ['Id', 'TaskName', 'Description']
+    }],
+    where: {
+      UserId: reqWorklogUserId,
+      WorklogMonth: reqWorklogMonth,
+      Effort: { [Op.ne]: 0 }
+    }
+  }).then(function(worklog) {
+    if(worklog.length > 0) {
+      for(var i=0; i< worklog.length; i++) {
+        var resJson = {};
+        var index = getIndexOfValueInArr(rtnResult, 'task_id', worklog[i].task.Id);
+        if (index == -1 ) {
+          resJson['task_id'] = worklog[i].task.Id;
+          resJson['task'] = worklog[i].task.TaskName + ' - ' + worklog[i].task.Description;
+          resJson['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+          rtnResult.push(resJson);
+        } else {
+          var item = rtnResult[index];
+          if(item['task_id'] == worklog[i].task.Id) {
+            item['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+          }
+        }
+      }
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No worklog existed'));
+    }
+  })
+});
+
+//Get team worklog by team and month for web timesheet
+router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
+  var reqWorklogTeamId = req.body.wTeamId;
+  var reqWorklogMonth = req.body.wWorklogMonth;
+  var rtnResult = [];
+  Worklog.findAll({
+    include: [{
+        model: Task,
+        attributes: ['Id', 'TaskName', 'Description']
+    },{
+      model: User,
+      attributes: ['Name'],
+      where: {
+        Id: { [Op.ne]: null }
+      },
+      include: [{
+        model: Team, 
+        attributes: ['Id', 'Name'],
+        where: {
+          Id: reqWorklogTeamId
+        }
+      }]
+    }],
+    where: {
+      WorklogMonth: reqWorklogMonth,
+      Effort: { [Op.ne]: 0 }
+    }
+  }).then(function(worklog) {
+    if(worklog.length > 0) {
+      for(var i=0; i<worklog.length; i++) {
+        var resJson = {};
+        var index = getIndexOfValueInArr(rtnResult, 'user', worklog[i].user.Name);
+        if (index == -1 ) {
+          resJson['team'] = worklog[i].user.team.Name;
+          resJson['user'] = worklog[i].user.Name;
+          resJson['month'] = worklog[i].WorklogMonth;
+          resJson['timesheetData'] = [];
+          rtnResult.push(resJson);
+        } else {
+          continue;
+        }
+      }
+      for(var a=0; a<rtnResult.length; a++) {
+        var timesheetDataArray = [];
+        for(var i=0; i<worklog.length; i++) {
+          if(worklog[i].user.Name == rtnResult[a].user) {
+            var resJson = {};
+            var index = getIndexOfValueInArr(timesheetDataArray, 'task_id', worklog[i].task.Id);
+            if (index == -1 ) {
+              resJson['task_id'] = worklog[i].task.Id;
+              resJson['task'] = worklog[i].task.TaskName + ' - ' + worklog[i].task.Description;
+              resJson['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+              timesheetDataArray.push(resJson);
+            } else {
+              var item = timesheetDataArray[index];
+              if(item['task_id'] == worklog[i].task.Id) {
+                item['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+              }
+            }
+            rtnResult[a].timesheetData = timesheetDataArray;
+          }
+        }
+      }
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No worklog existed'));
+    }
+  })
+});
+
+//Get worklog by worklog information
+router.post('/getWorklogForWeb', function(req, res, next) {
+  var reqUserId = req.body.wUserId;
+  var reqTaskId = req.body.wTaskId;
+  var reqWorklogMonth = req.body.wWorklogMonth;
+  var reqWorklogDay = req.body.wWorklogDay;
+  var rtnResult = [];
+  Worklog.findOne({
+    include: [{
+        model: Task,
+        attributes: ['Id', 'TaskName']
+    }],
+    where: {
+        UserId: reqUserId,
+        TaskId: reqTaskId,
+        WorklogMonth: reqWorklogMonth,
+        WorklogDay: reqWorklogDay
+    }
+    }).then(function(worklog) {
+      if(worklog != null) {
+        var resJson = {};
+        resJson.worklog_id = worklog.Id;
+        resJson.worklog_task_id = worklog.task.Id;
+        resJson.worklog_task_name = worklog.task.TaskName;
+        resJson.worklog_effort = worklog.Effort;
+        resJson.worklog_remark = worklog.Remark;
+        rtnResult.push(resJson);
+        return res.json(responseMessage(0, rtnResult, ''));
+      } else {
+        return res.json(responseMessage(1, null, 'No worklog existed'));
+      }
+    })
+});
+
 //Get worklog by user id and Date
 router.post('/getWorklogByUserAndDate', function(req, res, next) {
   var reqWorklogUserId = req.body.wUserId;
@@ -132,12 +279,12 @@ router.post('/getWorklogById', function(req, res, next) {
   var rtnResult = [];
   Worklog.findOne({
     include: [{
-        model: Task,
-        attributes: ['Id', 'TaskName', 'Status', 'Effort', 'Estimation', 'Description'],
-        include: [{model: TaskType, attributes: ['Name'],}]
+      model: Task,
+      attributes: ['Id', 'TaskName', 'Status', 'Effort', 'Estimation', 'Description'],
+      include: [{model: TaskType, attributes: ['Name'],}]
     }],
     where: {
-        Id: reqWorklogId
+      Id: reqWorklogId
     }
     }).then(function(worklog) {
         if(worklog != null) {
@@ -171,7 +318,17 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
   var newWorklogEffort = req.body.wEffort;
   console.log('Request: ' + JSON.stringify(req.body));
   Worklog.findOrCreate({
-      where: {Id: req.body.wId}, 
+      where: {
+        [Op.or]: [
+          // { Id: req.body.wId }, 
+          {
+            UserId: req.body.wUserId,
+            TaskId: req.body.wTaskId,
+            WorklogMonth: req.body.wWorklogMonth,
+            WorklogDay: req.body.wWorklogDay,
+          }
+        ]
+      }, 
       defaults: {
         Remark: req.body.wRemark,
         Effort: req.body.wEffort,
@@ -230,10 +387,13 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
 });
 
 //Remove worklog
-router.post('/removeWorklogById', function(req, res, next) {
+router.post('/removeWorklog', function(req, res, next) {
   Worklog.findAll({
     where: {
-        Id: req.body.wId
+      UserId: req.body.wUserId,
+      TaskId: req.body.wTaskId,
+      WorklogMonth: req.body.wWorklogMonth,
+      WorklogDay: req.body.wWorklogDay
     },
     limit: 1
     }).then(function(worklog) {
@@ -247,13 +407,65 @@ router.post('/removeWorklogById', function(req, res, next) {
             Task.update({Effort: taskEffort}, {where: {Id: worklog[0].TaskId}});
           }
         });
-        Worklog.destroy({where: {Id: req.body.wId}});
+        Worklog.update({Effort: 0}, {where: {
+          UserId: req.body.wUserId,
+          TaskId: req.body.wTaskId,
+          WorklogMonth: req.body.wWorklogMonth,
+          WorklogDay: req.body.wWorklogDay
+        }});
         return res.json(responseMessage(0, null, 'Remove worklog successfully'));
       } else {
         return res.json(responseMessage(1, null, 'Remove worklog fail'));
       }
     });
 });
+
+//Get worklog history for web PMT
+router.post('/getWorklogHistoryByTaskId', function(req, res, next) {
+  var reqWorklogTaskId = req.body.wTaskId;
+  console.log(reqWorklogTaskId)
+  var rtnResult = [];
+  Worklog.findAll({
+    include: [{
+      model: User,
+      attributes: ['Name']
+    }],
+    where: {
+      TaskId: Number(reqWorklogTaskId),
+      Effort: { [Op.ne]: 0 }
+    }
+  }).then(function(worklog) {
+    if(worklog != null && worklog.length >0){
+      for(var i=0; i<worklog.length;i++){
+        var resJson = {};
+        resJson.timestamp = worklog[i].WorklogMonth + '-' + worklog[i].WorklogDay
+        resJson.content = worklog[i].user.Name + ' recorded ' + worklog[i].Effort + ' hours'
+        rtnResult.push(resJson)
+      }
+      rtnResult = sortArray(rtnResult, 'timestamp')
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'Worklog history not found'));
+    }
+  })
+});
+
+function sortArray(iArray, iKey)
+{
+  var len = iArray.length;
+  for (var i = 0; i < len; i++) {
+    for (var j = 0; j < len - 1 - i; j++) {
+      var itemI = iArray[j]
+      var itemJ = iArray[j+1]
+      if (itemI[iKey] < itemJ[iKey]) {      
+        var temp = iArray[j+1];       
+        iArray[j+1] = iArray[j];
+        iArray[j] = temp;
+      }
+    }
+  }
+  return iArray;
+}
 
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
   var resJson = {}; 
@@ -262,9 +474,19 @@ function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
 }
 
 function toPercent(point){
-  var str=Number(point*100).toFixed(0);
+  var str = Number(point*100).toFixed(0);
   str+="%";
   return str;
+}
+
+function getIndexOfValueInArr(iArray, iKey, iValue) {
+  for(var i=0; i<iArray.length;i++) {
+    var item = iArray[i];
+    if(item[iKey] == iValue){
+      return i;
+    }
+  }
+  return -1;
 }
 
 module.exports = router;

@@ -1,3 +1,6 @@
 bin/https/
 config/db.js
 node_modules/
+logs/
+bin/
+bin/www
