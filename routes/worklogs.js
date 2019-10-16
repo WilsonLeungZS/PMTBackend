@@ -200,6 +200,124 @@ router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
   })
 });
 
+router.post('/getWorklogTaskByMonthForWeb', function(req, res, next) {
+  var reqWorklogMonth = req.body.sWorklogMonth;
+  var rtnResult = [];
+  Worklog.findAll({
+    include: [{
+      model: Task,
+      attributes: ['Id', 'TaskName', 'Description', 'Status', 'Effort', 'Estimation'],
+      where: {
+        Id: { [Op.ne]: null }
+      },
+      include: [{
+        model: Team, 
+        attributes: ['Name']
+      }, {
+        model: TaskType, 
+        attributes: ['Name'],
+        where: {
+          [Op.or]: [
+            {Name: 'Change'},
+            {Name: 'App Admin'}
+          ]
+        }
+      }]
+    }],
+    where: {
+      WorklogMonth: reqWorklogMonth,
+      Effort: { [Op.ne]: 0 }
+    }
+  }).then(function(worklog) {
+    if(worklog.length > 0) {
+      for(var i=0; i<worklog.length; i++) {
+        var resJson = {};
+        var index = getIndexOfValueInArr(rtnResult, 'tl_task', worklog[i].task.TaskName);
+        if (index == -1 ) {
+          resJson['tl_task'] = worklog[i].task.TaskName;
+          resJson['tl_assignteam'] = worklog[i].task.team.Name;
+          resJson['tl_status'] = worklog[i].task.Status;
+          resJson['tl_estimation'] = worklog[i].task.Estimation;
+          resJson['tl_effort'] = worklog[i].task.Effort;
+          resJson['tl_montheffort'] = worklog[i].Effort;
+          rtnResult.push(resJson);
+        } else {
+          rtnResult[index]['tl_montheffort'] = rtnResult[index]['tl_montheffort'] + worklog[i].Effort;
+        }
+      }
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No worklog existed'));
+    }
+  })
+});
+
+router.post('/getWorklogByMonthForWeb', function(req, res, next) {
+  var reqWorklogMonth = req.body.sWorklogMonth;
+  var reqTaskName = req.body.sWorklogTask;
+  var rtnResult = [];
+  Worklog.findAll({
+    include: [{
+      model: Task,
+      attributes: ['Id', 'TaskName', 'Status', 'Description', 'Effort', 'Estimation'],
+      where: {
+        Id: { [Op.ne]: null },
+        TaskName: reqTaskName
+      },
+      include: [{
+        model: Team, 
+        attributes: ['Name']
+      }, {
+        model: TaskType, 
+        attributes: ['Name']
+      }]
+    }, {
+      model: User,
+      attributes: ['Id', 'Name'],
+    }],
+    where: {
+      WorklogMonth: reqWorklogMonth,
+      Effort: { [Op.ne]: 0 },
+      Id: { [Op.ne]: null }
+    }
+  }).then(function(worklog) {
+    if(worklog.length > 0) {
+      var monthEffort = 0;
+      var rtnResult1 = [];
+      var rtnResult2 = [];
+      var resJson1 = {};
+      resJson1['tl_task_id'] = worklog[0].task.Id;
+      resJson1['tl_task'] = worklog[0].task.TaskName;
+      resJson1['tl_assignteam'] = worklog[0].task.team.Name;
+      resJson1['tl_status'] = worklog[0].task.Status;
+      resJson1['tl_desc'] = worklog[0].task.Description;
+      resJson1['tl_task_type'] = worklog[0].task.task_type.Name;
+      resJson1['tl_estimation'] = worklog[0].task.Estimation;
+      resJson1['tl_effort'] = worklog[0].task.Effort;
+      resJson1['tl_month_effort'] = 0;
+      rtnResult1.push(resJson1);
+      for(var i=0; i<worklog.length; i++) {
+        var resJson2 = {};
+        resJson2['worklog_id'] = worklog[i].Id;
+        resJson2['worklog_user'] = worklog[i].user.Name;
+        resJson2['worklog_date'] = worklog[i].WorklogMonth + '-' + worklog[i].WorklogDay;
+        resJson2['worklog_effort'] = worklog[i].Effort;
+        resJson2['worklog_change_effort'] = worklog[i].Effort;
+        monthEffort = monthEffort + worklog[i].Effort;
+        rtnResult2.push(resJson2);
+      }
+      rtnResult1[0]['tl_month_effort'] = monthEffort;
+      var resJson = {}
+      resJson['task'] = rtnResult1;
+      resJson['worklog'] = rtnResult2;
+      rtnResult.push(resJson);
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No worklog existed'));
+    }
+  })
+});
+
 //Get worklog by worklog information
 router.post('/getWorklogForWeb', function(req, res, next) {
   var reqUserId = req.body.wUserId;
@@ -449,6 +567,117 @@ router.post('/getWorklogHistoryByTaskId', function(req, res, next) {
     }
   })
 });
+
+router.post('/adjustWorklogForWeb', function(req, res, next) {
+  var reqWorklogId = req.body.wWorklogId
+  var reqWorklogChangeEffort = Number(req.body.wWorklogChangeEffort)
+  Worklog.findOne({
+    include: [{
+        model: Task
+      },{
+        model: User,
+        include: [{model: Team, attributes: ['Id','Name']}]
+      }],
+      where: {
+        Id: reqWorklogId
+      }
+    }).then(function(worklog) {
+      if(worklog != null){
+        var iEffort = Number(worklog.Effort) - reqWorklogChangeEffort
+        Worklog.update({Effort: iEffort}, {where: {Id: reqWorklogId}});
+        //Create Dummy Task
+        dummyTaskName = 'Dummy - ' + worklog.task.TaskName
+        console.log('Dummy Task Name: ' + dummyTaskName)
+        Task.findOrCreate({
+          where: {
+            TaskName: dummyTaskName
+          }, 
+          defaults: {
+            ParentTaskName: worklog.task.ParentTaskName,
+            TaskName: dummyTaskName,
+            Description: worklog.task.Description,
+            TaskTypeId: Number(worklog.task.TaskTypeId),
+            Status: worklog.task.Status,
+            Creator: 'PMT',
+            Effort: 0,
+            Estimation: 0,
+            AssignTeamId: Number(worklog.task.AssignTeamId),
+          }
+        })
+      .spread((task, created) => {
+        var dummyTaskId = task.Id;
+        if(task != null) {
+          console.log('Dummy Task Id: ' + dummyTaskId)
+          // Record dummy worklog of dummy task
+          Worklog.findOrCreate({
+            where: {Id: null },
+            defaults: {
+              Remark: worklog.Remark,
+              Effort: reqWorklogChangeEffort,
+              WorklogMonth: worklog.WorklogMonth,
+              WorklogDay: worklog.WorklogDay,
+              TaskId: dummyTaskId,
+              UserId: worklog.UserId
+          }}).spread((dummyWorklog, created) => {
+            console.log('Dummy Worklog: ' + dummyWorklog.Id)
+            if(created) {
+              User.findOne({
+                where: {
+                  Name: {[Op.like]: 'TEAM%'},
+                  TeamId: worklog.user.team.Id
+                }
+              }).then(function(user) {
+                console.log('Team User: ' + user)
+                if(user != null) {
+                  var iDate = worklog.WorklogMonth  
+                  var arr = iDate.split("-");
+                  var iYear = Number(arr[0])
+                  var iMonth = Number(arr[1])
+                  if(iMonth == 12) {
+                    iMonth = 1
+                    iYear = iYear + 1
+                  } else {
+                    iMonth = iMonth + 1
+                  }
+                  if(iMonth < 10){
+                    iMonth = '0' + iMonth
+                  }
+                  var worklogMonth = '' + iYear + '-' + iMonth
+                  Worklog.findOrCreate({
+                    where: {Id: null },
+                    defaults: {
+                      Remark: worklog.Remark,
+                      Effort: reqWorklogChangeEffort,
+                      WorklogMonth: worklogMonth,
+                      WorklogDay: '01',
+                      TaskId: worklog.task.Id,
+                      UserId: user.Id
+                  }}).spread((teamWorklog, created) => {
+                    console.log('Team Worklog: ' + teamWorklog)
+                    if(created){
+                      return res.json(responseMessage(0, null, 'Adjust worklog successfully'));
+                    } else { // Team Worklog Created
+                      return res.json(responseMessage(1, null, 'Adjust worklog fail: Team worklog fail to create'));
+                    }
+                  });
+                } else { // Team Account found
+                  return res.json(responseMessage(1, null, 'Adjust worklog fail: Team Account fail to found'));
+                }
+              });
+            } else { // Dummy worklog created
+              return res.json(responseMessage(1, null, 'Adjust worklog fail: Dummy Worklog fail to create'));
+            }
+          });
+        } else { // Dummy task created or found
+          return res.json(responseMessage(1, null, 'Adjust worklog fail: Dummy task fail to create'));
+        }
+      });
+    } else {
+      return res.json(responseMessage(1, null, 'Adjust worklog fail'));
+    }
+  });
+});
+
 
 function sortArray(iArray, iKey)
 {

@@ -88,11 +88,11 @@ router.post('/receiveTaskList', function(req, res, next) {
   }
   console.log('Task Collection: ' + JSON.stringify(taskCollection));
   async.eachSeries(taskCollection, function(taskObj, callback) {
-    createTask(taskObj, function(){
-        callback();
+    createTask(taskObj, function(err){
+        callback(err);
     });
   }, function(err){
-    if(err != null){
+    if(err != null && err != ''){
       console.log("Create task err is:" + err);
       return res.json({result: false, error: err});
     }
@@ -100,6 +100,7 @@ router.post('/receiveTaskList', function(req, res, next) {
   });
   function createTask(taskObj, cb){
     console.log('Start to create task: ' + taskObj.TaskName);
+    var errMsg = '';
     var tParentTaskName = 'N/A';
     var tName = taskObj.TaskName;
     var tDescription = taskObj.Description;
@@ -110,6 +111,14 @@ router.post('/receiveTaskList', function(req, res, next) {
     var tTaskType = taskObj.TaskType;
     var tTaskTypeId = 0;
     var tAssignTeam = taskObj.AssignTeam;
+    if(tAssignTeam != null && tAssignTeam != '') {
+      var tAssignTeamArray = tAssignTeam.split("+");
+      if(tAssignTeamArray[1] == 'SSM'){
+        tAssignTeam = tAssignTeamArray[0]
+      } else {
+        tAssignTeam = 'OTHERS'
+      }
+    }
     var tAssignTeamId = 0;
     var tNeedSubTask = taskObj.NeedSubTask;
     TaskType.findOne({where: {Name: tTaskType}}).then(function(taskType) {
@@ -119,6 +128,9 @@ router.post('/receiveTaskList', function(req, res, next) {
         if(tEstimation == 0 && taskType.Value > 0){
           tEstimation = Number(taskType.Value);
         }
+      } else {
+        errMsg = 'Task [' + taskObj.TaskName + ']: Task type [' + taskObj.TaskType + '] is not exist'
+        console.log(errMsg)
       }
       //Get task assign team
       Team.findAll({where: {IsActive: true}}).then(function(teamArray){
@@ -132,6 +144,10 @@ router.post('/receiveTaskList', function(req, res, next) {
               tAssignTeamId = teamArray[a].Id;
               console.log('Create task: assignTeamId-' + tAssignTeamId);
             }
+          }
+          if(tAssignTeamId == 0) {
+            errMsg = 'Task [' + taskObj.TaskName + ']: Team [' + taskObj.AssignTeam + '] mapping is not exist'
+            console.log(errMsg)
           }
         }
         console.log('Start to create task');
@@ -152,7 +168,7 @@ router.post('/receiveTaskList', function(req, res, next) {
         .spread(function(task, created) {
           if(created) {
             console.log('Task created');
-            if(tNeedSubTask){
+            /*if(tNeedSubTask){
               var subtaskCollection = [];
               var subtaskArray = ['Analysis', 'Design', 'Build', 'Test', 'Deploy'];
               for(var j=0; j<5; j++){
@@ -190,7 +206,7 @@ router.post('/receiveTaskList', function(req, res, next) {
                 });
                 cb1(null, subtaskObj);
               }
-            }
+            }*/
           }
           else if(task != null && !created){
             console.log('Task updated');
@@ -204,11 +220,12 @@ router.post('/receiveTaskList', function(req, res, next) {
           } 
           else {
             console.log('Task create fail');
+            errMsg = 'Task [' + taskObj.TaskName + ']: create or update failed!'
           }
+          cb(errMsg, taskObj);
         }); 
       }); 
     });
-    cb(null, taskObj);
   }
 });
 

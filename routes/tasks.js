@@ -194,8 +194,8 @@ router.post('/getTaskById', function(req, res, next) {
         attributes: ['Id', 'Name']
       },
       {
-          model: Team, 
-          attributes: ['Id', 'Name']
+        model: Team, 
+        attributes: ['Id', 'Name']
       }],
       where: {
         Id: req.body.tId 
@@ -311,7 +311,6 @@ router.post('/getSubTaskByParentTaskName', function(req, res, next) {
       }
   })
 });
-
 
 router.post('/addOrUpdateTask', function(req, res, next) {
   Task.findOrCreate({
