@@ -46,7 +46,7 @@ router.post('/receiveTaskList', function(req, res, next) {
   var taskAssignTeam = req.body.assignment_group;
   var taskTotalEffort = req.body.task_effort;
   var taskCategorization = req.body.path;
-
+  console.log('Effort: ' + req.body.task_effort)
   var taskCollection = [];
   for(var i=0; i<taskNumber.length; i++){
     var taskJson = {};
@@ -57,8 +57,8 @@ router.post('/receiveTaskList', function(req, res, next) {
     taskJson.NeedSubTask = false;
     var taskTotalEffortNum = 0;
     if(taskTotalEffort != null && taskTotalEffort != undefined){
-      taskTotalEffortNum = Number(taskTotalEffort[i]);
-      console.log('Task Number: '+ taskTotalEffortNum);
+      taskTotalEffortNum = Number(taskTotalEffort[i]) * 8;
+      console.log('Task Effort: '+ taskTotalEffortNum);
     }
     if(taskNumber[i].toUpperCase().startsWith('CG')){
       taskJson.TaskType = 'Change';
@@ -86,7 +86,7 @@ router.post('/receiveTaskList', function(req, res, next) {
     taskJson.TotalEffort = taskTotalEffortNum;
     taskCollection.push(taskJson);
   }
-  console.log('Task Collection: ' + JSON.stringify(taskCollection));
+  //console.log('Task Collection: ' + JSON.stringify(taskCollection));
   async.eachSeries(taskCollection, function(taskObj, callback) {
     createTask(taskObj, function(err){
         callback(err);
@@ -100,6 +100,7 @@ router.post('/receiveTaskList', function(req, res, next) {
   });
   function createTask(taskObj, cb){
     console.log('Start to create task: ' + taskObj.TaskName);
+    Logger.info('Start to create task: ' + taskObj.TaskName);
     var errMsg = '';
     var tParentTaskName = 'N/A';
     var tName = taskObj.TaskName;
@@ -122,7 +123,7 @@ router.post('/receiveTaskList', function(req, res, next) {
     var tAssignTeamId = 0;
     var tNeedSubTask = taskObj.NeedSubTask;
     TaskType.findOne({where: {Name: tTaskType}}).then(function(taskType) {
-      console.log('Find task type: ' + tTaskType);
+      //console.log('Find task type: ' + tTaskType);
       if(taskType != null) {
         tTaskTypeId = taskType.Id;
         if(tEstimation == 0 && taskType.Value > 0){
@@ -134,15 +135,15 @@ router.post('/receiveTaskList', function(req, res, next) {
       }
       //Get task assign team
       Team.findAll({where: {IsActive: true}}).then(function(teamArray){
-        console.log('Find team: tasktype-' + tTaskTypeId + ', effort-'+tEstimation);
+        //console.log('Find team: tasktype-' + tTaskTypeId + ', effort-'+tEstimation);
         if(teamArray != null && teamArray.length > 0){
-          console.log('Start team mapping');
+          //console.log('Start team mapping');
           for(var a=0;a<teamArray.length;a++){
             var teamMapping = teamArray[a].Mapping.split(",");
-            console.log('Mapping Array: ' + teamMapping);
+            //console.log('Mapping Array: ' + teamMapping);
             if(teamMapping.indexOf(tAssignTeam) > -1){
               tAssignTeamId = teamArray[a].Id;
-              console.log('Create task: assignTeamId-' + tAssignTeamId);
+              //console.log('Create task: assignTeamId-' + tAssignTeamId);
             }
           }
           if(tAssignTeamId == 0) {
@@ -150,8 +151,8 @@ router.post('/receiveTaskList', function(req, res, next) {
             console.log(errMsg)
           }
         }
-        console.log('Start to create task');
-        console.log('Task assign team id: '+ tAssignTeamId);
+        //console.log('Start to create task');
+        //console.log('Task assign team id: '+ tAssignTeamId);
         Task.findOrCreate({
           where: {TaskName: tName}, 
           defaults: {
@@ -168,6 +169,7 @@ router.post('/receiveTaskList', function(req, res, next) {
         .spread(function(task, created) {
           if(created) {
             console.log('Task created');
+            Logger.info('Task created');
             /*if(tNeedSubTask){
               var subtaskCollection = [];
               var subtaskArray = ['Analysis', 'Design', 'Build', 'Test', 'Deploy'];
@@ -208,8 +210,7 @@ router.post('/receiveTaskList', function(req, res, next) {
               }
             }*/
           }
-          else if(task != null && !created){
-            console.log('Task updated');
+          else if(task != null && !created){ 
             task.update({
               Description: tDescription,
               Status: tStatus,
@@ -217,6 +218,8 @@ router.post('/receiveTaskList', function(req, res, next) {
               TaskTypeId: tTaskTypeId,
               AssignTeamId: tAssignTeamId
             });
+            console.log('Task updated');
+            Logger.info('Task updated');
           } 
           else {
             console.log('Task create fail');
