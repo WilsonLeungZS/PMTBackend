@@ -40,6 +40,7 @@ router.get('/getInfo', function(req, res, next) {
 //External interface
 //Spider job to receive task list
 router.post('/receiveTaskList', function(req, res, next) {
+  Logger.info('Request: \n' + req.body)
   var taskNumber = req.body.number;
   var taskdesc = req.body.short_description;
   var taskStatus = req.body.state;
