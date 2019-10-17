@@ -208,7 +208,8 @@ router.post('/getWorklogTaskByMonthForWeb', function(req, res, next) {
       model: Task,
       attributes: ['Id', 'TaskName', 'Description', 'Status', 'Effort', 'Estimation'],
       where: {
-        Id: { [Op.ne]: null }
+        Id: { [Op.ne]: null },
+        TaskName: {[Op.notLike]: 'Dummy - %'}
       },
       include: [{
         model: Team, 
@@ -226,7 +227,8 @@ router.post('/getWorklogTaskByMonthForWeb', function(req, res, next) {
     }],
     where: {
       WorklogMonth: reqWorklogMonth,
-      Effort: { [Op.ne]: 0 }
+      Effort: { [Op.ne]: 0 },
+      Id: { [Op.ne]: null }
     }
   }).then(function(worklog) {
     if(worklog.length > 0) {
@@ -610,7 +612,12 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
           console.log('Dummy Task Id: ' + dummyTaskId)
           // Record dummy worklog of dummy task
           Worklog.findOrCreate({
-            where: {Id: null },
+            where: {
+              WorklogMonth: worklog.WorklogMonth,
+              WorklogDay: worklog.WorklogDay,
+              TaskId: dummyTaskId,
+              UserId: worklog.UserId
+             },
             defaults: {
               Remark: worklog.Remark,
               Effort: reqWorklogChangeEffort,
@@ -619,8 +626,12 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
               TaskId: dummyTaskId,
               UserId: worklog.UserId
           }}).spread((dummyWorklog, created) => {
-            console.log('Dummy Worklog: ' + dummyWorklog.Id)
-            if(created) {
+            //console.log('Dummy Worklog: ' + dummyWorklog.Id)
+            if(dummyWorklog != null) {
+              if(!created) {
+                var newEffort = Number(dummyWorklog.Effort) + Number(reqWorklogChangeEffort);
+                Worklog.update({Effort: newEffort}, {where: {Id: dummyWorklog.Id}});
+              }
               User.findOne({
                 where: {
                   Name: {[Op.like]: 'TEAM%'},
@@ -644,7 +655,12 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
                   }
                   var worklogMonth = '' + iYear + '-' + iMonth
                   Worklog.findOrCreate({
-                    where: {Id: null },
+                    where: {
+                      WorklogMonth: worklogMonth,
+                      WorklogDay: '01',
+                      TaskId: worklog.task.Id,
+                      UserId: user.Id
+                    },
                     defaults: {
                       Remark: worklog.Remark,
                       Effort: reqWorklogChangeEffort,
@@ -654,10 +670,14 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
                       UserId: user.Id
                   }}).spread((teamWorklog, created) => {
                     console.log('Team Worklog: ' + teamWorklog)
-                    if(created){
+                    if(teamWorklog != null){
+                      if(!created) {
+                        var newEffort1 = Number(teamWorklog.Effort) + Number(reqWorklogChangeEffort);
+                        Worklog.update({Effort: newEffort1}, {where: {Id: teamWorklog.Id}});
+                      }
                       return res.json(responseMessage(0, null, 'Adjust worklog successfully'));
                     } else { // Team Worklog Created
-                      return res.json(responseMessage(1, null, 'Adjust worklog fail: Team worklog fail to create'));
+                      return res.json(responseMessage(1, null, 'Adjust worklog fail: Team worklog fail to create or update'));
                     }
                   });
                 } else { // Team Account found
@@ -665,11 +685,11 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
                 }
               });
             } else { // Dummy worklog created
-              return res.json(responseMessage(1, null, 'Adjust worklog fail: Dummy Worklog fail to create'));
+              return res.json(responseMessage(1, null, 'Adjust worklog fail: Dummy Worklog create or update failed'));
             }
           });
         } else { // Dummy task created or found
-          return res.json(responseMessage(1, null, 'Adjust worklog fail: Dummy task fail to create'));
+          return res.json(responseMessage(1, null, 'Adjust worklog fail: Dummy task could not found or create failed'));
         }
       });
     } else {

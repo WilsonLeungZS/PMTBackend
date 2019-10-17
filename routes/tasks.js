@@ -19,6 +19,9 @@ router.get('/getAllTasksLimited', function(req, res, next) {
       model: TaskType, 
       attributes: ['Name']
     }],
+    where: {
+      TaskName: {[Op.notLike]: 'Dummy - %'}
+    },
     order: [
       ['updatedAt', 'DESC']
     ],
@@ -60,7 +63,8 @@ router.get('/getTaskList', function(req, res, next) {
       attributes: ['Name']
     }],
     where: {
-      ParentTaskName: 'N/A' 
+      ParentTaskName: 'N/A',
+      TaskName: {[Op.notLike]: 'Dummy - %'}
     },
     order: [
       ['createdAt', 'DESC']
@@ -95,7 +99,8 @@ router.get('/getTotalTaskSize', function(req, res, next) {
   var rtnResult = [];
   Task.findAll({
     where: {
-      ParentTaskName: 'N/A' 
+      ParentTaskName: 'N/A',
+      TaskName: {[Op.notLike]: 'Dummy - %'}
     },
   }).then(function(task) {
     if(task.length > 0) {
@@ -133,7 +138,8 @@ router.post('/getTaskByName', function(req, res, next) {
       [Op.or]: [
         {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
         {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
-      ]
+      ],
+      TaskName: {[Op.notLike]: 'Dummy - %'}
     }
   } else {
     criteria = {
@@ -141,7 +147,8 @@ router.post('/getTaskByName', function(req, res, next) {
         {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
         {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
       ],
-      TaskTypeId: Number(req.body.tTaskTypeId)
+      TaskTypeId: Number(req.body.tTaskTypeId),
+      TaskName: {[Op.notLike]: 'Dummy - %'}
     }
   }
   Task.findAll({
