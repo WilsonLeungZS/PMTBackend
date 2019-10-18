@@ -12,6 +12,9 @@ var TaskType = sequelize.define('task_type', {
         type: Sequelize.STRING,
         allowNull: false
     },
+    Prefix: {
+        type: Sequelize.STRING
+    },
     Category: {
         type: Sequelize.STRING,
         allowNull: false

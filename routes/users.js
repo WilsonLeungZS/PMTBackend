@@ -221,7 +221,7 @@ router.post('/getUserListByName', function(req, res, next) {
 router.get('/getTeamList', function(req, res, next) {
   var reqIsActive = req.query.IsActive
   var criteria = {}
-  if (reqIsActive === null) {
+  if (reqIsActive === null || reqIsActive === undefined) {
     criteria = {IsActive: true}
   }
   var rtnResult = [];
