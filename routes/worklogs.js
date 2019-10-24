@@ -14,6 +14,63 @@ router.get('/', function(req, res, next) {
   return res.json({message: 'Response worklog resource'});
 });
 
+// Get month AD effort and AD target for web
+router.post('/getMonthAdEffort', function(req, res, next) {
+  var reqWorklogMonth = req.body.wWorklogMonth;
+  Reference.findOne({where: {Name: "ADEffortTarget"}}).then(function(reference) {
+    if(reference != null) {
+      var adEffortTarget = Number(reference.Value);
+      var rtnResult = [];
+      Worklog.findAll({
+        include: [{
+          model: Task,
+          attributes: ['Id', 'TaskName', 'Description', 'Status', 'Effort', 'Estimation'],
+          where: {
+            Id: { [Op.ne]: null },
+            TaskName: {[Op.notLike]: 'Dummy - %'}
+          },
+          include: [{
+            model: Team, 
+            attributes: ['Name'],
+            where: {
+              Project: {[Op.like]: 'MTL'}
+            }
+          }, {
+            model: TaskType, 
+            attributes: ['Name'],
+            where: {
+              [Op.or]: [
+                {Name: 'Change'},
+                {Name: 'App Admin'}
+              ]
+            }
+          }]
+        }],
+        where: {
+          WorklogMonth: reqWorklogMonth,
+          Effort: { [Op.ne]: 0 },
+          Id: { [Op.ne]: null }
+        }
+      }).then(function(worklog) {
+        if(worklog.length > 0) {
+          var resJson = {};
+          resJson.month_target = Number(adEffortTarget);
+          resJson.month_effort = 0;
+          for(var i = 0; i< worklog.length; i++) {
+            resJson.month_effort = Number(resJson.month_effort) + worklog[i].Effort;
+          }
+          rtnResult.push(resJson);
+          return res.json(responseMessage(0, rtnResult, ''));
+        } else {
+          return res.json(responseMessage(1, rtnResult, 'No worklog existed'));
+        }
+      })
+    } else {
+      return res.json(responseMessage(1, rtnResult, 'No effort target existed'));
+    }
+  });
+}); 
+
 //Get worklog by user id and month
 router.post('/getWorklogByUserAndMonth', function(req, res, next) {
   var reqWorklogUserId = req.body.wUserId;
@@ -132,7 +189,14 @@ router.post('/getWorklogByUserAndMonthForWeb', function(req, res, next) {
 
 //Get team worklog by team and month for web timesheet
 router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
-  var reqWorklogTeamId = req.body.wTeamId;
+  var reqWorklogTeamId = Number(req.body.wTeamId);
+  var reqWorklogProject = req.body.wProject;
+  var teamCriteria = {}
+  if(reqWorklogTeamId !== 0) {
+    teamCriteria = { Id: reqWorklogTeamId }
+  } else {
+    teamCriteria = { Project: reqWorklogProject }
+  }
   var reqWorklogMonth = req.body.wWorklogMonth;
   var rtnResult = [];
   Worklog.findAll({
@@ -143,19 +207,19 @@ router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
       model: User,
       attributes: ['Name'],
       where: {
-        Id: { [Op.ne]: null }
+        Id: { [Op.ne]: null },
+        Name: {[Op.notLike]: 'Team%'}
       },
       include: [{
         model: Team, 
         attributes: ['Id', 'Name'],
-        where: {
-          Id: reqWorklogTeamId
-        }
+        where: teamCriteria
       }]
     }],
     where: {
       WorklogMonth: reqWorklogMonth,
-      Effort: { [Op.ne]: 0 }
+      Effort: { [Op.ne]: 0 },
+      Id: { [Op.ne]: null }
     }
   }).then(function(worklog) {
     if(worklog.length > 0) {
@@ -213,7 +277,10 @@ router.post('/getWorklogTaskByMonthForWeb', function(req, res, next) {
       },
       include: [{
         model: Team, 
-        attributes: ['Name']
+        attributes: ['Name'],
+        where: {
+          Project: {[Op.like]: 'MTL'}
+        }
       }, {
         model: TaskType, 
         attributes: ['Name'],

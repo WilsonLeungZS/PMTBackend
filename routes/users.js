@@ -155,7 +155,7 @@ router.post('/getUserById', function(req, res, next) {
     },
     include: [{
       model: Team,
-      attributes: ['Id', 'Name']
+      attributes: ['Id', 'Name', 'Project']
     }]
   })
   .then(function(user) {
@@ -166,6 +166,7 @@ router.post('/getUserById', function(req, res, next) {
         resJson.user_eid = user.Name;
         resJson.user_email = user.Email;
         resJson.user_team = user.team.Name;
+        resJson.user_teamproject = user.team.Project;
         resJson.user_teamid = user.team.Id;
         resJson.user_role = user.Role;
         if(team != null){
@@ -239,6 +240,7 @@ router.get('/getTeamList', function(req, res, next) {
         var resJson = {};
         resJson.team_id = team[i].Id;
         resJson.team_name = team[i].Name;
+        resJson.team_project = team[i].Project;
         resJson.team_desc = team[i].Description;
         resJson.team_mapping = team[i].Mapping;
         resJson.team_isactive = team[i].IsActive;
@@ -275,6 +277,7 @@ router.post('/addOrUpdateTeam', function(req, res, next) {
     where: reqData, 
     defaults: {
       Name: req.body.reqTeamName,
+      Project: req.body.reqTeamProject,
       Description: req.body.reqTeamDesc,
       Mapping: reqTeamMapping,
       IsActive: reqTeamIsActive
@@ -286,6 +289,7 @@ router.post('/addOrUpdateTeam', function(req, res, next) {
     else if(team != null && !created) {
       team.update({
         Name: req.body.reqTeamName,
+        Project: req.body.reqTeamProject,
         Description: req.body.reqTeamDesc,
         Mapping: reqTeamMapping,
         IsActive: reqTeamIsActive,

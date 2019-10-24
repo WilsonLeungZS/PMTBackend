@@ -12,6 +12,10 @@ var Team = sequelize.define('team', {
         type: Sequelize.STRING,
         allowNull: false
     },
+    Project: { 
+        type: Sequelize.STRING,
+        allowNull: false
+    },
     Description: { type: Sequelize.STRING },
     IsActive: { type: Sequelize.BOOLEAN },
     Mapping: { type: Sequelize.STRING},
