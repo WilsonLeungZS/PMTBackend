@@ -41,14 +41,14 @@ router.get('/getInfo', function(req, res, next) {
 //Spider job to receive task list
 router.post('/receiveTaskList', function(req, res, next) {
   Logger.info('Request: \n' + JSON.stringify(req.body))
-  console.log('Request: \n' + JSON.stringify(req.body))
+  //console.log('Request: \n' + JSON.stringify(req.body))
   var taskNumber = req.body.number;
   var taskdesc = req.body.short_description;
   var taskStatus = req.body.state;
   var taskAssignTeam = req.body.assignment_group;
   var taskTotalEffort = req.body.task_effort;
+  var taskBizProject = req.body.bizProject;
   var taskCategorization = req.body.path;
-  console.log('Effort: ' + req.body.task_effort)
   var taskCollection = [];
   for(var i=0; i<taskNumber.length; i++){
     var taskJson = {};
@@ -56,6 +56,7 @@ router.post('/receiveTaskList', function(req, res, next) {
     taskJson.Description = taskdesc[i];
     taskJson.Status = taskStatus[i];
     taskJson.AssignTeam = taskAssignTeam[i].toUpperCase();
+    taskJson.BizProject = taskBizProject[i];
     taskJson.NeedSubTask = false;
     var taskTotalEffortNum = 0;
     if(taskTotalEffort != null && taskTotalEffort != undefined){
@@ -114,7 +115,9 @@ router.post('/receiveTaskList', function(req, res, next) {
       var tEstimation = taskObj.TotalEffort;
       var tTaskType = taskObj.TaskType;
       var tTaskTypeId = 0;
+      var tTaskBizProject = taskObj.BizProject;
       var tAssignTeam = taskObj.AssignTeam;
+      var tBusinessArea = '';
       if(tAssignTeam != null && tAssignTeam != '' && tAssignTeam.indexOf('+') != -1) {
         var tAssignTeamArray = tAssignTeam.split("+");
         if(tAssignTeamArray[1] == 'SSM'){
@@ -122,6 +125,7 @@ router.post('/receiveTaskList', function(req, res, next) {
         } else {
           tAssignTeam = 'OTHERS'
         }
+        tBusinessArea = tAssignTeamArray[0];
       }
       var tAssignTeamId = 0;
       //var tNeedSubTask = taskObj.NeedSubTask;
@@ -167,7 +171,9 @@ router.post('/receiveTaskList', function(req, res, next) {
                 Effort: tEffort,
                 Estimation: tEstimation,
                 TaskTypeId: tTaskTypeId,
-                AssignTeamId: tAssignTeamId
+                AssignTeamId: tAssignTeamId,
+                BizProject: tTaskBizProject,
+                BusinessArea: tBusinessArea
             }})
           .spread(function(task, created) {
             if(created) {
@@ -180,7 +186,9 @@ router.post('/receiveTaskList', function(req, res, next) {
                 Status: tStatus,
                 Estimation: tEstimation,
                 TaskTypeId: tTaskTypeId,
-                AssignTeamId: tAssignTeamId
+                AssignTeamId: tAssignTeamId,
+                BizProject: tTaskBizProject,
+                BusinessArea: tBusinessArea
               });
               console.log('Task updated');
               Logger.info('Task updated');

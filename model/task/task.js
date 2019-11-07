@@ -16,6 +16,8 @@ var Task = sequelize.define('task', {
     Estimation: { type:Sequelize.INTEGER },
     StartDate: { type:Sequelize.STRING },
     DueDate: { type:Sequelize.STRING },
+    BusinessArea: { type:Sequelize.STRING },
+    BizProject: { type:Sequelize.STRING },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,

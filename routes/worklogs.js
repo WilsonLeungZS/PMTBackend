@@ -765,6 +765,128 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
   });
 });
 
+//Extract report1(Only include Change and App admin) for web PMT
+router.post('/extractReport1ForWeb', function(req, res, next) {
+  var reqReportStartMonth = req.body.wReportStartMonth;
+  var reqReportEndMonth = req.body.wReportEndMonth;
+  var rtnResult = [];
+  Worklog.findAll({
+    include: [{
+      model: User,
+      attributes: ['Name']
+    }, {
+      model: Task,
+      attributes: ['TaskName', 'Description', 'BusinessArea', 'BizProject'],
+      where: {
+        TaskName: {[Op.notLike]: 'Dummy - %'},
+        Id: { [Op.ne]: null }
+      },
+      include: [{
+        model: TaskType, 
+        attributes: ['Name'],
+        where: {
+          [Op.or]: [
+            {Name: 'Change'},
+            {Name: 'App Admin'}
+          ]
+        }
+      }]
+    }],
+    where: {
+      [Op.and]: [
+        { WorklogMonth: { [Op.gte]:  reqReportStartMonth }},
+        { WorklogMonth: { [Op.lte]:  reqReportEndMonth }}
+      ],
+      Effort: { [Op.ne]: 0 },
+      Id: { [Op.ne]: null }
+    }
+  }).then(function(worklog) {
+    if(worklog != null && worklog.length >0){
+      for(var i=0; i<worklog.length;i++){
+        var resJson = {};
+        resJson.report_username = worklog[i].user.Name
+        resJson.report_date = worklog[i].WorklogMonth + '-' + worklog[i].WorklogDay
+        resJson.report_month = worklog[i].WorklogMonth
+        resJson.report_task = worklog[i].task.TaskName
+        resJson.report_taskdesc = worklog[i].task.Description
+        resJson.report_worklogremark = worklog[i].Remark
+        resJson.report_manhours = Number(worklog[i].Effort)
+        resJson.report_mandays = (Number(worklog[i].Effort) / 8).toFixed(2)
+        resJson.report_businessarea = worklog[i].task.BusinessArea
+        if (worklog[i].task.BizProject != null && worklog[i].task.BizProject != '') {
+          resJson.report_taskcategory = worklog[i].task.BizProject + ' - ' + worklog[i].task.task_type.Name
+        } else {
+          resJson.report_taskcategory = worklog[i].task.task_type.Name
+        }
+        rtnResult.push(resJson)
+      }
+      rtnResult = sortArray(rtnResult, 'report_date')
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'Worklog not found'));
+    }
+  })
+});
+
+//Extract report2(Only include SI task) for web PMT
+router.post('/extractReport2ForWeb', function(req, res, next) {
+  var reqReportStartMonth = req.body.wReportStartMonth;
+  var reqReportEndMonth = req.body.wReportEndMonth;
+  var rtnResult = [];
+  Worklog.findAll({
+    include: [{
+      model: User,
+      attributes: ['Name']
+    }, {
+      model: Task,
+      attributes: ['TaskName', 'Description', 'BusinessArea', 'BizProject'],
+      where: {
+        TaskName: {[Op.notLike]: 'Dummy - %'},
+        Id: { [Op.ne]: null }
+      },
+      include: [{
+        model: TaskType, 
+        attributes: ['Name'],
+        where: {
+          Name: {[Op.like]: 'SI%'}
+        }
+      }]
+    }],
+    where: {
+      [Op.and]: [
+        { WorklogMonth: { [Op.gte]:  reqReportStartMonth }},
+        { WorklogMonth: { [Op.lte]:  reqReportEndMonth }}
+      ],
+      Effort: { [Op.ne]: 0 },
+      Id: { [Op.ne]: null }
+    }
+  }).then(function(worklog) {
+    if(worklog != null && worklog.length >0){
+      for(var i=0; i<worklog.length;i++){
+        var resJson = {};
+        resJson.report_username = worklog[i].user.Name
+        resJson.report_date = worklog[i].WorklogMonth + '-' + worklog[i].WorklogDay
+        resJson.report_month = worklog[i].WorklogMonth
+        resJson.report_task = worklog[i].task.TaskName
+        resJson.report_taskdesc = worklog[i].task.Description
+        resJson.report_worklogremark = worklog[i].Remark
+        resJson.report_manhours = Number(worklog[i].Effort)
+        resJson.report_mandays = (Number(worklog[i].Effort) / 8).toFixed(2)
+        resJson.report_businessarea = worklog[i].task.BusinessArea
+        if (worklog[i].task.BizProject != null && worklog[i].task.BizProject != '') {
+          resJson.report_taskcategory = worklog[i].task.BizProject + ' - ' + worklog[i].task.task_type.Name
+        } else {
+          resJson.report_taskcategory = worklog[i].task.task_type.Name
+        }
+        rtnResult.push(resJson)
+      }
+      rtnResult = sortArray(rtnResult, 'report_date')
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'Worklog not found'));
+    }
+  })
+});
 
 function sortArray(iArray, iKey)
 {
