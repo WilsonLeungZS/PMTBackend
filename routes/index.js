@@ -56,7 +56,7 @@ router.post('/receiveTaskList', function(req, res, next) {
     taskJson.Description = taskdesc[i];
     taskJson.Status = taskStatus[i];
     taskJson.AssignTeam = taskAssignTeam[i].toUpperCase();
-    if (taskBizProject != null) {
+    if (taskBizProject != null && taskTotalEffort != undefined) {
       taskJson.BizProject = taskBizProject[i];
     } else {
       taskJson.BizProject = ''
