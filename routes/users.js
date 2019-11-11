@@ -12,6 +12,41 @@ router.get('/', function(req, res, next) {
   return res.json({message: 'Response user resource'});
 });
 
+router.get('/getUserThemeStyle', function(req, res, next) {
+  var reqUserName = req.query.userEid;
+  User.findOne({
+    attributes: ['Name', 'ThemeStyle'],
+    where: {
+      Name: reqUserName,
+      IsActive: true }
+  }).then(function(user) {
+    if(user != null){
+      return res.json(responseMessage(0, user, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'User not exist'));
+    }
+  });
+});
+
+router.get('/setUserThemeStyle', function(req, res, next) {
+  var reqThemeStyle = Number(req.query.uThemeStyle);
+  var reqUserName = req.query.userEid;
+  User.findOne({
+    where: {
+      Name: reqUserName,
+      IsActive: true }
+  }).then(function(user) {
+    if(user != null){
+      user.update({
+        ThemeStyle: reqThemeStyle 
+      });
+      return res.json(responseMessage(0, user, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'User not exist'));
+    }
+  });
+});
+
 //Login
 router.get('/login', function(req, res, next) {
   if (req.query.userEid == undefined || req.query.userEid == '') {

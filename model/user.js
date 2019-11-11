@@ -24,6 +24,11 @@ var User = sequelize.define('user', {
         type: Sequelize.STRING,
         allowNull: false
     },
+    ThemeStyle: {
+        type:Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+    },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
