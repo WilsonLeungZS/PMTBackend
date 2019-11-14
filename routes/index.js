@@ -217,7 +217,6 @@ router.post('/receiveTaskList', function(req, res, next) {
 router.get('/queryTimesheet', function(req, res, next) {
   var reqStartDate = req.query.start_date;
   var reqEndDate = req.query.end_date;
-  var reqTaskName = req.query.task_number;
   if(reqStartDate != null && reqEndDate != null && reqStartDate != '' && reqEndDate != ''){
     var rtnResult = [];
     var reqStartDate = reqStartDate + ' 00:00:00';
@@ -267,22 +266,34 @@ router.get('/queryTimesheet', function(req, res, next) {
       return res.json({result:rtnResult, error:''});
     });
   }
-  else if(reqTaskName != null & reqTaskName != ''){
+  else {
+    return res.json({result: false, error: 'Request param invalid!'});
+  }
+});
+
+router.post('/queryTimesheetForTRLS', function(req, res, next) {
+  var reqTaskName = req.body.task_number;
+  if(reqTaskName != null & reqTaskName != ''){
     var rtnResult = [];
-    Task.findOne({
+    Task.findAll({
       include: [{
         model: TaskType, 
         attributes: ['Name']
       }],
       where: {
-        TaskName: reqTaskName.toUpperCase()
+        TaskName: {
+          [Op.in]: reqTaskName
+        }
       }
     }).then(function(task) {
-      if(task != null){
-        var resJson = {};
-        resJson.effort = task.Effort;
-        resJson.task_number = task.TaskName;
-        rtnResult.push(resJson);
+      if(task != null && task.length > 0){
+        for(var i=0; i<task.length; i++) {
+          var resJson = {};
+          resJson.effort = task[i].Effort;
+          resJson.task_number = task[i].TaskName;
+          resJson.task_type = task[i].task_type.Name;
+          rtnResult.push(resJson);
+        }
       }
       return res.json({result: rtnResult, error: ''});
     });
