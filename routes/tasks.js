@@ -114,6 +114,28 @@ router.get('/getTotalTaskSize', function(req, res, next) {
     }
   })
 });
+/**
+ * By AssinUserId Find Assin's User
+ * Celine Chen
+ * 12/2/2019
+ */
+router.get('/getTaskIdByAssinUserId', function(req, res, next) {
+  var rtnResult = [];
+  Task.findAll({
+    where: {
+      AssUserId:req.query.userId
+    },
+  }).then(function(task) {
+    if(task.length > 0) {
+      var resJson = {};
+      resJson.task_total_size = task.length;
+      rtnResult.push(resJson);
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
 
 router.post('/getTaskByCreatedDate', function(req, res, next) {
     Task.findAll({
@@ -443,6 +465,18 @@ router.post('/getNewTaskNumberByType', function(req, res, next) {
     } else {
       return res.json(responseMessage(1, null, 'Get new task number failed'));
     }
+  })
+});
+
+//for new one
+router.post('/getTaskForTaskTabById', function(req, res, next) {
+  var rtnResult = [];
+  Task.findAll({
+      where: {
+        Id: req.body.tId 
+      }
+  }).then(function(task) {
+    return res.json(responseMessage(1, task, 'No task exist'));
   })
 });
 
