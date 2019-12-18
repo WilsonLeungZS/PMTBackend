@@ -115,25 +115,60 @@ router.get('/getTotalTaskSize', function(req, res, next) {
   })
 });
 /**
- * By AssinUserId Find Assin's User
+ * By AssignUserId Find Assign's User
  * Celine Chen
  * 12/2/2019
  */
-router.get('/getTaskIdByAssinUserId', function(req, res, next) {
+router.post('/getTaskByAssignUserId', function(req, res, next) {
+  console.log('Debug start');
+  console.log('Debug end');
+  var ua = req.body.wmtUpdatedAt;
+  var ea = req.body.wmtEndUpdated
+  console.log(ua)
+  console.log(ea)
   var rtnResult = [];
   Task.findAll({
     where: {
-      AssUserId:req.query.userId
+      AssignUserId:Number(req.body.wUserId),
+      updatedAt:{
+        [Op.between]:[ua,ea]
+      }
     },
+    order: [
+      ['updatedAt', 'DESC']
+    ],
   }).then(function(task) {
-    if(task.length > 0) {
-      var resJson = {};
-      resJson.task_total_size = task.length;
-      rtnResult.push(resJson);
-      return res.json(responseMessage(0, rtnResult, ''));
-    } else {
-      return res.json(responseMessage(1, null, 'No task exist'));
+    console.log(task)
+    if(task.length > 0){
+      for(var i=0;i<task.length;i++){
+        var resJson = {};
+        console.log(task[i])
+        resJson.taskId = task[i].Id;
+        resJson.taskName = task[i].TaskName;
+        resJson.Description = task[i].Description;
+        resJson.date = task[i].updatedAt;
+        resJson.effort = task[i].Effort;
+        if(task[i].Estimation !=null && task[i].Estimation >0){
+          var percentage = "" +toPercent(task[i].Effort,task[i].Estimation);
+          resJson.progress = Number(percentage.replace("%",""));
+          console.log(resJson);
+        }
+        
+        // if(task[i].Estimation != null && task[i].Estimation > 0){
+        //   var percentage1 =  "" + toPercent(task[i].Effort, task[i].Estimation);
+          
+        //   resJson.progress = percentage1.replace("%","");
+        //   console.log(resJson);
+        // } else {
+        //   resJson.progress = "-1";
+        // }
+        rtnResult.push(resJson);
+      }
+      return res.json(responseMessage(0,rtnResult,''));
+    }else{
+          return res.json(responseMessage(1, task, 'No task exist'));      
     }
+    
   })
 });
 
@@ -470,6 +505,7 @@ router.post('/getNewTaskNumberByType', function(req, res, next) {
 
 //for new one
 router.post('/getTaskForTaskTabById', function(req, res, next) {
+  console.log('getTaskForTaskTabById')
   var rtnResult = [];
   Task.findAll({
       where: {

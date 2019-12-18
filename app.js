@@ -25,7 +25,14 @@ app.all('*', function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "X-Requested-With,Content-Type");
   res.header("Access-Control-Allow-Methods","PUT,POST,GET,DELETE,OPTIONS");
-  next();
+  //res.header("content-type", "application/json; charset=utf-8");
+  // if(req.method.toLocaleLowerCase() === 'options'){
+  //   res.status(200);
+  //   return res.json({});   //直接返回空数据，结束此次请求 ,Accept,Authorization,Origin
+  // }else{
+  //     next();
+  // }
+   next();
 });
 
 app.use('/', indexRouter);
