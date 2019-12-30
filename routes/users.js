@@ -12,6 +12,41 @@ router.get('/', function(req, res, next) {
   return res.json({message: 'Response user resource'});
 });
 
+router.get('/getUserThemeStyle', function(req, res, next) {
+  var reqUserName = req.query.userEid;
+  User.findOne({
+    attributes: ['Name', 'ThemeStyle'],
+    where: {
+      Name: reqUserName,
+      IsActive: true }
+  }).then(function(user) {
+    if(user != null){
+      return res.json(responseMessage(0, user, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'User not exist'));
+    }
+  });
+});
+
+router.get('/setUserThemeStyle', function(req, res, next) {
+  var reqThemeStyle = Number(req.query.uThemeStyle);
+  var reqUserName = req.query.userEid;
+  User.findOne({
+    where: {
+      Name: reqUserName,
+      IsActive: true }
+  }).then(function(user) {
+    if(user != null){
+      user.update({
+        ThemeStyle: reqThemeStyle 
+      });
+      return res.json(responseMessage(0, user, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'User not exist'));
+    }
+  });
+});
+
 //Login
 router.get('/login', function(req, res, next) {
   if (req.query.userEid == undefined || req.query.userEid == '') {
@@ -155,7 +190,7 @@ router.post('/getUserById', function(req, res, next) {
     },
     include: [{
       model: Team,
-      attributes: ['Id', 'Name']
+      attributes: ['Id', 'Name', 'Project']
     }]
   })
   .then(function(user) {
@@ -166,6 +201,7 @@ router.post('/getUserById', function(req, res, next) {
         resJson.user_eid = user.Name;
         resJson.user_email = user.Email;
         resJson.user_team = user.team.Name;
+        resJson.user_teamproject = user.team.Project;
         resJson.user_teamid = user.team.Id;
         resJson.user_role = user.Role;
         if(team != null){
@@ -221,7 +257,7 @@ router.post('/getUserListByName', function(req, res, next) {
 router.get('/getTeamList', function(req, res, next) {
   var reqIsActive = req.query.IsActive
   var criteria = {}
-  if (reqIsActive === null) {
+  if (reqIsActive === null || reqIsActive === undefined) {
     criteria = {IsActive: true}
   }
   var rtnResult = [];
@@ -239,6 +275,7 @@ router.get('/getTeamList', function(req, res, next) {
         var resJson = {};
         resJson.team_id = team[i].Id;
         resJson.team_name = team[i].Name;
+        resJson.team_project = team[i].Project;
         resJson.team_desc = team[i].Description;
         resJson.team_mapping = team[i].Mapping;
         resJson.team_isactive = team[i].IsActive;
@@ -275,6 +312,7 @@ router.post('/addOrUpdateTeam', function(req, res, next) {
     where: reqData, 
     defaults: {
       Name: req.body.reqTeamName,
+      Project: req.body.reqTeamProject,
       Description: req.body.reqTeamDesc,
       Mapping: reqTeamMapping,
       IsActive: reqTeamIsActive
@@ -286,6 +324,7 @@ router.post('/addOrUpdateTeam', function(req, res, next) {
     else if(team != null && !created) {
       team.update({
         Name: req.body.reqTeamName,
+        Project: req.body.reqTeamProject,
         Description: req.body.reqTeamDesc,
         Mapping: reqTeamMapping,
         IsActive: reqTeamIsActive,

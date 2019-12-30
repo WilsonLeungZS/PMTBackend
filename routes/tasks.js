@@ -4,6 +4,7 @@ var router = express.Router();
 var TaskType = require('../model/task/task_type');
 var Task = require('../model/task/task');
 var Team = require('../model/team/team');
+var Reference = require('../model/reference');
 
 const Op = Sequelize.Op;
 
@@ -19,6 +20,9 @@ router.get('/getAllTasksLimited', function(req, res, next) {
       model: TaskType, 
       attributes: ['Name']
     }],
+    where: {
+      TaskName: {[Op.notLike]: 'Dummy - %'}
+    },
     order: [
       ['updatedAt', 'DESC']
     ],
@@ -60,7 +64,8 @@ router.get('/getTaskList', function(req, res, next) {
       attributes: ['Name']
     }],
     where: {
-      ParentTaskName: 'N/A' 
+      ParentTaskName: 'N/A',
+      TaskName: {[Op.notLike]: 'Dummy - %'}
     },
     order: [
       ['createdAt', 'DESC']
@@ -95,7 +100,8 @@ router.get('/getTotalTaskSize', function(req, res, next) {
   var rtnResult = [];
   Task.findAll({
     where: {
-      ParentTaskName: 'N/A' 
+      ParentTaskName: 'N/A',
+      TaskName: {[Op.notLike]: 'Dummy - %'}
     },
   }).then(function(task) {
     if(task.length > 0) {
@@ -133,7 +139,8 @@ router.post('/getTaskByName', function(req, res, next) {
       [Op.or]: [
         {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
         {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
-      ]
+      ],
+      TaskName: {[Op.notLike]: 'Dummy - %'}
     }
   } else {
     criteria = {
@@ -141,7 +148,8 @@ router.post('/getTaskByName', function(req, res, next) {
         {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
         {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
       ],
-      TaskTypeId: Number(req.body.tTaskTypeId)
+      TaskTypeId: Number(req.body.tTaskTypeId),
+      TaskName: {[Op.notLike]: 'Dummy - %'}
     }
   }
   Task.findAll({
@@ -194,8 +202,8 @@ router.post('/getTaskById', function(req, res, next) {
         attributes: ['Id', 'Name']
       },
       {
-          model: Team, 
-          attributes: ['Id', 'Name']
+        model: Team, 
+        attributes: ['Id', 'Name']
       }],
       where: {
         Id: req.body.tId 
@@ -312,7 +320,6 @@ router.post('/getSubTaskByParentTaskName', function(req, res, next) {
   })
 });
 
-
 router.post('/addOrUpdateTask', function(req, res, next) {
   Task.findOrCreate({
       where: { TaskName: req.body.tName }, 
@@ -330,7 +337,15 @@ router.post('/addOrUpdateTask', function(req, res, next) {
     .spread(function(task, created) {
       if(created) {
         console.log("Task created");
-        return res.json(responseMessage(0, task, 'Task Created'));
+        Reference.findOne({where: {Name: 'TaskSeq'}}).then(function(reference) {
+          if(reference != null) {
+            var newSeq = Number(reference.Value) + 1;
+            Reference.update({Value:newSeq}, {where: {Name: 'TaskSeq'}});
+            return res.json(responseMessage(0, task, 'Task Created'));
+          } else {
+            return res.json(responseMessage(1, task, 'Task Seq Update failed'));
+          }
+        });  
       } else {
         console.log("Task existed");
         Task.update({
@@ -359,6 +374,7 @@ router.get('/getAllTaskType', function(req, res, next) {
         var resJson = {};
         resJson.type_id = taskType[i].Id;
         resJson.type_name = taskType[i].Name;
+        resJson.type_prefix = taskType[i].Prefix;
         resJson.type_category = taskType[i].Category;
         resJson.type_value = taskType[i].Value;
         rtnResult.push(resJson);
@@ -381,6 +397,7 @@ router.post('/addTaskType', function(req, res, next) {
     where: reqData, 
     defaults: {
       Name: req.body.taskTypeName,
+      Prefix: req.body.taskTypePrefix,
       Category: req.body.taskTypeCategory,
       Value: req.body.taskTypeValue
     }})
@@ -389,8 +406,14 @@ router.post('/addTaskType', function(req, res, next) {
       return res.json(responseMessage(0, taskType, 'Created task type successfully!'));
     } 
     else if(taskType != null && !created) {
+      var oldPrefix = taskType.Prefix;
+      var newPrefix = req.body.taskTypePrefix
+      if(oldPrefix !== newPrefix) {
+        console.log('Old Prefix['+oldPrefix+'] New Prefix['+newPrefix+']');
+      }
       taskType.update({
         Name: req.body.taskTypeName,
+        Prefix: req.body.taskTypePrefix,
         Category: req.body.taskTypeCategory,
         Value: req.body.taskTypeValue
       });
@@ -400,6 +423,27 @@ router.post('/addTaskType', function(req, res, next) {
       return res.json(responseMessage(1, null, 'Created task type failed'));
     }
   });
+});
+
+router.post('/getNewTaskNumberByType', function(req, res, next) {
+  var reqTaskTypeId = req.body.tTaskTypeId;
+  TaskType.findOne({
+    where: {Id: reqTaskTypeId}
+  }).then(function(taskType) {
+    if(taskType != null && taskType.Prefix != '') {
+      Reference.findOne({where: {Name: 'TaskSeq'}}).then(function(reference) {
+        if (reference != null) {
+          var newTaskNumber = Number(reference.Value) + 1;
+          var newTask = '' + taskType.Prefix + prefixZero(newTaskNumber, 6);
+          return res.json(responseMessage(0, {task_number: newTask}, 'Get new task number successfully!'));
+        } else {
+          return res.json(responseMessage(1, null, 'Get new task number failed'));
+        }
+      });
+    } else {
+      return res.json(responseMessage(1, null, 'Get new task number failed'));
+    }
+  })
 });
 
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
@@ -416,6 +460,10 @@ function toPercent(numerator, denominator){
   var str=Number(point*100).toFixed(0);
   str+="%";
   return str;
+}
+
+function prefixZero(num, n) {
+  return (Array(n).join(0) + num).slice(-n);
 }
 
 /*function dateToString(date) {  

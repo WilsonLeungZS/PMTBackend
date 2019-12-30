@@ -40,13 +40,15 @@ router.get('/getInfo', function(req, res, next) {
 //External interface
 //Spider job to receive task list
 router.post('/receiveTaskList', function(req, res, next) {
+  Logger.info('Request: \n' + JSON.stringify(req.body))
+  //console.log('Request: \n' + JSON.stringify(req.body))
   var taskNumber = req.body.number;
   var taskdesc = req.body.short_description;
   var taskStatus = req.body.state;
   var taskAssignTeam = req.body.assignment_group;
   var taskTotalEffort = req.body.task_effort;
+  var taskBizProject = req.body.bizProject;
   var taskCategorization = req.body.path;
-
   var taskCollection = [];
   for(var i=0; i<taskNumber.length; i++){
     var taskJson = {};
@@ -54,6 +56,16 @@ router.post('/receiveTaskList', function(req, res, next) {
     taskJson.Description = taskdesc[i];
     taskJson.Status = taskStatus[i];
     taskJson.AssignTeam = taskAssignTeam[i].toUpperCase();
+    if (taskBizProject != null && taskTotalEffort != undefined) {
+      taskJson.BizProject = taskBizProject[i];
+    } else {
+      taskJson.BizProject = ''
+    }
+    taskJson.NeedSubTask = false;
+    var taskTotalEffortNum = 0;
+    if(taskTotalEffort != null && taskTotalEffort != undefined){
+      taskTotalEffortNum = Number(taskTotalEffort[i]) * 8;
+      console.log('Task Effort: '+ taskTotalEffortNum);
     taskJson.NeedSubTask = false;
     var taskTotalEffortNum = 0;
     if(taskTotalEffort != null && taskTotalEffort != undefined){
@@ -86,13 +98,14 @@ router.post('/receiveTaskList', function(req, res, next) {
     taskJson.TotalEffort = taskTotalEffortNum;
     taskCollection.push(taskJson);
   }
-  console.log('Task Collection: ' + JSON.stringify(taskCollection));
+
+  //console.log('Task Collection: ' + JSON.stringify(taskCollection));
   async.eachSeries(taskCollection, function(taskObj, callback) {
-    createTask(taskObj, function(){
-        callback();
+    createTask(taskObj, function(err){
+        callback(err);
     });
   }, function(err){
-    if(err != null){
+    if(err != null && err != ''){
       console.log("Create task err is:" + err);
       return res.json({result: false, error: err});
     }
@@ -100,122 +113,116 @@ router.post('/receiveTaskList', function(req, res, next) {
   });
   function createTask(taskObj, cb){
     console.log('Start to create task: ' + taskObj.TaskName);
-    var tParentTaskName = 'N/A';
-    var tName = taskObj.TaskName;
-    var tDescription = taskObj.Description;
-    var tStatus = taskObj.Status;
-    var tCreator = 'Default';
-    var tEffort = 0;
-    var tEstimation = taskObj.TotalEffort;
-    var tTaskType = taskObj.TaskType;
-    var tTaskTypeId = 0;
-    var tAssignTeam = taskObj.AssignTeam;
-    var tAssignTeamId = 0;
-    var tNeedSubTask = taskObj.NeedSubTask;
-    TaskType.findOne({where: {Name: tTaskType}}).then(function(taskType) {
-      console.log('Find task type: ' + tTaskType);
-      if(taskType != null) {
-        tTaskTypeId = taskType.Id;
-        if(tEstimation == 0 && taskType.Value > 0){
-          tEstimation = Number(taskType.Value);
+    Logger.info('Start to create task: ' + taskObj.TaskName);
+    try {
+      var errMsg = '';
+      var tParentTaskName = 'N/A';
+      var tName = taskObj.TaskName;
+      var tDescription = taskObj.Description;
+      var tStatus = taskObj.Status;
+      var tCreator = 'Default';
+      var tEffort = 0;
+      var tEstimation = taskObj.TotalEffort;
+      var tTaskType = taskObj.TaskType;
+      var tTaskTypeId = 0;
+      var tTaskBizProject = taskObj.BizProject;
+      var tAssignTeam = taskObj.AssignTeam;
+      var tBusinessArea = '';
+      if(tAssignTeam != null && tAssignTeam != '' && tAssignTeam.indexOf('+') != -1) {
+        var tAssignTeamArray = tAssignTeam.split("+");
+        if(tAssignTeamArray[1] == 'SSM'){
+          tAssignTeam = tAssignTeamArray[0]
+        } else {
+          tAssignTeam = 'OTHERS'
         }
+        tBusinessArea = tAssignTeamArray[0];
       }
-      //Get task assign team
-      Team.findAll({where: {IsActive: true}}).then(function(teamArray){
-        console.log('Find team: tasktype-' + tTaskTypeId + ', effort-'+tEstimation);
-        if(teamArray != null && teamArray.length > 0){
-          console.log('Start team mapping');
-          for(var a=0;a<teamArray.length;a++){
-            var teamMapping = teamArray[a].Mapping.split(",");
-            console.log('Mapping Array: ' + teamMapping);
-            if(teamMapping.indexOf(tAssignTeam) > -1){
-              tAssignTeamId = teamArray[a].Id;
-              console.log('Create task: assignTeamId-' + tAssignTeamId);
-            }
+      var tAssignTeamId = 0;
+      //var tNeedSubTask = taskObj.NeedSubTask;
+      TaskType.findOne({where: {Name: tTaskType}}).then(function(taskType) {
+        console.log('Find task type: ' + tTaskType);
+        if(taskType != null) {
+          tTaskTypeId = taskType.Id;
+          if(tEstimation == 0 && taskType.Value > 0){
+            tEstimation = Number(taskType.Value);
           }
+        } else {
+          errMsg = 'Task [' + taskObj.TaskName + ']: Task type [' + taskObj.TaskType + '] is not exist'
+          console.log(errMsg)
         }
-        console.log('Start to create task');
-        console.log('Task assign team id: '+ tAssignTeamId);
-        Task.findOrCreate({
-          where: {TaskName: tName}, 
-          defaults: {
-              ParentTaskName: tParentTaskName,
-              TaskName: tName,
-              Description: tDescription,
-              Status: tStatus,
-              Creator: tCreator,
-              Effort: tEffort,
-              Estimation: tEstimation,
-              TaskTypeId: tTaskTypeId,
-              AssignTeamId: tAssignTeamId
-          }})
-        .spread(function(task, created) {
-          if(created) {
-            console.log('Task created');
-            if(tNeedSubTask){
-              var subtaskCollection = [];
-              var subtaskArray = ['Analysis', 'Design', 'Build', 'Test', 'Deploy'];
-              for(var j=0; j<5; j++){
-                var subtaskJson = {};
-                subtaskJson.ParentTaskName = tName;
-                subtaskJson.TaskName = tName + ' - ' + subtaskArray[j];
-                subtaskJson.Description = tName + ' ' + subtaskArray[j] + ' Task';
-                subtaskJson.Status = 'N/A';
-                subtaskJson.Creator = 'Default';
-                subtaskJson.Effort = 0;
-                subtaskJson.Estimation = 0;
-                subtaskJson.TaskTypeId = tTaskTypeId;
-                subtaskJson.AssignTeamId = tAssignTeamId;
-                subtaskCollection.push(subtaskJson);
-              }
-              async.eachSeries(subtaskCollection, function(subtaskObj, callback) {
-                createSubTask(subtaskObj, function(){
-                    callback();
-                });
-              }, function(err){
-                  console.log("Create sub task err is:" + err);
-              });
-              function createSubTask(subtaskObj, cb1){
-                console.log("Create sub-task" + subtaskObj.TaskName);
-                Task.create({ 
-                  ParentTaskName:subtaskObj.ParentTaskName, 
-                  TaskName:subtaskObj.TaskName, 
-                  Description:subtaskObj.Description, 
-                  Status:subtaskObj.Status, 
-                  Creator:subtaskObj.Creator = 'Default', 
-                  Effort:subtaskObj.Effort, 
-                  Estimation:subtaskObj.Estimation, 
-                  TaskTypeId:subtaskObj.TaskTypeId, 
-                  AssignTeamId:subtaskObj.AssignTeamId
-                });
-                cb1(null, subtaskObj);
+        //Get task assign team
+        Team.findAll({where: {IsActive: true}}).then(function(teamArray){
+          //console.log('Find team: tasktype-' + tTaskTypeId + ', effort-'+tEstimation);
+          if(teamArray != null && teamArray.length > 0){
+            //console.log('Start team mapping');
+            for(var a=0;a<teamArray.length;a++){
+              var teamMapping = teamArray[a].Mapping.split(",");
+              //console.log('Mapping Array: ' + teamMapping);
+              if(teamMapping.indexOf(tAssignTeam) > -1){
+                tAssignTeamId = teamArray[a].Id;
+                console.log('Create task: assignTeamId-' + tAssignTeamId);
               }
             }
+            if(tAssignTeamId == 0) {
+              errMsg = 'Task [' + taskObj.TaskName + ']: Team [' + taskObj.AssignTeam + '] mapping is not exist'
+              console.log(errMsg)
+            }
           }
-          else if(task != null && !created){
-            console.log('Task updated');
-            task.update({
-              Description: tDescription,
-              Status: tStatus,
-              Estimation: tEstimation,
-              TaskTypeId: tTaskTypeId,
-              AssignTeamId: tAssignTeamId
-            });
-          } 
-          else {
-            console.log('Task create fail');
-          }
+          console.log('Start to create/Update task');
+          //console.log('Task assign team id: '+ tAssignTeamId);
+          Task.findOrCreate({
+            where: {TaskName: tName}, 
+            defaults: {
+                ParentTaskName: tParentTaskName,
+                TaskName: tName,
+                Description: tDescription,
+                Status: tStatus,
+                Creator: tCreator,
+                Effort: tEffort,
+                Estimation: tEstimation,
+                TaskTypeId: tTaskTypeId,
+                AssignTeamId: tAssignTeamId,
+                BizProject: tTaskBizProject,
+                BusinessArea: tBusinessArea
+            }})
+          .spread(function(task, created) {
+            if(created) {
+              console.log('Task created');
+              Logger.info('Task created');
+            }
+            else if(task != null && !created){ 
+              task.update({
+                Description: tDescription,
+                Status: tStatus,
+                Estimation: tEstimation,
+                TaskTypeId: tTaskTypeId,
+                AssignTeamId: tAssignTeamId,
+                BizProject: tTaskBizProject,
+                BusinessArea: tBusinessArea
+              });
+              console.log('Task updated');
+              Logger.info('Task updated');
+            } 
+            else {
+              console.log('Task create fail');
+              errMsg = 'Task [' + taskObj.TaskName + ']: create or update failed!'
+            }
+            cb(errMsg, taskObj);
+          }); 
         }); 
-      }); 
-    });
-    cb(null, taskObj);
+      });
+    } catch(exception) {
+      var exMsg = 'Exception occurred: ' + exception;
+      console.error(exMsg);
+      Logger.info(exMsg);
+      cb(exMsg, taskObj);
+    }
   }
 });
 
 router.get('/queryTimesheet', function(req, res, next) {
   var reqStartDate = req.query.start_date;
   var reqEndDate = req.query.end_date;
-  var reqTaskName = req.query.task_number;
   if(reqStartDate != null && reqEndDate != null && reqStartDate != '' && reqEndDate != ''){
     var rtnResult = [];
     var reqStartDate = reqStartDate + ' 00:00:00';
@@ -264,23 +271,34 @@ router.get('/queryTimesheet', function(req, res, next) {
       }
       return res.json({result:rtnResult, error:''});
     });
+  } else {
+    return res.json({result: false, error: 'Request param invalid!'});
   }
-  else if(reqTaskName != null & reqTaskName != ''){
+});
+
+router.post('/queryTimesheetForTRLS', function(req, res, next) {
+  var reqTaskName = req.body.task_number;
+  if(reqTaskName != null & reqTaskName != ''){
     var rtnResult = [];
-    Task.findOne({
+    Task.findAll({
       include: [{
         model: TaskType, 
         attributes: ['Name']
       }],
       where: {
-        TaskName: reqTaskName.toUpperCase()
+        TaskName: {
+          [Op.in]: reqTaskName
+        }
       }
     }).then(function(task) {
-      if(task != null){
-        var resJson = {};
-        resJson.effort = task.Effort;
-        resJson.task_number = task.TaskName;
-        rtnResult.push(resJson);
+      if(task != null && task.length > 0){
+        for(var i=0; i<task.length; i++) {
+          var resJson = {};
+          resJson.effort = task[i].Effort;
+          resJson.task_number = task[i].TaskName;
+          resJson.task_type = task[i].task_type.Name;
+          rtnResult.push(resJson);
+        }
       }
       return res.json({result: rtnResult, error: ''});
     });
@@ -294,6 +312,17 @@ function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
   var resJson = {}; 
   resJson = {status: iStatusCode, data: iDataArray, message: iErrorMessage};
   return resJson;
+}
+
+
+function getIndexOfValueInArr(iArray, iKey, iValue) {
+  for(var i=0; i<iArray.length;i++) {
+    var item = iArray[i];
+    if(item[iKey] == iValue){
+      return i;
+    }
+  }
+  return -1;
 }
 
 module.exports = router;

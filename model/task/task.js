@@ -3,6 +3,8 @@ var moment = require('moment');
 var sequelize = require('../../config/db');
 var TaskType = require('./task_type');
 var Team = require('../team/team');
+var User = require('../user')
+
 
 var Task = sequelize.define('task', {
     Id: { type:Sequelize.INTEGER, primaryKey: true, autoIncrement:true },
@@ -16,6 +18,8 @@ var Task = sequelize.define('task', {
     Estimation: { type:Sequelize.INTEGER },
     StartDate: { type:Sequelize.STRING },
     DueDate: { type:Sequelize.STRING },
+    BusinessArea: { type:Sequelize.STRING },
+    BizProject: { type:Sequelize.STRING },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
@@ -38,6 +42,8 @@ var Task = sequelize.define('task', {
 
 Task.belongsTo(TaskType, {foreignKey: 'TaskTypeId'});
 Task.belongsTo(Team, {foreignKey: 'AssignTeamId'});
+Task.belongsTo(User, {foreignKey: 'AssignUserId'});
+
 
 //Task.sync({force: true});
 Task.sync();
