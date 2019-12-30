@@ -5,6 +5,7 @@ var TaskType = require('./task_type');
 var Team = require('../team/team');
 var User = require('../user')
 
+
 var Task = sequelize.define('task', {
     Id: { type:Sequelize.INTEGER, primaryKey: true, autoIncrement:true },
     ParentTaskName: { type: Sequelize.STRING },
@@ -42,6 +43,7 @@ var Task = sequelize.define('task', {
 Task.belongsTo(TaskType, {foreignKey: 'TaskTypeId'});
 Task.belongsTo(Team, {foreignKey: 'AssignTeamId'});
 Task.belongsTo(User, {foreignKey: 'AssignUserId'});
+
 
 //Task.sync({force: true});
 Task.sync();

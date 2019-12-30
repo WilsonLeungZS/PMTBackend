@@ -1,5 +1,5 @@
 bin/https/
-config/
+config/db.js
 node_modules/
 logs/
 bin/
