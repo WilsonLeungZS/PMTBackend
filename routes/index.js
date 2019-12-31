@@ -66,11 +66,6 @@ router.post('/receiveTaskList', function(req, res, next) {
     if(taskTotalEffort != null && taskTotalEffort != undefined){
       taskTotalEffortNum = Number(taskTotalEffort[i]) * 8;
       console.log('Task Effort: '+ taskTotalEffortNum);
-    taskJson.NeedSubTask = false;
-    var taskTotalEffortNum = 0;
-    if(taskTotalEffort != null && taskTotalEffort != undefined){
-      taskTotalEffortNum = Number(taskTotalEffort[i]);
-      console.log('Task Number: '+ taskTotalEffortNum);
     }
     if(taskNumber[i].toUpperCase().startsWith('CG')){
       taskJson.TaskType = 'Change';
@@ -98,7 +93,6 @@ router.post('/receiveTaskList', function(req, res, next) {
     taskJson.TotalEffort = taskTotalEffortNum;
     taskCollection.push(taskJson);
   }
-
   //console.log('Task Collection: ' + JSON.stringify(taskCollection));
   async.eachSeries(taskCollection, function(taskObj, callback) {
     createTask(taskObj, function(err){
@@ -271,7 +265,8 @@ router.get('/queryTimesheet', function(req, res, next) {
       }
       return res.json({result:rtnResult, error:''});
     });
-  } else {
+  }
+  else {
     return res.json({result: false, error: 'Request param invalid!'});
   }
 });
@@ -313,7 +308,6 @@ function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
   resJson = {status: iStatusCode, data: iDataArray, message: iErrorMessage};
   return resJson;
 }
-
 
 function getIndexOfValueInArr(iArray, iKey, iValue) {
   for(var i=0; i<iArray.length;i++) {
