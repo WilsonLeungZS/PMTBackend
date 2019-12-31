@@ -93,6 +93,7 @@ router.post('/receiveTaskList', function(req, res, next) {
     taskJson.TotalEffort = taskTotalEffortNum;
     taskCollection.push(taskJson);
   }
+
   //console.log('Task Collection: ' + JSON.stringify(taskCollection));
   async.eachSeries(taskCollection, function(taskObj, callback) {
     createTask(taskObj, function(err){
@@ -265,8 +266,7 @@ router.get('/queryTimesheet', function(req, res, next) {
       }
       return res.json({result:rtnResult, error:''});
     });
-  }
-  else {
+  } else {
     return res.json({result: false, error: 'Request param invalid!'});
   }
 });
