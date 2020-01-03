@@ -20,6 +20,10 @@ var Task = sequelize.define('task', {
     DueDate: { type:Sequelize.STRING },
     BusinessArea: { type:Sequelize.STRING },
     BizProject: { type:Sequelize.STRING },
+    TaskLevel: {
+        type: Sequelize.INTEGER,
+        defaultValue: 1
+    },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,

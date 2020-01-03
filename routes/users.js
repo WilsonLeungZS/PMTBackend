@@ -110,6 +110,7 @@ router.post('/addOrUpdateUser', function(req, res, next) {
         Email: req.body.userEmail,
         TeamId: teamId,
         Role: req.body.reqUserRole,
+        NameMapping: req.body.reqUserNameMapping,
         IsActive: reqUserIsActive
       }})
     .spread(function(user, created) {
@@ -122,6 +123,7 @@ router.post('/addOrUpdateUser', function(req, res, next) {
           Email: req.body.userEmail,
           TeamId: teamId,
           Role: req.body.reqUserRole,
+          NameMapping: req.body.reqUserNameMapping,
           IsActive: reqUserIsActive
         });
         return res.json(responseMessage(0, user, 'Update user successfully!'));
@@ -172,6 +174,7 @@ router.get('/getUserList', function(req, res, next) {
         resJson.user_team = user[i].team.Name;
         resJson.user_role = user[i].Role;
         resJson.user_isactive = user[i].IsActive;
+        resJson.user_namemapping = user[i].NameMapping;
         rtnResult.push(resJson);
       }
       return res.json(responseMessage(0, rtnResult, ''));
@@ -204,6 +207,7 @@ router.post('/getUserById', function(req, res, next) {
         resJson.user_teamproject = user.team.Project;
         resJson.user_teamid = user.team.Id;
         resJson.user_role = user.Role;
+        resJson.user_namemapping = user.NameMapping;
         if(team != null){
           var teamArray = [];
           for(var i=0; i< team.length; i++){
@@ -244,6 +248,7 @@ router.post('/getUserListByName', function(req, res, next) {
         resJson.user_eid = user[i].Name;
         resJson.user_team = user[i].team.Name;
         resJson.user_role = user[i].Role;
+        resJson.user_namemapping = user[i].NameMapping;
         rtnResult.push(resJson);
       }
       return res.json(responseMessage(0, rtnResult, ''));

@@ -14,7 +14,14 @@ const Op = Sequelize.Op;
 /* GET home page. */
 router.get('/', function(req, res, next) {
   Logger.info('Index log');
-  return res.json({message: 'Response index resource'});
+  return res.json({message: 'Get Response index resource'});
+});
+
+router.post('/', function(req, res, next) {
+  var request = req.body.requestValue;
+  console.log(request);
+  Logger.info('Index log');
+  return res.json({message: 'Post Response index resource'});
 });
 
 router.get('/getInfo', function(req, res, next) {
