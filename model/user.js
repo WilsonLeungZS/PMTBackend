@@ -32,6 +32,11 @@ var User = sequelize.define('user', {
     NameMapping: {
         type: Sequelize.STRING
     },
+    Level: {
+        type:Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: -1
+    },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,

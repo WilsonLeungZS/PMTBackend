@@ -12,6 +12,22 @@ router.get('/', function(req, res, next) {
   return res.json({message: 'Response user resource'});
 });
 
+router.get('/getUserLevelById', function(req, res, next) {
+  var reqUserId = req.query.userId;
+  User.findOne({
+    attributes: ['Name', 'Level'],
+    where: {
+      Id: reqUserId
+    }
+  }).then(function(user) {
+    if(user != null){
+      return res.json(responseMessage(0, user, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'User not exist'));
+    }
+  });
+});
+
 router.get('/getUserThemeStyle', function(req, res, next) {
   var reqUserName = req.query.userEid;
   User.findOne({
@@ -111,7 +127,8 @@ router.post('/addOrUpdateUser', function(req, res, next) {
         TeamId: teamId,
         Role: req.body.reqUserRole,
         NameMapping: req.body.reqUserNameMapping,
-        IsActive: reqUserIsActive
+        IsActive: reqUserIsActive,
+        Level: req.body.reqUserLevel
       }})
     .spread(function(user, created) {
       if(created) {
@@ -124,7 +141,8 @@ router.post('/addOrUpdateUser', function(req, res, next) {
           TeamId: teamId,
           Role: req.body.reqUserRole,
           NameMapping: req.body.reqUserNameMapping,
-          IsActive: reqUserIsActive
+          IsActive: reqUserIsActive,
+          Level: req.body.reqUserLevel
         });
         return res.json(responseMessage(0, user, 'Update user successfully!'));
       }
@@ -175,6 +193,7 @@ router.get('/getUserList', function(req, res, next) {
         resJson.user_role = user[i].Role;
         resJson.user_isactive = user[i].IsActive;
         resJson.user_namemapping = user[i].NameMapping;
+        resJson.user_level = user[i].Level;
         rtnResult.push(resJson);
       }
       return res.json(responseMessage(0, rtnResult, ''));
@@ -208,6 +227,7 @@ router.post('/getUserById', function(req, res, next) {
         resJson.user_teamid = user.team.Id;
         resJson.user_role = user.Role;
         resJson.user_namemapping = user.NameMapping;
+        resJson.user_level = user.Level;
         if(team != null){
           var teamArray = [];
           for(var i=0; i< team.length; i++){
@@ -249,6 +269,7 @@ router.post('/getUserListByName', function(req, res, next) {
         resJson.user_team = user[i].team.Name;
         resJson.user_role = user[i].Role;
         resJson.user_namemapping = user[i].NameMapping;
+        resJson.user_level = user[i].Level;
         rtnResult.push(resJson);
       }
       return res.json(responseMessage(0, rtnResult, ''));

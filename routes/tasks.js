@@ -79,6 +79,7 @@ router.get('/getTaskList', function(req, res, next) {
         resJson.task_id = task[i].Id;
         resJson.task_name = task[i].TaskName;
         resJson.task_type = task[i].task_type.Name;
+        resJson.task_level = task[i].TaskLevel;
         resJson.task_desc = task[i].Description;
         resJson.task_status = task[i].Status;
         resJson.task_effort = task[i].Effort;
@@ -172,6 +173,7 @@ router.post('/getTaskByName', function(req, res, next) {
             var resJson = {};
             resJson.task_id = task[i].Id;
             resJson.task_name = task[i].TaskName;
+            resJson.task_level = task[i].TaskLevel;
             resJson.task_type = task[i].task_type.Name;
             resJson.task_desc = task[i].Description;
             if(task[i].Estimation != null && task[i].Estimation > 0){
@@ -215,6 +217,7 @@ router.post('/getTaskById', function(req, res, next) {
             resJson.task_id = task[i].Id;
             resJson.task_parenttaskname = task[i].ParentTaskName;
             resJson.task_name = task[i].TaskName;
+            resJson.task_level = task[i].TaskLevel;
             resJson.task_creator = task[i].Creator;
             resJson.task_type = task[i].task_type.Name;
             resJson.task_type_id = task[i].task_type.Id;
@@ -246,6 +249,60 @@ router.post('/getTaskById', function(req, res, next) {
   })
 });
 
+router.post('/getTaskByParentTask', function(req, res, next) {
+  var rtnResult = [];
+  Task.findAll({
+      include: [{
+        model: TaskType, 
+        attributes: ['Id', 'Name']
+      },
+      {
+        model: Team, 
+        attributes: ['Id', 'Name']
+      }],
+      where: {
+        TaskName: req.body.tParentTask 
+      }
+  }).then(function(task) {
+      if(task.length > 0) {
+          for(var i=0;i<task.length;i++){
+            var resJson = {};
+            resJson.task_id = task[i].Id;
+            resJson.task_parenttaskname = task[i].ParentTaskName;
+            resJson.task_name = task[i].TaskName;
+            resJson.task_level = task[i].TaskLevel;
+            resJson.task_creator = task[i].Creator;
+            resJson.task_type = task[i].task_type.Name;
+            resJson.task_type_id = task[i].task_type.Id;
+            resJson.task_assign_team =  task[i].team.Name;
+            resJson.task_assign_team_id =  task[i].team.Id;
+            if(task[i].Status != null && !task[i].Status == ""){
+              resJson.task_status = task[i].Status;
+            } else {
+              resJson.task_status = "N/A";
+            }
+            resJson.task_desc = task[i].Description;
+            resJson.task_currenteffort = task[i].Effort;
+            if(task[i].Estimation != null && task[i].Estimation >0){
+              resJson.task_totaleffort =  task[i].Estimation;
+              resJson.task_progress = toPercent(task[i].Effort, task[i].Estimation);
+              var percentage =  "" + toPercent(task[i].Effort, task[i].Estimation);
+              resJson.task_progress_nosymbol = percentage.replace("%","");
+            } else {
+              resJson.task_totaleffort = "0"
+              resJson.task_progress = "0";
+              resJson.task_progress_nosymbol = "0";
+            }
+            rtnResult.push(resJson);
+          }
+          return res.json(responseMessage(0, rtnResult, ''));
+      } else {
+          return res.json(responseMessage(1, null, 'No task exist'));
+      }
+  })
+});
+
+
 router.post('/getTaskByCompletedName', function(req, res, next) {
   var rtnResult = [];
   Task.findAll({
@@ -267,6 +324,7 @@ router.post('/getTaskByCompletedName', function(req, res, next) {
             resJson.task_id = task[i].Id;
             resJson.task_parenttaskname = task[i].ParentTaskName;
             resJson.task_name = task[i].TaskName;
+            resJson.task_level = task[i].TaskLevel;
             resJson.task_type = task[i].task_type.Name;
             resJson.task_assign_team =  task[i].team.Name;
             if(task[i].Status != null && !task[i].Status == ""){
@@ -298,7 +356,7 @@ router.post('/getTaskByCompletedName', function(req, res, next) {
 router.post('/getSubTaskByParentTaskName', function(req, res, next) {
   var rtnResult = [];
   Task.findAll({
-    attributes: ['Id', 'TaskName'],
+    attributes: ['Id', 'TaskName', 'Description'],
     where: {
       ParentTaskName: req.body.tTaskName
     },
@@ -309,23 +367,36 @@ router.post('/getSubTaskByParentTaskName', function(req, res, next) {
       if(task.length > 0) {
         for(var i=0;i<task.length;i++){
           var resJson = {};
-          resJson.task_subtask_id = task[i].Id;
-          resJson.task_subtask_name = task[i].TaskName;
+          resJson.task_id = task[i].Id;
+          resJson.task_name = task[i].TaskName;
+          resJson.task_desc = task[i].Description;
           rtnResult.push(resJson);
         }
         return res.json(responseMessage(0, rtnResult, ''));
       } else {
-        return res.json(responseMessage(1, null, 'No task exist'));
+        return res.json(responseMessage(1, null, 'No sub task exist'));
       }
   })
 });
 
 router.post('/addOrUpdateTask', function(req, res, next) {
+  addOrUpdateTask(req, res);
+});
+
+async function addOrUpdateTask(req, res) {
+  var reqTaskName = req.body.tName;
+  var reqTaskParent = req.body.tParent;
+  var isSubTask = false;
+  if((reqTaskName == null || reqTaskName == '') && reqTaskParent != 'N/A'){
+    reqTaskName = await getSubTaskName(reqTaskParent);
+    isSubTask = true;
+  }
   Task.findOrCreate({
       where: { TaskName: req.body.tName }, 
       defaults: {
-        ParentTaskName: req.body.tParent,
-        TaskName: req.body.tName,
+        ParentTaskName: reqTaskParent,
+        TaskName: reqTaskName,
+        TaskLevel: req.body.tLevel,
         Description: req.body.tDescription,
         TaskTypeId: Number(req.body.tTaskTypeId),
         Status: req.body.tStatus,
@@ -337,20 +408,25 @@ router.post('/addOrUpdateTask', function(req, res, next) {
     .spread(function(task, created) {
       if(created) {
         console.log("Task created");
-        Reference.findOne({where: {Name: 'TaskSeq'}}).then(function(reference) {
-          if(reference != null) {
-            var newSeq = Number(reference.Value) + 1;
-            Reference.update({Value:newSeq}, {where: {Name: 'TaskSeq'}});
-            return res.json(responseMessage(0, task, 'Task Created'));
-          } else {
-            return res.json(responseMessage(1, task, 'Task Seq Update failed'));
-          }
-        });  
+        if(!isSubTask){
+          Reference.findOne({where: {Name: 'TaskSeq'}}).then(function(reference) {
+            if(reference != null) {
+              var newSeq = Number(reference.Value) + 1;
+              Reference.update({Value:newSeq}, {where: {Name: 'TaskSeq'}});
+              return res.json(responseMessage(0, task, 'Task Created'));
+            } else {
+              return res.json(responseMessage(1, task, 'Task Seq Update failed'));
+            }
+          });  
+        } else {
+          return res.json(responseMessage(0, task, 'Task Created'));
+        }
       } else {
         console.log("Task existed");
         Task.update({
             ParentTaskName: req.body.tParent,
             TaskName: req.body.tName,
+            TaskLevel: req.body.tLevel,
             Description: req.body.tDescription,
             TaskTypeId: Number(req.body.tTaskTypeId),
             Status: req.body.tStatus,
@@ -363,7 +439,32 @@ router.post('/addOrUpdateTask', function(req, res, next) {
         return res.json(responseMessage(1, task, 'Task existed'));
       }
   });
-});
+}
+
+async function getSubTaskName(iParentTask) {
+  console.log('Start to get getSubTaskName');
+  var subTaskCount = await getSubTaskCount(iParentTask);
+  subTaskCount = Number(subTaskCount) + 1;
+  console.log('Get Count:' + subTaskCount);
+  var taskName = iParentTask + '-' + subTaskCount;
+  console.log('Sub Task Name: ' + taskName);
+  return taskName;
+}
+
+function getSubTaskCount(iParentTask) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      where: {
+        ParentTaskName: iParentTask
+      }
+    }).then(function(task) {
+      if(task != null) {
+        console.log('Task length: ' + task.length);
+        resolve(task.length);
+      }
+    });
+  });
+}
 
 //Task Type
 router.get('/getAllTaskType', function(req, res, next) {
@@ -435,7 +536,7 @@ router.post('/getNewTaskNumberByType', function(req, res, next) {
         if (reference != null) {
           var newTaskNumber = Number(reference.Value) + 1;
           var newTask = '' + taskType.Prefix + prefixZero(newTaskNumber, 6);
-          return res.json(responseMessage(0, {task_number: newTask}, 'Get new task number successfully!'));
+          return res.json(responseMessage(0, {task_name: newTask}, 'Get new task number successfully!'));
         } else {
           return res.json(responseMessage(1, null, 'Get new task number failed'));
         }
