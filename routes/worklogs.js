@@ -30,12 +30,6 @@ router.post('/getMonthAdEffort', function(req, res, next) {
             TaskName: {[Op.notLike]: 'Dummy - %'}
           },
           include: [{
-            model: Team, 
-            attributes: ['Name'],
-            where: {
-              Project: {[Op.like]: 'MTL'}
-            }
-          }, {
             model: TaskType, 
             attributes: ['Name'],
             where: {
@@ -276,12 +270,6 @@ router.post('/getWorklogTaskByMonthForWeb', function(req, res, next) {
         TaskName: {[Op.notLike]: 'Dummy - %'}
       },
       include: [{
-        model: Team, 
-        attributes: ['Name'],
-        where: {
-          Project: {[Op.like]: 'MTL'}
-        }
-      }, {
         model: TaskType, 
         attributes: ['Name'],
         where: {
@@ -304,7 +292,6 @@ router.post('/getWorklogTaskByMonthForWeb', function(req, res, next) {
         var index = getIndexOfValueInArr(rtnResult, 'tl_task', worklog[i].task.TaskName);
         if (index == -1 ) {
           resJson['tl_task'] = worklog[i].task.TaskName;
-          resJson['tl_assignteam'] = worklog[i].task.team.Name;
           resJson['tl_status'] = worklog[i].task.Status;
           resJson['tl_estimation'] = worklog[i].task.Estimation;
           resJson['tl_effort'] = worklog[i].task.Effort;
@@ -333,10 +320,7 @@ router.post('/getWorklogByMonthForWeb', function(req, res, next) {
         Id: { [Op.ne]: null },
         TaskName: reqTaskName
       },
-      include: [{
-        model: Team, 
-        attributes: ['Name']
-      }, {
+      include: [ {
         model: TaskType, 
         attributes: ['Name']
       }]
@@ -357,7 +341,6 @@ router.post('/getWorklogByMonthForWeb', function(req, res, next) {
       var resJson1 = {};
       resJson1['tl_task_id'] = worklog[0].task.Id;
       resJson1['tl_task'] = worklog[0].task.TaskName;
-      resJson1['tl_assignteam'] = worklog[0].task.team.Name;
       resJson1['tl_status'] = worklog[0].task.Status;
       resJson1['tl_desc'] = worklog[0].task.Description;
       resJson1['tl_task_type'] = worklog[0].task.task_type.Name;
@@ -669,8 +652,7 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
             Status: worklog.task.Status,
             Creator: 'PMT',
             Effort: 0,
-            Estimation: 0,
-            AssignTeamId: Number(worklog.task.AssignTeamId),
+            Estimation: 0
           }
         })
       .spread((task, created) => {

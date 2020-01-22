@@ -111,7 +111,8 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             Estimation: tEstimation,
             TaskTypeId: tTaskTypeId,
             BizProject: tTaskBizProject,
-            BusinessArea: tBusinessArea
+            BusinessArea: tBusinessArea,
+            TaskLevel: 3
         }
       })
       .spread(function(task, created) {
@@ -208,7 +209,8 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
             Estimation: tEstimation,
             TaskTypeId: tTaskTypeId,
             BizProject: tTaskBizProject,
-            BusinessArea: tBusinessArea
+            BusinessArea: tBusinessArea,
+            TaskLevel: 3
         }
       })
       .spread(function(task, created) {
@@ -271,6 +273,7 @@ function processRequest(req){
     if(taskEstimation != null && taskEstimation != undefined){
       taskEstimationNum = Number(taskEstimation[i]) * 8;
     }
+    taskJson.Estimation = taskEstimationNum;
     //Task Category
     if(taskNumber[i].toUpperCase().startsWith('CG')){
       taskJson.TaskType = 'Change';
@@ -291,7 +294,6 @@ function processRequest(req){
     else {
       taskJson.TaskType = 'Sponsor Task';
     }
-    taskJson.Estimation = taskEstimationNum;
     taskCollection.push(taskJson);
   }
   return taskCollection;
@@ -317,23 +319,17 @@ function getStatusMapping(iTaskType, iStatus) {
   return new Promise((resolve, reject) => {
     Reference.findOne({
       where: {
-        Name: 'TaskTypeMapping'
+        Name: 'TaskTypeMapping',
+        Type: iTaskType
     }}).then(function(reference) {
       if(reference != null){
         var statusMapping = reference.Value;
-        for(var i=0;i<statusMapping.length;i++){
-          var mappingJson = statusMapping[i];
-          console.log(mappingJson.Type);
-          if(mappingJson.Type == iTaskType){
-            var mapping = mappingJson.Mapping;
-            console.log(JSON.stringify(mapping));
-            for(var j=0;j<mapping.length;j++){
-              var mappingGroup = mapping[j].Group.split(",");
-              if(mappingGroup.indexOf(iStatus) > -1){
-                console.log('Status Mapping:' + iStatus + ' => ' + mappingGroup.Status);
-                resolve(mappingGroup.Status); 
-              }
-            }//End of find mapping group
+        var statusMappingJson = JSON.parse(statusMapping);
+        for(var i=0;i<statusMappingJson.length;i++){
+          var mappingGroup = statusMappingJson[i].Group;
+          if(mappingGroup.indexOf(iStatus) > -1){
+            console.log('Status Mapping:' + iStatus + ' => ' + statusMappingJson[i].Status);
+            resolve(statusMappingJson[i].Status); 
           }
         }//End of find task type mapping
       }

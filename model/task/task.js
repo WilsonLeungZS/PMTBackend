@@ -16,8 +16,24 @@ var Task = sequelize.define('task', {
     Creator: { type: Sequelize.STRING, allowNull: false },
     Effort: { type:Sequelize.INTEGER },
     Estimation: { type:Sequelize.INTEGER },
-    StartDate: { type:Sequelize.STRING },
-    DueDate: { type:Sequelize.STRING },
+    IssueDate: {
+        type: Sequelize.DATE,
+        get() {
+            return moment(this.getDataValue('IssueDate')).format('YYYY-MM-DD HH:mm:ss');
+        }
+    },
+    TargetCompleteDate: {
+        type: Sequelize.DATE,
+        get() {
+            return moment(this.getDataValue('TargetCompleteDate')).format('YYYY-MM-DD HH:mm:ss');
+        }
+    },
+    ActualCompleteDate: {
+        type: Sequelize.DATE,
+        get() {
+            return moment(this.getDataValue('ActualCompleteDate')).format('YYYY-MM-DD HH:mm:ss');
+        }
+    },
     BusinessArea: { type:Sequelize.STRING },
     BizProject: { type:Sequelize.STRING },
     TaskLevel: {
@@ -45,13 +61,9 @@ var Task = sequelize.define('task', {
 });
 
 Task.belongsTo(TaskType, {foreignKey: 'TaskTypeId'});
-Task.belongsTo(Team, {foreignKey: 'AssignTeamId'});
-Task.belongsTo(User, {foreignKey: 'AssignUserId'});
-
+Task.belongsTo(User, {foreignKey: 'AssigneeId'});
+Task.belongsTo(User, {foreignKey: 'RespLeaderId'});
 
 //Task.sync({force: true});
 Task.sync();
 module.exports = Task;
-
-
-//TaskTypeId: { type:Sequelize.INTEGER, allowNull: false },

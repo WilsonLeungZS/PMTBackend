@@ -58,13 +58,8 @@ router.get('/getTaskList', function(req, res, next) {
     include: [{
       model: TaskType, 
       attributes: ['Name']
-    },
-    {
-      model: Team, 
-      attributes: ['Name']
     }],
     where: {
-      ParentTaskName: 'N/A',
       TaskName: {[Op.notLike]: 'Dummy - %'}
     },
     order: [
@@ -84,7 +79,6 @@ router.get('/getTaskList', function(req, res, next) {
         resJson.task_status = task[i].Status;
         resJson.task_effort = task[i].Effort;
         resJson.task_estimation = task[i].Estimation;
-        resJson.task_assign_team = task[i].team.Name;
         resJson.task_created = task[i].createdAt;
         rtnResult.push(resJson);
       }
@@ -101,7 +95,6 @@ router.get('/getTotalTaskSize', function(req, res, next) {
   var rtnResult = [];
   Task.findAll({
     where: {
-      ParentTaskName: 'N/A',
       TaskName: {[Op.notLike]: 'Dummy - %'}
     },
   }).then(function(task) {
@@ -157,10 +150,6 @@ router.post('/getTaskByName', function(req, res, next) {
     include: [{
       model: TaskType, 
       attributes: ['Name']
-    },
-    {
-      model: Team, 
-      attributes: ['Name']
     }],
     where: criteria,
     limit:100,
@@ -185,7 +174,6 @@ router.post('/getTaskByName', function(req, res, next) {
             resJson.task_status = task[i].Status;
             resJson.task_effort = task[i].Effort;
             resJson.task_estimation = task[i].Estimation;
-            resJson.task_assign_team = task[i].team.Name;
             resJson.task_created = task[i].createdAt;
             rtnResult.push(resJson);
           }
@@ -202,10 +190,6 @@ router.post('/getTaskById', function(req, res, next) {
       include: [{
         model: TaskType, 
         attributes: ['Id', 'Name']
-      },
-      {
-        model: Team, 
-        attributes: ['Id', 'Name']
       }],
       where: {
         Id: req.body.tId 
@@ -221,8 +205,6 @@ router.post('/getTaskById', function(req, res, next) {
             resJson.task_creator = task[i].Creator;
             resJson.task_type = task[i].task_type.Name;
             resJson.task_type_id = task[i].task_type.Id;
-            resJson.task_assign_team =  task[i].team.Name;
-            resJson.task_assign_team_id =  task[i].team.Id;
             if(task[i].Status != null && !task[i].Status == ""){
               resJson.task_status = task[i].Status;
             } else {
@@ -255,10 +237,6 @@ router.post('/getTaskByParentTask', function(req, res, next) {
       include: [{
         model: TaskType, 
         attributes: ['Id', 'Name']
-      },
-      {
-        model: Team, 
-        attributes: ['Id', 'Name']
       }],
       where: {
         TaskName: req.body.tParentTask 
@@ -274,8 +252,6 @@ router.post('/getTaskByParentTask', function(req, res, next) {
             resJson.task_creator = task[i].Creator;
             resJson.task_type = task[i].task_type.Name;
             resJson.task_type_id = task[i].task_type.Id;
-            resJson.task_assign_team =  task[i].team.Name;
-            resJson.task_assign_team_id =  task[i].team.Id;
             if(task[i].Status != null && !task[i].Status == ""){
               resJson.task_status = task[i].Status;
             } else {
@@ -309,10 +285,6 @@ router.post('/getTaskByCompletedName', function(req, res, next) {
       include: [{
         model: TaskType, 
         attributes: ['Name']
-      },
-      {
-          model: Team, 
-          attributes: ['Name']
       }],
       where: {
         TaskName: req.body.tTaskName 
@@ -326,7 +298,6 @@ router.post('/getTaskByCompletedName', function(req, res, next) {
             resJson.task_name = task[i].TaskName;
             resJson.task_level = task[i].TaskLevel;
             resJson.task_type = task[i].task_type.Name;
-            resJson.task_assign_team =  task[i].team.Name;
             if(task[i].Status != null && !task[i].Status == ""){
               resJson.task_status = task[i].Status;
             } else {
@@ -402,8 +373,7 @@ async function addOrUpdateTask(req, res) {
         Status: req.body.tStatus,
         Creator: 'PMT',
         Effort: Number(req.body.tEffort),
-        Estimation: Number(req.body.tEstimation),
-        AssignTeamId: Number(req.body.tAssignTeamId),
+        Estimation: Number(req.body.tEstimation)
       }})
     .spread(function(task, created) {
       if(created) {
