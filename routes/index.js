@@ -79,8 +79,12 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
       var tEstimation = taskObj.Estimation;
       var tTaskType = taskObj.TaskType;
       var tTaskTypeId = 0;
+      tParentTaskName = await getTaskPool(tTaskType);
       var tTaskBizProject = taskObj.BizProject;
       var tBusinessArea = '';
+      var tRespLeader = taskObj.TaskRespLeader;
+      var tRespLeaderId = await getUserMapping(tRespLeader);
+      var tTaskIssueDate = taskObj.TaskIssueDate;
       //Get task type info
       console.log("Type = " + tTaskType + ', Status = ' + tStatus);
       var inTaskType = await getTaskTypeInfo(tTaskType);
@@ -112,7 +116,9 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             TaskTypeId: tTaskTypeId,
             BizProject: tTaskBizProject,
             BusinessArea: tBusinessArea,
-            TaskLevel: 3
+            TaskLevel: 3, 
+            IssueDate: tTaskIssueDate,
+            RespLeaderId: tRespLeaderId
         }
       })
       .spread(function(task, created) {
@@ -121,13 +127,22 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
           Logger.info('Task created');
         }
         else if(task != null && !created){ 
+          var parentTask = 'N/A';
+          if (task.ParentTaskName == 'N/A') {
+            parentTask = tParentTaskName;
+          }
           task.update({
+            ParentTaskName: parentTask,
             Description: tDescription,
             Status: tStatus,
             Estimation: tEstimation,
             TaskTypeId: tTaskTypeId,
+            Creator: tCreator,
             BizProject: tTaskBizProject,
-            BusinessArea: tBusinessArea
+            BusinessArea: tBusinessArea,
+            TaskLevel: 3,
+            IssueDate: tTaskIssueDate,
+            RespLeaderId: tRespLeaderId
           });
           console.log('Task updated');
           Logger.info('Task updated');
@@ -181,8 +196,10 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
       var tEstimation = taskObj.Estimation;
       var tTaskType = taskObj.TaskType;
       var tTaskTypeId = 0;
+      tParentTaskName = await getTaskPool(tTaskType);
       var tTaskBizProject = taskObj.BizProject;
       var tBusinessArea = '';
+      var tTaskIssueDate = taskObj.TaskIssueDate;
       //Get task type info
       var inTaskType = await getTaskTypeInfo(tTaskType);
       console.log('Type--' + JSON.stringify(inTaskType));
@@ -210,7 +227,8 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
             TaskTypeId: tTaskTypeId,
             BizProject: tTaskBizProject,
             BusinessArea: tBusinessArea,
-            TaskLevel: 3
+            TaskLevel: 3,
+            IssueDate: tTaskIssueDate
         }
       })
       .spread(function(task, created) {
@@ -219,13 +237,21 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
           Logger.info('Task created');
         }
         else if(task != null && !created){ 
+          var parentTask = 'N/A';
+          if (task.ParentTaskName == 'N/A') {
+            parentTask = tParentTaskName;
+          }
           task.update({
+            ParentTaskName: parentTask,
             Description: tDescription,
             Status: tStatus,
             Estimation: tEstimation,
             TaskTypeId: tTaskTypeId,
+            Creator: tCreator,
             BizProject: tTaskBizProject,
-            BusinessArea: tBusinessArea
+            BusinessArea: tBusinessArea,
+            TaskLevel: 3,
+            IssueDate: tTaskIssueDate
           });
           console.log('Task updated');
           Logger.info('Task updated');
@@ -246,6 +272,7 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
 });
 
 function processRequest(req){
+  //Get request params
   var taskNumber = req.body.number;
   var taskdesc = req.body.short_description;
   var taskStatus = req.body.state;
@@ -253,6 +280,8 @@ function processRequest(req){
   var taskEstimation = req.body.task_effort;
   var taskBizProject = req.body.bizProject;
   var taskCategorization = req.body.path;
+  var taskRespLeader = req.body.assigned_to;
+  var taskReportedDate = req.body.reported_date;
   var taskCollection = [];
   for(var i=0; i<taskNumber.length; i++){
     var taskJson = {};
@@ -260,7 +289,6 @@ function processRequest(req){
     taskJson.TaskName = taskNumber[i];
     taskJson.Description = taskdesc[i];
     taskJson.Status = taskStatus[i];
-
     taskJson.AssignTeam = taskAssignTeam[i].toUpperCase();
     //Task Biz Project
     if (taskBizProject != null && taskEstimation != undefined) {
@@ -293,6 +321,18 @@ function processRequest(req){
     }
     else {
       taskJson.TaskType = 'Sponsor Task';
+    }
+    //Task responsible leader
+    if (taskRespLeader != null && taskRespLeader.length > 0) {
+      taskJson.TaskRespLeader = taskRespLeader[i];
+    } else {
+      taskJson.TaskRespLeader = null;
+    }
+    //Task Issue date
+    if (taskReportedDate != null && taskReportedDate.length > 0) {
+      taskJson.TaskIssueDate = taskReportedDate[i];
+    } else {
+      taskJson.TaskIssueDate = null;
     }
     taskCollection.push(taskJson);
   }
@@ -334,6 +374,63 @@ function getStatusMapping(iTaskType, iStatus) {
         }//End of find task type mapping
       }
       resolve(null);
+    });
+  });
+}
+
+function getUserMapping (iUser) {
+  return new Promise((resolve, reject) => {
+    User.findAll({
+      where: {
+        Role: {[Op.ne]: 'Special'},
+        Level: {[Op.ne]: -1}
+      }
+    }).then(function(user) {
+      if(user != null){
+        var flag = false;
+        for(var i=0; i< user.length; i++){
+          if(user[i].NameMapping != null){
+            var userMappingArray = user[i].NameMapping.split(';');
+            if(getIndexOfValueInArr(userMappingArray, null, iUser) != -1){
+              flag = true;
+              resolve(user[i].Id);
+            }
+          } else {
+            continue;
+          }
+        }
+        if(!flag){
+          resolve(null);
+        }
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+function getTaskPool(iTaskType) {
+  return new Promise((resolve, reject) => {
+    Reference.findOne({
+      where: {
+        Name: 'TaskPool',
+        Type: iTaskType
+      }
+    }).then(function(reference) {
+      if(reference != null){
+        var taskPoolName = reference.Value;
+          console.log('Debug 1 : ' + taskPoolName);
+        if(taskPoolName != null && taskPoolName != '' && taskPoolName != 'N/A'){
+          console.log('Parent Task: ' + taskPoolName);
+          resolve(taskPoolName);
+        } else {
+          console.log('Debug 2');
+          resolve('N/A');
+        }
+      } else {
+        console.log('Debug 3');
+        resolve('N/A');
+      }
     });
   });
 }
@@ -435,8 +532,15 @@ function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
 function getIndexOfValueInArr(iArray, iKey, iValue) {
   for(var i=0; i<iArray.length;i++) {
     var item = iArray[i];
-    if(item[iKey] == iValue){
-      return i;
+    if(iKey != null){
+      if(item[iKey] == iValue){
+        return i;
+      }
+    } 
+    if(iKey == null){
+      if(item == iValue){
+        return i;
+      }
     }
   }
   return -1;

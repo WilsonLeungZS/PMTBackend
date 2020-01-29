@@ -13,6 +13,9 @@ var User = sequelize.define('user', {
         type: Sequelize.STRING,
         allowNull: false
     },
+    EmployeeNumber: {
+        type: Sequelize.STRING,
+    },
     Email: {
         type: Sequelize.STRING
     },

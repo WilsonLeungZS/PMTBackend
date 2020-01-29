@@ -16,30 +16,31 @@ var Task = sequelize.define('task', {
     Creator: { type: Sequelize.STRING, allowNull: false },
     Effort: { type:Sequelize.INTEGER },
     Estimation: { type:Sequelize.INTEGER },
-    IssueDate: {
-        type: Sequelize.DATE,
-        get() {
-            return moment(this.getDataValue('IssueDate')).format('YYYY-MM-DD HH:mm:ss');
-        }
-    },
-    TargetCompleteDate: {
-        type: Sequelize.DATE,
-        get() {
-            return moment(this.getDataValue('TargetCompleteDate')).format('YYYY-MM-DD HH:mm:ss');
-        }
-    },
-    ActualCompleteDate: {
-        type: Sequelize.DATE,
-        get() {
-            return moment(this.getDataValue('ActualCompleteDate')).format('YYYY-MM-DD HH:mm:ss');
-        }
-    },
+    IssueDate: { type:Sequelize.STRING },
+    TargetCompleteDate: { type:Sequelize.STRING },
+    ActualCompleteDate: { type:Sequelize.STRING },
     BusinessArea: { type:Sequelize.STRING },
     BizProject: { type:Sequelize.STRING },
     TaskLevel: {
         type: Sequelize.INTEGER,
         defaultValue: 1
     },
+    RespLeaderId: { type:Sequelize.INTEGER },
+    AssigneeId: { type:Sequelize.INTEGER },
+    TopConstraint: { type:Sequelize.STRING },
+    TopOppName: { type:Sequelize.STRING },
+    TopCustomer: { type:Sequelize.STRING },
+    TopFacingClient: { type:Sequelize.STRING },
+    TopTypeOfWork: { type:Sequelize.STRING },
+    TopChanceWinning : { type:Sequelize.STRING },
+    TopSowConfirmation: { type:Sequelize.STRING },
+    TopBusinessValue: { type:Sequelize.STRING },
+    TopTargetStart: { type:Sequelize.STRING },
+    TopTargetEnd: { type:Sequelize.STRING },
+    TopPaintPoints: { type:Sequelize.STRING },
+    TopTeamSizing: { type:Sequelize.STRING },
+    TopSkill: { type:Sequelize.STRING },
+    TopOppsProject: { type:Sequelize.STRING },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
@@ -61,8 +62,6 @@ var Task = sequelize.define('task', {
 });
 
 Task.belongsTo(TaskType, {foreignKey: 'TaskTypeId'});
-Task.belongsTo(User, {foreignKey: 'AssigneeId'});
-Task.belongsTo(User, {foreignKey: 'RespLeaderId'});
 
 //Task.sync({force: true});
 Task.sync();

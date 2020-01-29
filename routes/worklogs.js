@@ -485,12 +485,10 @@ router.post('/getWorklogById', function(req, res, next) {
 
 //Add New Work Log
 router.post('/addOrUpdateWorklog', function(req, res, next) {
-  var newWorklogEffort = req.body.wEffort;
   console.log('Request: ' + JSON.stringify(req.body));
   Worklog.findOrCreate({
       where: {
         [Op.or]: [
-          // { Id: req.body.wId }, 
           {
             UserId: req.body.wUserId,
             TaskId: req.body.wTaskId,
@@ -509,48 +507,56 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
       }
     })
   .spread((worklog, created) => {
-    Task.findOne({where: {Id: req.body.wTaskId}}).then(function(task){
+    Task.findOne({where: {Id: req.body.wTaskId}}).then(async function(task){
       if(task != null) {
-        var taskEffort = task.Effort;
-        var parentTaskName = task.ParentTaskName;
-        Task.findOne({where: {TaskName: parentTaskName}}).then(function(parentTask){
-          var parentTaskEffort = "-1";
-          if(parentTask != null){
-            parentTaskEffort = parentTask.Effort;
+        var parentTask1 = await getParentTask(task.ParentTaskName);
+        var parentTask2 = null;
+        if(parentTask1 != null && parentTask1.ParentTaskName != 'N/A' && parentTask1.TaskLevel != 2){
+          parentTask2 = await getParentTask(parentTask1.ParentTaskName);
+        }
+        var taskEffort = 0;
+        var newWorklogEffort = req.body.wEffort;
+        //If worklog Existing
+        if(worklog != null && !created) {
+          var oldWorklogEffort = worklog.Effort;
+          taskEffort = Number(task.Effort) + Number(newWorklogEffort) - Number(oldWorklogEffort);
+          Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}}); // Update worklog related task effort
+          worklog.update({
+            Remark: req.body.wRemark,
+            Effort: req.body.wEffort,
+            WorklogMonth: req.body.wWorklogMonth,
+            WorklogDay: req.body.wWorklogDay,
+            TaskId: req.body.wTaskId,
+            UserId: req.body.wUserId
+          }); //Update worklog
+          if (parentTask1 != null) {
+            taskEffort = Number(parentTask1.Effort) + Number(newWorklogEffort) - Number(oldWorklogEffort);
+            parentTask1.update({Effort: taskEffort}); // Update parent task 1 effort
           }
-          if(worklog != null && !created) {
-            var oldWorklogEffort = worklog.Effort;
-            if(oldWorklogEffort != newWorklogEffort){
-              if(parentTaskEffort != "-1"){
-                parentTaskEffort = Number(parentTaskEffort) + Number(newWorklogEffort) - Number(oldWorklogEffort);
-                parentTask.update({Effort: parentTaskEffort});
-              }
-              taskEffort = Number(taskEffort) + Number(newWorklogEffort) - Number(oldWorklogEffort);
-              Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}});
-            }
-            worklog.update({
-              Remark: req.body.wRemark,
-              Effort: req.body.wEffort,
-              WorklogMonth: req.body.wWorklogMonth,
-              WorklogDay: req.body.wWorklogDay,
-              TaskId: req.body.wTaskId,
-              UserId: req.body.wUserId
-            });
-            return res.json(responseMessage(0, worklog, 'Update worklog successfully'));
-          } 
-          else if(created){
-            if(parentTaskEffort != "-1"){
-              parentTaskEffort = Number(parentTaskEffort) + Number(newWorklogEffort);
-              parentTask.update({Effort: parentTaskEffort});
-            }
-            taskEffort = Number(taskEffort) + Number(newWorklogEffort);
-            Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}});
-            return res.json(responseMessage(0, worklog, 'Create worklog successfully'));
+          if (parentTask2 != null) {
+            taskEffort = Number(parentTask2.Effort) + Number(newWorklogEffort) - Number(oldWorklogEffort);
+            parentTask2.update({Effort: taskEffort}); // Update parent task 2 effort
           }
-          else {
-            return res.json(responseMessage(1, null, 'Create or update worklog fail'));
+          return res.json(responseMessage(0, worklog, 'Update worklog successfully'));
+        }
+        else if(created){
+          taskEffort = Number(task.Effort) + Number(newWorklogEffort);
+          Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}}); // Update worklog related task effort
+          if (parentTask1 != null) {
+            taskEffort = Number(parentTask1.Effort) + Number(newWorklogEffort);
+            parentTask1.update({Effort: taskEffort}); // Update parent task 1 effort
           }
-        });
+          if (parentTask2 != null) {
+            taskEffort = Number(parentTask2.Effort) + Number(newWorklogEffort);
+            parentTask2.update({Effort: taskEffort}); // Update parent task 2 effort
+          }
+          return res.json(responseMessage(0, worklog, 'Create worklog successfully'));
+        }
+        else {
+          return res.json(responseMessage(1, null, 'Create or update worklog fail'));
+        }
+      } else {
+        return res.json(responseMessage(1, null, 'Create or update worklog fail'));
       }
     });
   })
@@ -558,37 +564,64 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
 
 //Remove worklog
 router.post('/removeWorklog', function(req, res, next) {
-  Worklog.findAll({
-    where: {
-      UserId: req.body.wUserId,
-      TaskId: req.body.wTaskId,
-      WorklogMonth: req.body.wWorklogMonth,
-      WorklogDay: req.body.wWorklogDay
-    },
-    limit: 1
-    }).then(function(worklog) {
-      if(worklog != null && worklog.length >0){
-        Task.findAll({
-          where: {Id: worklog[0].TaskId},
-          limit: 1
-        }).then(function(task){
-          if(task != null && task.length >0) {
-            var taskEffort = Number(task[0].Effort) - Number(worklog[0].Effort);
-            Task.update({Effort: taskEffort}, {where: {Id: worklog[0].TaskId}});
+  console.log('Request: ' + JSON.stringify(req.body));
+  Worklog.findOne({
+      where: {
+        UserId: req.body.wUserId,
+        TaskId: req.body.wTaskId,
+        WorklogMonth: req.body.wWorklogMonth,
+        WorklogDay: req.body.wWorklogDay
+      }
+    })
+  .then((worklog) => {
+    Task.findOne({where: {Id: req.body.wTaskId}}).then(async function(task){
+      if(task != null) {
+        var parentTask1 = await getParentTask(task.ParentTaskName);
+        var parentTask2 = null;
+        if(parentTask1 != null && parentTask1.ParentTaskName != 'N/A' && parentTask1.TaskLevel != 2){
+          parentTask2 = await getParentTask(parentTask1.ParentTaskName);
+        }
+        var taskEffort = 0;
+        if(worklog != null) {
+          taskEffort = Number(task.Effort) - Number(worklog.Effort);
+          Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}}); // Update worklog related task effort
+          if (parentTask1 != null) {
+            taskEffort = Number(parentTask1.Effort) - Number(worklog.Effort);
+            parentTask1.update({Effort: taskEffort}); // Remove parent task 1 effort
           }
-        });
-        Worklog.update({Effort: 0}, {where: {
-          UserId: req.body.wUserId,
-          TaskId: req.body.wTaskId,
-          WorklogMonth: req.body.wWorklogMonth,
-          WorklogDay: req.body.wWorklogDay
-        }});
-        return res.json(responseMessage(0, null, 'Remove worklog successfully'));
+          if (parentTask2 != null) {
+            taskEffort = Number(parentTask2.Effort) - Number(worklog.Effort);
+            parentTask2.update({Effort: taskEffort}); // Remove parent task 2 effort
+          }
+          worklog.update({Effort: 0}); //Set worklog effort to 0
+          return res.json(responseMessage(0, worklog, 'Remove worklog successfully'));
+        }
+        else {
+          return res.json(responseMessage(1, null, 'Remove worklog fail'));
+        }
       } else {
         return res.json(responseMessage(1, null, 'Remove worklog fail'));
       }
     });
+  })
 });
+
+function getParentTask (iParentTaskName) {
+  return new Promise((resolve, reject) => {
+    Task.findOne({
+      where: {
+        TaskName: iParentTaskName
+      }
+    }).then(function(parentTask){
+      console.log('Debug 1');
+      if(parentTask != null) {
+        resolve(parentTask);
+      } else {
+        resolve(null);
+      }
+    })
+  });
+}
 
 //Get worklog history for web PMT
 router.post('/getWorklogHistoryByTaskId', function(req, res, next) {
