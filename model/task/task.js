@@ -41,6 +41,7 @@ var Task = sequelize.define('task', {
     TopTeamSizing: { type:Sequelize.STRING },
     TopSkill: { type:Sequelize.STRING },
     TopOppsProject: { type:Sequelize.STRING },
+    Reference: { type:Sequelize.STRING },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,

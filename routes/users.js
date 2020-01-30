@@ -234,7 +234,7 @@ router.post('/getUserById', function(req, res, next) {
         resJson.user_role = user.Role;
         resJson.user_namemapping = user.NameMapping;
         resJson.user_level = user.Level;
-        resJson.user_employee_number = user[i].EmployeeNumber;
+        resJson.user_employee_number = user.EmployeeNumber;
         if(team != null){
           var teamArray = [];
           for(var i=0; i< team.length; i++){

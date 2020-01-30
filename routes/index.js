@@ -79,12 +79,29 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
       var tEstimation = taskObj.Estimation;
       var tTaskType = taskObj.TaskType;
       var tTaskTypeId = 0;
-      tParentTaskName = await getTaskPool(tTaskType);
+      tParentTaskName = await getReferenceValue('TaskPool', tTaskType);
       var tTaskBizProject = taskObj.BizProject;
       var tBusinessArea = '';
       var tRespLeader = taskObj.TaskRespLeader;
+      console.log('tRespLeader: ' + tRespLeader);
       var tRespLeaderId = await getUserMapping(tRespLeader);
+      console.log('tRespLeaderId: ' + tRespLeaderId);
       var tTaskIssueDate = taskObj.TaskIssueDate;
+      if(tRespLeaderId != '' && tRespLeaderId != null){
+        var issueDate = new Date(tTaskIssueDate);
+        var issueYear = null;
+        var issueMonth = null;
+        if(issueDate != null){
+          issueYear = issueDate.getFullYear();
+          issueMonth = issueDate.getMonth() + 1;
+          var autoAssignToTaskKeyWord = await getReferenceValue('AutoAssignToTask', tTaskType);
+          var taskDescKeyWord = autoAssignToTaskKeyWord + '-' + issueYear + issueMonth + ']';
+          var autoAssignToTask = await getTaskByDescriptionKeyWord(taskDescKeyWord);
+          if(autoAssignToTask != null){
+            tParentTaskName = autoAssignToTask.TaskName;
+          }
+        }
+      }
       //Get task type info
       console.log("Type = " + tTaskType + ', Status = ' + tStatus);
       var inTaskType = await getTaskTypeInfo(tTaskType);
@@ -127,12 +144,8 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
           Logger.info('Task created');
         }
         else if(task != null && !created){ 
-          var parentTask = 'N/A';
-          if (task.ParentTaskName == 'N/A') {
-            parentTask = tParentTaskName;
-          }
           task.update({
-            ParentTaskName: parentTask,
+            ParentTaskName: tParentTaskName,
             Description: tDescription,
             Status: tStatus,
             Estimation: tEstimation,
@@ -196,7 +209,7 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
       var tEstimation = taskObj.Estimation;
       var tTaskType = taskObj.TaskType;
       var tTaskTypeId = 0;
-      tParentTaskName = await getTaskPool(tTaskType);
+      tParentTaskName = await getReferenceValue('TaskPool', tTaskType);
       var tTaskBizProject = taskObj.BizProject;
       var tBusinessArea = '';
       var tTaskIssueDate = taskObj.TaskIssueDate;
@@ -380,6 +393,9 @@ function getStatusMapping(iTaskType, iStatus) {
 
 function getUserMapping (iUser) {
   return new Promise((resolve, reject) => {
+    if(iUser == '' || iUser == null){
+      resolve(null);
+    }
     User.findAll({
       where: {
         Role: {[Op.ne]: 'Special'},
@@ -409,27 +425,39 @@ function getUserMapping (iUser) {
   });
 }
 
-function getTaskPool(iTaskType) {
+function getReferenceValue(iRefName, iType) {
   return new Promise((resolve, reject) => {
     Reference.findOne({
       where: {
-        Name: 'TaskPool',
-        Type: iTaskType
+        Name: iRefName,
+        Type: iType
       }
     }).then(function(reference) {
       if(reference != null){
-        var taskPoolName = reference.Value;
-          console.log('Debug 1 : ' + taskPoolName);
-        if(taskPoolName != null && taskPoolName != '' && taskPoolName != 'N/A'){
-          console.log('Parent Task: ' + taskPoolName);
-          resolve(taskPoolName);
+        var refValue = reference.Value;
+        if(refValue != null && refValue != '' && refValue != 'N/A'){
+          resolve(refValue);
         } else {
-          console.log('Debug 2');
           resolve('N/A');
         }
       } else {
-        console.log('Debug 3');
         resolve('N/A');
+      }
+    });
+  });
+}
+
+function getTaskByDescriptionKeyWord(iKeyWord) {
+  return new Promise((resolve, reject) => {
+    Task.findOne({
+      where: {
+        Description: {[Op.like]: iKeyWord + '%'}
+      }
+    }).then(function(task) {
+      if(task != null) {
+        resolve(task);
+      } else {
+        resolve(null);
       }
     });
   });
