@@ -82,12 +82,10 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
       tParentTaskName = await getReferenceValue('TaskPool', tTaskType);
       var tTaskBizProject = taskObj.BizProject;
       var tBusinessArea = '';
-      var tRespLeader = taskObj.TaskRespLeader;
-      console.log('tRespLeader: ' + tRespLeader);
-      var tRespLeaderId = await getUserMapping(tRespLeader);
-      console.log('tRespLeaderId: ' + tRespLeaderId);
+      var tAssignee = taskObj.TaskAssignee;
+      var tAssigneeId = await getUserMapping(tAssignee);
       var tTaskIssueDate = taskObj.TaskIssueDate;
-      if(tRespLeaderId != '' && tRespLeaderId != null){
+      if(tAssigneeId != '' && tAssigneeId != null){
         var issueDate = new Date(tTaskIssueDate);
         var issueYear = null;
         var issueMonth = null;
@@ -135,7 +133,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             BusinessArea: tBusinessArea,
             TaskLevel: 3, 
             IssueDate: tTaskIssueDate,
-            RespLeaderId: tRespLeaderId
+            AssigneeId: tAssigneeId
         }
       })
       .spread(function(task, created) {
@@ -155,7 +153,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             BusinessArea: tBusinessArea,
             TaskLevel: 3,
             IssueDate: tTaskIssueDate,
-            RespLeaderId: tRespLeaderId
+            AssigneeId: tAssigneeId
           });
           console.log('Task updated');
           Logger.info('Task updated');
@@ -293,7 +291,7 @@ function processRequest(req){
   var taskEstimation = req.body.task_effort;
   var taskBizProject = req.body.bizProject;
   var taskCategorization = req.body.path;
-  var taskRespLeader = req.body.assigned_to;
+  var taskAssignee = req.body.assigned_to;
   var taskReportedDate = req.body.reported_date;
   var taskCollection = [];
   for(var i=0; i<taskNumber.length; i++){
@@ -335,11 +333,11 @@ function processRequest(req){
     else {
       taskJson.TaskType = 'Sponsor Task';
     }
-    //Task responsible leader
-    if (taskRespLeader != null && taskRespLeader.length > 0) {
-      taskJson.TaskRespLeader = taskRespLeader[i];
+    //Task Assignee
+    if (taskAssignee != null && taskAssignee.length > 0) {
+      taskJson.TaskAssignee = taskAssignee[i];
     } else {
-      taskJson.TaskRespLeader = null;
+      taskJson.TaskAssignee = null;
     }
     //Task Issue date
     if (taskReportedDate != null && taskReportedDate.length > 0) {

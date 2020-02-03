@@ -115,7 +115,7 @@ router.get('/getTaskList', function(req, res, next) {
     ],
     limit: reqSize,
     offset: reqSize * (reqPage - 1),
-  }).then(function(task) {
+  }).then(async function(task) {
     if(task.length > 0) {
       for(var i=0;i<task.length;i++){
         var resJson = {};
@@ -129,6 +129,16 @@ router.get('/getTaskList', function(req, res, next) {
         resJson.task_effort = task[i].Effort;
         resJson.task_estimation = task[i].Estimation;
         resJson.task_created = task[i].createdAt;
+        var assigneeId = task[i].AssigneeId;
+        if (assigneeId != null && assigneeId != '') {
+          var assigneeName = await getUserById(assigneeId);
+          resJson.task_assignee = assigneeName;
+        } else {
+          resJson.task_assignee = null;
+        }
+        resJson.task_issue_date = task[i].IssueDate;
+        resJson.task_target_complete = task[i].TargetCompleteDate;
+        resJson.task_scope = task[i].Scope;
         resJson.task_top_opp_name = task[i].TopOppName;
         resJson.task_top_customer = task[i].TopCustomer;
         var targetStartTime = null;
@@ -137,12 +147,15 @@ router.get('/getTaskList', function(req, res, next) {
           targetStartTime = startTime.getFullYear() + '-' + ((startTime.getMonth() + 1) < 10 ? '0' + (startTime.getMonth() + 1) : (startTime.getMonth() + 1));
         }
         resJson.task_top_target_start = targetStartTime;
-        var targetEndTime = null;
-        if(task[i].TopTargetEnd != null && task[i].TopTargetEnd != ''){
-          var endTime = new Date(task[i].TopTargetEnd);
-          targetEndTime = endTime.getFullYear() + '-' + ((endTime.getMonth() + 1) < 10 ? '0' + (endTime.getMonth() + 1) : (endTime.getMonth() + 1));
+        resJson.task_top_type_of_work = task[i].TopTypeOfWork;
+        resJson.task_top_team_sizing = task[i].TopTeamSizing;
+        var respLeaderId = task[i].RespLeaderId;
+        if (respLeaderId != null && respLeaderId != '') {
+          var respLeaderName = await getUserById(respLeaderId);
+          resJson.task_top_resp_leader = respLeaderName;
+        } else {
+          resJson.task_top_resp_leader = null;
         }
-        resJson.task_top_target_end = targetEndTime;
         rtnResult.push(resJson);
       }
       return res.json(responseMessage(0, rtnResult, ''));
@@ -151,6 +164,22 @@ router.get('/getTaskList', function(req, res, next) {
     }
   })
 });
+
+function getUserById(iUserId) {
+  return new Promise((resolve, reject) => {
+    User.findOne({
+      where: {
+        Id: iUserId
+      }
+    }).then(function(user) {
+      if(user != null) {
+        resolve(user.Name)
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
 
 //Get Total Task Size for web PMT
 router.get('/getTotalTaskSize', function(req, res, next) {
@@ -234,7 +263,7 @@ router.post('/getTaskByName', function(req, res, next) {
     order: [
       ['updatedAt', 'DESC']
     ]
-  }).then(function(task) {
+  }).then(async function(task) {
       if(task.length > 0) {
           for(var i=0;i<task.length;i++){
             var resJson = {};
@@ -254,6 +283,16 @@ router.post('/getTaskByName', function(req, res, next) {
             resJson.task_effort = task[i].Effort;
             resJson.task_estimation = task[i].Estimation;
             resJson.task_created = task[i].createdAt;
+            var assigneeId = task[i].AssigneeId;
+            if (assigneeId != null && assigneeId != '') {
+              var assigneeName = await getUserById(assigneeId);
+              resJson.task_assignee = assigneeName;
+            } else {
+              resJson.task_assignee = null;
+            }
+            resJson.task_issue_date = task[i].IssueDate;
+            resJson.task_target_complete = task[i].TargetCompleteDate;
+            resJson.task_scope = task[i].Scope;
             resJson.task_top_opp_name = task[i].TopOppName;
             resJson.task_top_customer = task[i].TopCustomer;
             var targetStartTime = null;
@@ -268,6 +307,15 @@ router.post('/getTaskByName', function(req, res, next) {
               targetEndTime = endTime.getFullYear() + '-' + ((endTime.getMonth() + 1) < 10 ? '0' + (endTime.getMonth() + 1) : (endTime.getMonth() + 1));
             }
             resJson.task_top_target_end = targetEndTime;
+            resJson.task_top_type_of_work = task[i].TopTypeOfWork;
+            resJson.task_top_team_sizing = task[i].TopTeamSizing;
+            var respLeaderId = task[i].RespLeaderId;
+            if (respLeaderId != null && respLeaderId != '') {
+              var respLeaderName = await getUserById(respLeaderId);
+              resJson.task_top_resp_leader = respLeaderName;
+            } else {
+              resJson.task_top_resp_leader = null;
+            }
             rtnResult.push(resJson);
           }
           return res.json(responseMessage(0, rtnResult, ''));
@@ -317,6 +365,8 @@ router.post('/getTaskById', function(req, res, next) {
             resJson.task_actual_complete = task[i].ActualCompleteDate;
             resJson.task_responsible_leader = task[i].RespLeaderId;
             resJson.task_assignee = task[i].AssigneeId;
+            resJson.task_reference = task[i].Reference;
+            resJson.task_scope = task[i].Scope;
             resJson.task_top_constraint = task[i].TopConstraint;
             resJson.task_top_opp_name = task[i].TopOppName;
             resJson.task_top_customer = task[i].TopCustomer;
@@ -380,6 +430,8 @@ router.post('/getTaskByParentTask', function(req, res, next) {
             resJson.task_actual_complete = task[i].ActualCompleteDate;
             resJson.task_responsible_leader = task[i].RespLeaderId;
             resJson.task_assignee = task[i].AssigneeId;
+            resJson.task_reference = task[i].Reference;
+            resJson.task_scope = task[i].Scope;
             resJson.task_top_constraint = task[i].TopConstraint;
             resJson.task_top_opp_name = task[i].TopOppName;
             resJson.task_top_customer = task[i].TopCustomer;
@@ -478,7 +530,9 @@ async function addOrUpdateTask(req, res) {
         TargetCompleteDate: req.body.tTargetComplete,
         ActualCompleteDate: req.body.tActualComplete,
         RespLeaderId: req.body.tRespLeader != '' ? req.body.tRespLeader : null,
-        AssigneeId: req.body.tAssignee != '' ? req.body.tAssignee : null
+        AssigneeId: req.body.tAssignee != '' ? req.body.tAssignee : null,
+        Reference: req.body.tReference,
+        Scope: req.body.tScope
       }})
     .spread(function(task, created) {
       if(created) {
@@ -499,7 +553,9 @@ async function addOrUpdateTask(req, res) {
             TargetCompleteDate: req.body.tTargetComplete,
             ActualCompleteDate: req.body.tActualComplete,
             RespLeaderId: req.body.tRespLeader != '' ? req.body.tRespLeader : null,
-            AssigneeId: req.body.tAssignee != '' ? req.body.tAssignee : null
+            AssigneeId: req.body.tAssignee != '' ? req.body.tAssignee : null,
+            Reference: req.body.tReference,
+            Scope: req.body.tScope
           },
           {where: {TaskName: req.body.tName}}
         );

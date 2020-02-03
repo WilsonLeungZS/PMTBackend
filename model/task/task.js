@@ -42,6 +42,7 @@ var Task = sequelize.define('task', {
     TopSkill: { type:Sequelize.STRING },
     TopOppsProject: { type:Sequelize.STRING },
     Reference: { type:Sequelize.STRING },
+    Scope: { type:Sequelize.STRING },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,

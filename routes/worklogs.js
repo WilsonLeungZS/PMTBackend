@@ -519,6 +519,11 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
         //If worklog Existing
         if(worklog != null && !created) {
           var oldWorklogEffort = worklog.Effort;
+          // If reference task not null, update reference task effort
+          if (task.Reference != null && task.Reference != '') {
+            var refTask = task.Reference;
+            var refTaskUpdatedEffort = await updateReferenceTaskEffort(newWorklogEffort, oldWorklogEffort, refTask);
+          }
           taskEffort = Number(task.Effort) + Number(newWorklogEffort) - Number(oldWorklogEffort);
           Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}}); // Update worklog related task effort
           worklog.update({
@@ -540,6 +545,10 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
           return res.json(responseMessage(0, worklog, 'Update worklog successfully'));
         }
         else if(created){
+          if (task.Reference != null && task.Reference != '') {
+            var refTask = task.Reference;
+            var refTaskUpdatedEffort = await updateReferenceTaskEffort(newWorklogEffort, 0, refTask);
+          }
           taskEffort = Number(task.Effort) + Number(newWorklogEffort);
           Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}}); // Update worklog related task effort
           if (parentTask1 != null) {
@@ -583,6 +592,10 @@ router.post('/removeWorklog', function(req, res, next) {
         }
         var taskEffort = 0;
         if(worklog != null) {
+          if (task.Reference != null && task.Reference != '') {
+            var refTask = task.Reference;
+            var refTaskUpdatedEffort = await updateReferenceTaskEffort(0, worklog.Effort, refTask);
+          }
           taskEffort = Number(task.Effort) - Number(worklog.Effort);
           Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}}); // Update worklog related task effort
           if (parentTask1 != null) {
@@ -620,6 +633,24 @@ function getParentTask (iParentTaskName) {
         resolve(null);
       }
     })
+  });
+}
+
+function updateReferenceTaskEffort (iNewEffort, iOldEffort, iRefTaskName) {
+  return new Promise((resolve, reject) => {
+    Task.findOne({
+      where: {
+        TaskName: iRefTaskName
+      }
+    }).then(function(task){
+      if (task != null) {
+        var taskEffort = Number(task.Effort) + Number(iNewEffort) - Number(iOldEffort);
+        task.update({Effort: taskEffort});
+        resolve(taskEffort);
+      } else {
+        resolve(null);
+      }
+    });
   });
 }
 
