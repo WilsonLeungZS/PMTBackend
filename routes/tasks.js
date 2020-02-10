@@ -99,17 +99,42 @@ router.post('/getTaskByCompletedName', function(req, res, next) {
 router.get('/getTaskList', function(req, res, next) {
   var reqPage = Number(req.query.reqPage);
   var reqSize = Number(req.query.reqSize);
+  var reqFilterIssueDateStart = null
+  var reqFilterIssueDateEnd = null
   var reqTaskLevel = Number(req.query.reqTaskLevel);
+  var criteria = {
+    TaskName: {[Op.notLike]: 'Dummy - %'},
+    TaskLevel: reqTaskLevel
+  }
+  if (req.query.reqFilterAssignee != null && req.query.reqFilterAssignee != '') {
+    criteria.AssigneeId = Number(req.query.reqFilterAssignee)
+  }
+  if (req.query.reqFilterStatus != null && req.query.reqFilterStatus != '') {
+    criteria.Status = req.query.reqFilterStatus
+  }
+  if (req.query.reqFilterIssueDateStart != null && req.query.reqFilterIssueDateStart != '') {
+    reqFilterIssueDateStart = req.query.reqFilterIssueDateStart + ' 00:00:00'
+  }
+  if (req.query.reqFilterIssueDateEnd != null && req.query.reqFilterIssueDateEnd != '') {
+    reqFilterIssueDateEnd = req.query.reqFilterIssueDateEnd + '00:00:00'
+  }
+  if (reqFilterIssueDateStart != null && reqFilterIssueDateEnd != null) {
+    var issueDateCriteria = {
+      [Op.and]: [
+        { IssueDate: { [Op.gte]:  reqFilterIssueDateStart }},
+        { IssueDate: { [Op.lte]:  reqFilterIssueDateEnd }}
+      ]
+    }
+    var c = Object.assign(criteria, issueDateCriteria);
+    console.log(c);
+  }
   var rtnResult = [];
   Task.findAll({
     include: [{
       model: TaskType, 
       attributes: ['Name']
     }],
-    where: {
-      TaskName: {[Op.notLike]: 'Dummy - %'},
-      TaskLevel: reqTaskLevel
-    },
+    where: criteria,
     order: [
       ['createdAt', 'DESC']
     ],
@@ -184,12 +209,37 @@ function getUserById(iUserId) {
 //Get Total Task Size for web PMT
 router.get('/getTotalTaskSize', function(req, res, next) {
   var rtnResult = [];
+  var reqFilterIssueDateStart = null
+  var reqFilterIssueDateEnd = null
   var reqTaskLevel = Number(req.query.reqTaskLevel);
+  var criteria = {
+    TaskName: {[Op.notLike]: 'Dummy - %'},
+    TaskLevel: reqTaskLevel
+  }
+  if (req.query.reqFilterAssignee != null && req.query.reqFilterAssignee != '') {
+    criteria.AssigneeId = Number(req.query.reqFilterAssignee)
+  }
+  if (req.query.reqFilterStatus != null && req.query.reqFilterStatus != '') {
+    criteria.Status = req.query.reqFilterStatus
+  }
+  if (req.query.reqFilterIssueDateStart != null && req.query.reqFilterIssueDateStart != '') {
+    reqFilterIssueDateStart = req.query.reqFilterIssueDateStart + ' 00:00:00'
+  }
+  if (req.query.reqFilterIssueDateEnd != null && req.query.reqFilterIssueDateEnd != '') {
+    reqFilterIssueDateEnd = req.query.reqFilterIssueDateEnd + ' 00:00:00'
+  }
+  if (reqFilterIssueDateStart != null && reqFilterIssueDateEnd != null) {
+    var issueDateCriteria = {
+      [Op.and]: [
+        { IssueDate: { [Op.gte]:  reqFilterIssueDateStart }},
+        { IssueDate: { [Op.lte]:  reqFilterIssueDateEnd }}
+      ]
+    }
+    var c = Object.assign(criteria, issueDateCriteria);
+    console.log(c);
+  }
   Task.findAll({
-    where: {
-      TaskName: {[Op.notLike]: 'Dummy - %'},
-      TaskLevel: reqTaskLevel
-    },
+    where: criteria,
   }).then(function(task) {
     if(task.length > 0) {
       var resJson = {};
@@ -325,6 +375,46 @@ router.post('/getTaskByName', function(req, res, next) {
   })
 });
 
+router.post('/getTaskByNameForReference', function(req, res, next) {
+  var rtnResult = [];
+  var taskKeyWord = req.body.tTaskName.trim();
+  Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name'],
+      where: {
+        Name: 'Pool'
+      }
+    }],
+    where: {
+      [Op.or]: [
+        {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
+        {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
+      ],
+      TaskName: {[Op.notLike]: 'Dummy - %'},
+      TaskLevel: {[Op.ne]: 1},
+      Id: { [Op.ne]: null }
+    },
+    limit:100,
+    order: [
+      ['updatedAt', 'DESC']
+    ]
+  }).then(async function(task) {
+    if(task.length > 0) {
+      for(var i=0;i<task.length;i++){
+        var resJson = {};
+        resJson.task_id = task[i].Id;
+        resJson.task_name = task[i].TaskName;
+        resJson.task_desc = task[i].Description;
+        rtnResult.push(resJson);
+      }
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
 router.post('/getTaskById', function(req, res, next) {
   var rtnResult = [];
   Task.findAll({
@@ -337,6 +427,7 @@ router.post('/getTaskById', function(req, res, next) {
             var resJson = {};
             resJson.task_id = task[i].Id;
             resJson.task_parenttaskname = task[i].ParentTaskName;
+            resJson.task_parenttaskdesc = await getTaskDescription(task[i].ParentTaskName);
             resJson.task_name = task[i].TaskName;
             resJson.task_level = task[i].TaskLevel;
             resJson.task_creator = task[i].Creator;
@@ -366,6 +457,7 @@ router.post('/getTaskById', function(req, res, next) {
             resJson.task_responsible_leader = task[i].RespLeaderId;
             resJson.task_assignee = task[i].AssigneeId;
             resJson.task_reference = task[i].Reference;
+            resJson.task_referencetaskdesc = await getTaskDescription(task[i].Reference);
             resJson.task_scope = task[i].Scope;
             resJson.task_top_constraint = task[i].TopConstraint;
             resJson.task_top_opp_name = task[i].TopOppName;
@@ -402,6 +494,7 @@ router.post('/getTaskByParentTask', function(req, res, next) {
             var resJson = {};
             resJson.task_id = task[i].Id;
             resJson.task_parenttaskname = task[i].ParentTaskName;
+            resJson.task_parenttaskdesc = await getTaskDescription(task[i].ParentTaskName);
             resJson.task_name = task[i].TaskName;
             resJson.task_level = task[i].TaskLevel;
             resJson.task_creator = task[i].Creator;
@@ -431,6 +524,7 @@ router.post('/getTaskByParentTask', function(req, res, next) {
             resJson.task_responsible_leader = task[i].RespLeaderId;
             resJson.task_assignee = task[i].AssigneeId;
             resJson.task_reference = task[i].Reference;
+            resJson.task_referencetaskdesc = await getTaskDescription(task[i].Reference);
             resJson.task_scope = task[i].Scope;
             resJson.task_top_constraint = task[i].TopConstraint;
             resJson.task_top_opp_name = task[i].TopOppName;
@@ -457,6 +551,7 @@ router.post('/getTaskByParentTask', function(req, res, next) {
 
 function getSubTaskTotalEstimation(iTaskName) {
   return new Promise((resolve, reject) => {
+    console.log(iTaskName)
     Task.findAll({
       where: {
         ParentTaskName: iTaskName 
@@ -475,6 +570,26 @@ function getSubTaskTotalEstimation(iTaskName) {
       }
     });
   })
+}
+
+function getTaskDescription(iTaskname) {
+  return new Promise((resolve, reject) => {
+    Task.findOne({
+      where: {
+        TaskName: iTaskname 
+      }
+    }).then(function(task) {
+      if (task != null) {
+        if(task.TaskLevel == 1) {
+          resolve(task.TopOppName);
+        } else {
+          resolve(task.Description);
+        }
+      } else {
+        resolve(null);
+      }
+    });
+  });
 }
 
 router.post('/getSubTaskByParentTaskName', function(req, res, next) {
