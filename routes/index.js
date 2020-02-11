@@ -101,8 +101,13 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
         }
       }
       //Get task type info
-      console.log("Type = " + tTaskType + ', Status = ' + tStatus);
-      var inTaskType = await getTaskTypeInfo(tTaskType);
+      var inTaskStatus = await getStatusMapping(tTaskType, tStatus);
+      if(inTaskStatus != null){
+        tStatus = inTaskStatus;
+        console.log('Status: ' + tStatus);
+      }
+      var inTaskType = await getTaskTypeInfo('Pool');
+      console.log('Type --> ' + JSON.stringify(inTaskType));
       if(inTaskType != null){
         tTaskTypeId = inTaskType.Id;
         if(tEstimation == 0 && inTaskType.Value > 0){
@@ -112,11 +117,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
         errMsg = 'Task [' + taskObj.TaskName + ']: Task type [' + taskObj.TaskType + '] is not exist'
         console.log(errMsg)
       }
-      var inTaskStatus = await getStatusMapping(tTaskType, tStatus);
-      if(inTaskStatus != null){
-        tStatus = inTaskStatus;
-        console.log('Status: ' + tStatus);
-      }
+      console.log("Type = " + tTaskType + ', Status = ' + tStatus);
       console.log('Start to create/Update task');
       Task.findOrCreate({
         where: {TaskName: tName}, 
@@ -212,17 +213,17 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
       var tBusinessArea = '';
       var tTaskIssueDate = taskObj.TaskIssueDate;
       //Get task type info
-      var inTaskType = await getTaskTypeInfo(tTaskType);
-      console.log('Type--' + JSON.stringify(inTaskType));
+      var inTaskStatus = await getStatusMapping(tTaskType, tStatus);
+      if(inTaskStatus != null){
+        tStatus = inTaskStatus;
+      }
+      var inTaskType = await getTaskTypeInfo('Pool');
+      console.log('Type --> ' + JSON.stringify(inTaskType));
       if(inTaskType != null){
         tTaskTypeId = inTaskType.Id;
       } else {
         errMsg = 'Task [' + taskObj.TaskName + ']: Task type [' + taskObj.TaskType + '] is not exist'
         console.log(errMsg)
-      }
-      var inTaskStatus = await getStatusMapping(tTaskType, tStatus);
-      if(inTaskStatus != null){
-        tStatus = inTaskStatus;
       }
       console.log('Start to create/Update task');
       Task.findOrCreate({
