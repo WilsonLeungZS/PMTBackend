@@ -116,7 +116,7 @@ router.get('/getTaskList', function(req, res, next) {
     reqFilterIssueDateStart = req.query.reqFilterIssueDateStart + ' 00:00:00'
   }
   if (req.query.reqFilterIssueDateEnd != null && req.query.reqFilterIssueDateEnd != '') {
-    reqFilterIssueDateEnd = req.query.reqFilterIssueDateEnd + '00:00:00'
+    reqFilterIssueDateEnd = req.query.reqFilterIssueDateEnd + ' 23:59:59'
   }
   if (reqFilterIssueDateStart != null && reqFilterIssueDateEnd != null) {
     var issueDateCriteria = {
@@ -272,17 +272,7 @@ router.post('/getTaskByName', function(req, res, next) {
   var rtnResult = [];
   var taskKeyWord = req.body.tTaskName.trim();
   var criteria = {};
-  if( req.body.tTaskTypeId == null || req.body.tTaskTypeId == ''){
-    criteria = {
-      [Op.or]: [
-        {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
-        {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
-      ],
-      TaskName: {[Op.notLike]: 'Dummy - %'},
-      TaskLevel: {[Op.ne]: 1}
-    }
-  }
-  else if(req.body.tTaskTypeId === '0') {
+  if( req.body.tTaskTypeId == null || req.body.tTaskTypeId == '' || req.body.tTaskTypeId === '0'){
     criteria = {
       [Op.or]: [
         {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
@@ -291,7 +281,7 @@ router.post('/getTaskByName', function(req, res, next) {
       TaskName: {[Op.notLike]: 'Dummy - %'},
       TaskLevel: Number(req.body.tTaskLevel)
     }
-  } 
+  }
   else {
     criteria = {
       [Op.or]: [
@@ -375,6 +365,69 @@ router.post('/getTaskByName', function(req, res, next) {
   })
 });
 
+router.post('/getTaskByNameForWorklogTask', function(req, res, next) {
+  var rtnResult = [];
+  var taskKeyWord = req.body.tTaskName.trim();
+  Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name'],
+      where: {
+        Name: { [Op.ne]: 'Pool' }
+      }
+    }],
+    where: {
+      [Op.or]: [
+        {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
+        {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
+      ],
+      TaskName: {[Op.notLike]: 'Dummy - %'},
+      [Op.and]: [
+        { TaskLevel: {[Op.ne]: 1}},
+        { TaskLevel: {[Op.ne]: 2}}
+      ],
+      Id: { [Op.ne]: null }
+    },
+    limit:100,
+    order: [
+      ['updatedAt', 'DESC']
+    ]
+  }).then(async function(task) {
+    if(task.length > 0) {
+      for(var i=0;i<task.length;i++){
+        var existSubTask = await getSubTaskExist(task[i].TaskName);
+        if(existSubTask){
+          continue;
+        }
+        var resJson = {};
+        resJson.task_id = task[i].Id;
+        resJson.task_name = task[i].TaskName;
+        resJson.task_desc = task[i].Description;
+        rtnResult.push(resJson);
+      }
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
+function getSubTaskExist (iParentTaskName) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      where: {
+        ParentTaskName: iParentTaskName 
+      }
+    }).then(function(task) {
+      if(task != null && task.length > 0) {
+        resolve(true);
+      } else {
+        resolve(false);
+      }
+    });
+  });
+}
+
 router.post('/getTaskByNameForReference', function(req, res, next) {
   var rtnResult = [];
   var taskKeyWord = req.body.tTaskName.trim();
@@ -392,7 +445,10 @@ router.post('/getTaskByNameForReference', function(req, res, next) {
         {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
       ],
       TaskName: {[Op.notLike]: 'Dummy - %'},
-      TaskLevel: {[Op.ne]: 1},
+      [Op.and]: [
+        { TaskLevel: {[Op.ne]: 1}},
+        { TaskLevel: {[Op.ne]: 2}}
+      ],
       Id: { [Op.ne]: null }
     },
     limit:100,

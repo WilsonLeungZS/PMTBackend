@@ -79,12 +79,18 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
       var tEstimation = taskObj.Estimation;
       var tTaskType = taskObj.TaskType;
       var tTaskTypeId = 0;
-      tParentTaskName = await getReferenceValue('TaskPool', tTaskType);
+      var taskPoolRef = await getReference('TaskPool', tTaskType);
+      if (taskPoolRef != null) {
+        if (taskPoolRef.Value != null && taskPoolRef.Value != '') {
+          tParentTaskName = taskPoolRef.Value;
+        }
+      }
       var tTaskBizProject = taskObj.BizProject;
       var tBusinessArea = '';
       var tAssignee = taskObj.TaskAssignee;
       var tAssigneeId = await getUserMapping(tAssignee);
       var tTaskIssueDate = taskObj.TaskIssueDate;
+      var autoAssignToTaskType = null;
       if(tAssigneeId != '' && tAssigneeId != null){
         var issueDate = new Date(tTaskIssueDate);
         var issueYear = null;
@@ -92,11 +98,22 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
         if(issueDate != null){
           issueYear = issueDate.getFullYear();
           issueMonth = issueDate.getMonth() + 1;
-          var autoAssignToTaskKeyWord = await getReferenceValue('AutoAssignToTask', tTaskType);
-          var taskDescKeyWord = autoAssignToTaskKeyWord + '-' + issueYear + issueMonth + ']';
-          var autoAssignToTask = await getTaskByDescriptionKeyWord(taskDescKeyWord);
-          if(autoAssignToTask != null){
-            tParentTaskName = autoAssignToTask.TaskName;
+          if(Number(issueMonth) < 10) {
+            issueMonth = '0' + issueMonth;
+          }
+          var autoAssignToTaskRef = await getReference('AutoAssignToTask', tTaskType);
+          if (autoAssignToTaskRef != null) {
+            if (autoAssignToTaskRef.Value != null && autoAssignToTaskRef.Value != '') {
+              var autoAssignToTaskKeyWord = autoAssignToTaskRef.Value;
+              var taskDescKeyWord = autoAssignToTaskKeyWord + '-' + issueYear + issueMonth + ']';
+              var autoAssignToTask = await getTaskByDescriptionKeyWord(taskDescKeyWord);
+              if(autoAssignToTask != null){
+                tParentTaskName = autoAssignToTask.TaskName;
+              }
+            }
+            if (autoAssignToTaskRef.Remark != null && autoAssignToTaskRef.Remark != '') {
+              autoAssignToTaskType = autoAssignToTaskRef.Remark;
+            }
           }
         }
       }
@@ -106,7 +123,12 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
         tStatus = inTaskStatus;
         console.log('Status: ' + tStatus);
       }
-      var inTaskType = await getTaskTypeInfo('Pool');
+      var inTaskType = null
+      if(tAssigneeId != '' && tAssigneeId != null && autoAssignToTaskType != null && autoAssignToTaskType != '') {
+        inTaskType = await getTaskTypeInfo(autoAssignToTaskType);
+      } else {
+        inTaskType = await getTaskTypeInfo('Pool');
+      }
       console.log('Type --> ' + JSON.stringify(inTaskType));
       if(inTaskType != null){
         tTaskTypeId = inTaskType.Id;
@@ -208,7 +230,12 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
       var tEstimation = taskObj.Estimation;
       var tTaskType = taskObj.TaskType;
       var tTaskTypeId = 0;
-      tParentTaskName = await getReferenceValue('TaskPool', tTaskType);
+      var taskPoolRef = await getReference('TaskPool', tTaskType);
+      if (taskPoolRef != null) {
+        if (taskPoolRef.Value != null && taskPoolRef.Value != '') {
+          tParentTaskName = taskPoolRef.Value;
+        }
+      }
       var tTaskBizProject = taskObj.BizProject;
       var tBusinessArea = '';
       var tTaskIssueDate = taskObj.TaskIssueDate;
@@ -424,7 +451,7 @@ function getUserMapping (iUser) {
   });
 }
 
-function getReferenceValue(iRefName, iType) {
+function getReference(iRefName, iType) {
   return new Promise((resolve, reject) => {
     Reference.findOne({
       where: {
@@ -433,14 +460,9 @@ function getReferenceValue(iRefName, iType) {
       }
     }).then(function(reference) {
       if(reference != null){
-        var refValue = reference.Value;
-        if(refValue != null && refValue != '' && refValue != 'N/A'){
-          resolve(refValue);
-        } else {
-          resolve('N/A');
-        }
+        resolve(reference);
       } else {
-        resolve('N/A');
+        resolve(null);
       }
     });
   });
@@ -472,7 +494,7 @@ router.get('/queryTimesheet', function(req, res, next) {
     Worklog.findAll({
       include: [{
           model: Task,
-          attributes: ['ParentTaskName', 'TaskName'],
+          attributes: ['TaskName', 'Reference'],
           include: [{model: TaskType, attributes: ['Name', 'Category'],}]
       },{
         model: User,
@@ -492,20 +514,12 @@ router.get('/queryTimesheet', function(req, res, next) {
         for(var i=0; i<worklogs.length; i++) {
           var resJson = {};
           resJson.effort = worklogs[i].Effort;
-          if(worklogs[i].task.ParentTaskName != 'N/A'){
-            resJson.task_number = worklogs[i].task.ParentTaskName;
+          if(worklogs[i].task.Reference != null && worklogs[i].task.Reference != ''){
+            resJson.task_number = worklogs[i].task.Reference;
           } else {
             resJson.task_number = worklogs[i].task.TaskName;
           }
-          if(worklogs[i].task.task_type.Name == 'Change'){
-            resJson.task_type = worklogs[i].task.task_type.Category;
-          }
-          else if(worklogs[i].task.task_type.Category == 'AM'){
-            resJson.task_type = worklogs[i].task.task_type.Category;
-          }
-          else {
-            resJson.task_type = worklogs[i].task.task_type.Name;
-          }
+          resJson.task_type = worklogs[i].task.task_type.Category;
           resJson.user_name = worklogs[i].user.Name;
           resJson.work_date = worklogs[i].WorklogMonth + '-' + worklogs[i].WorklogDay;
           rtnResult.push(resJson);
@@ -523,10 +537,6 @@ router.post('/queryTimesheetForTRLS', function(req, res, next) {
   if(reqTaskName != null & reqTaskName != ''){
     var rtnResult = [];
     Task.findAll({
-      include: [{
-        model: TaskType, 
-        attributes: ['Name']
-      }],
       where: {
         TaskName: {
           [Op.in]: reqTaskName
@@ -538,7 +548,6 @@ router.post('/queryTimesheetForTRLS', function(req, res, next) {
           var resJson = {};
           resJson.effort = task[i].Effort;
           resJson.task_number = task[i].TaskName;
-          resJson.task_type = task[i].task_type.Name;
           rtnResult.push(resJson);
         }
       }

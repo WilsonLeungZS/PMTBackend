@@ -537,10 +537,18 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
           if (parentTask1 != null) {
             taskEffort = Number(parentTask1.Effort) + Number(newWorklogEffort) - Number(oldWorklogEffort);
             parentTask1.update({Effort: taskEffort}); // Update parent task 1 effort
+            /* if (parentTask1.Reference != null && parentTask1.Reference != '') {
+              var refTask1 = parentTask1.Reference;
+              var refTaskUpdatedEffort = await updateReferenceTaskEffort(newWorklogEffort, oldWorklogEffort, refTask1);
+            } */
           }
           if (parentTask2 != null) {
             taskEffort = Number(parentTask2.Effort) + Number(newWorklogEffort) - Number(oldWorklogEffort);
             parentTask2.update({Effort: taskEffort}); // Update parent task 2 effort
+            /* if (parentTask2.Reference != null && parentTask2.Reference != '') {
+              var refTask2 = parentTask2.Reference;
+              var refTaskUpdatedEffort = await updateReferenceTaskEffort(newWorklogEffort, oldWorklogEffort, refTask2);
+            } */
           }
           return res.json(responseMessage(0, worklog, 'Update worklog successfully'));
         }
@@ -554,10 +562,18 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
           if (parentTask1 != null) {
             taskEffort = Number(parentTask1.Effort) + Number(newWorklogEffort);
             parentTask1.update({Effort: taskEffort}); // Update parent task 1 effort
+            /* if (parentTask1.Reference != null && parentTask1.Reference != '') {
+              var refTask1 = parentTask1.Reference;
+              var refTaskUpdatedEffort = await updateReferenceTaskEffort(newWorklogEffort, 0, refTask1);
+            } */
           }
           if (parentTask2 != null) {
             taskEffort = Number(parentTask2.Effort) + Number(newWorklogEffort);
             parentTask2.update({Effort: taskEffort}); // Update parent task 2 effort
+            /* if (parentTask2.Reference != null && parentTask2.Reference != '') {
+              var refTask2 = parentTask2.Reference;
+              var refTaskUpdatedEffort = await updateReferenceTaskEffort(newWorklogEffort, 0, refTask2);
+            } */
           }
           return res.json(responseMessage(0, worklog, 'Create worklog successfully'));
         }
@@ -593,18 +609,26 @@ router.post('/removeWorklog', function(req, res, next) {
         var taskEffort = 0;
         if(worklog != null) {
           if (task.Reference != null && task.Reference != '') {
-            var refTask = task.Reference;
-            var refTaskUpdatedEffort = await updateReferenceTaskEffort(0, worklog.Effort, refTask);
+            var refTask1 = task.Reference;
+            var refTaskUpdatedEffort = await updateReferenceTaskEffort(0, worklog.Effort, refTask1);
           }
           taskEffort = Number(task.Effort) - Number(worklog.Effort);
           Task.update({Effort: taskEffort}, {where: {Id: req.body.wTaskId}}); // Update worklog related task effort
           if (parentTask1 != null) {
             taskEffort = Number(parentTask1.Effort) - Number(worklog.Effort);
             parentTask1.update({Effort: taskEffort}); // Remove parent task 1 effort
+            /* if (parentTask1.Reference != null && parentTask1.Reference != '') {
+              var refTask2 = parentTask1.Reference;
+              var refTaskUpdatedEffort = await updateReferenceTaskEffort(0, worklog.Effort, refTask2);
+            } */
           }
           if (parentTask2 != null) {
             taskEffort = Number(parentTask2.Effort) - Number(worklog.Effort);
             parentTask2.update({Effort: taskEffort}); // Remove parent task 2 effort
+            /* if (parentTask2.Reference != null && parentTask2.Reference != '') {
+              var refTask3 = parentTask2.Reference;
+              var refTaskUpdatedEffort = await updateReferenceTaskEffort(0, worklog.Effort, refTask3);
+            } */
           }
           worklog.update({Effort: 0}); //Set worklog effort to 0
           return res.json(responseMessage(0, worklog, 'Remove worklog successfully'));
