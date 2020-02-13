@@ -104,7 +104,8 @@ router.get('/getTaskList', function(req, res, next) {
   var reqTaskLevel = Number(req.query.reqTaskLevel);
   var criteria = {
     TaskName: {[Op.notLike]: 'Dummy - %'},
-    TaskLevel: reqTaskLevel
+    TaskLevel: reqTaskLevel,
+    Id: { [Op.ne]: null }
   }
   if (req.query.reqFilterAssignee != null && req.query.reqFilterAssignee != '') {
     criteria.AssigneeId = Number(req.query.reqFilterAssignee)
@@ -128,11 +129,28 @@ router.get('/getTaskList', function(req, res, next) {
     var c = Object.assign(criteria, issueDateCriteria);
     console.log(c);
   }
+  var taskTypeCriteria = {}
+  if (req.query.reqFilterShowRefPool != null && req.query.reqFilterShowRefPool != '') {
+    if (req.query.reqFilterShowRefPool == 'true') {
+      taskTypeCriteria = {
+        Name: 'Pool'
+      }
+    } else {
+      taskTypeCriteria = {
+        Name: { [Op.ne]: 'Pool' }
+      }
+    }
+  } else {
+    taskTypeCriteria = {
+      Name: { [Op.ne]: 'Pool' }
+    }
+  }
   var rtnResult = [];
   Task.findAll({
     include: [{
       model: TaskType, 
-      attributes: ['Name']
+      attributes: ['Name'],
+      where: taskTypeCriteria
     }],
     where: criteria,
     order: [
@@ -164,6 +182,7 @@ router.get('/getTaskList', function(req, res, next) {
         resJson.task_issue_date = task[i].IssueDate;
         resJson.task_target_complete = task[i].TargetCompleteDate;
         resJson.task_scope = task[i].Scope;
+        resJson.task_reference = task[i].Reference;
         resJson.task_top_opp_name = task[i].TopOppName;
         resJson.task_top_customer = task[i].TopCustomer;
         var targetStartTime = null;
@@ -214,7 +233,8 @@ router.get('/getTotalTaskSize', function(req, res, next) {
   var reqTaskLevel = Number(req.query.reqTaskLevel);
   var criteria = {
     TaskName: {[Op.notLike]: 'Dummy - %'},
-    TaskLevel: reqTaskLevel
+    TaskLevel: reqTaskLevel,
+    Id: { [Op.ne]: null }
   }
   if (req.query.reqFilterAssignee != null && req.query.reqFilterAssignee != '') {
     criteria.AssigneeId = Number(req.query.reqFilterAssignee)
@@ -238,7 +258,28 @@ router.get('/getTotalTaskSize', function(req, res, next) {
     var c = Object.assign(criteria, issueDateCriteria);
     console.log(c);
   }
+  var taskTypeCriteria = {}
+  if (req.query.reqFilterShowRefPool != null && req.query.reqFilterShowRefPool != '') {
+    if (req.query.reqFilterShowRefPool == 'true') {
+      taskTypeCriteria = {
+        Name: 'Pool'
+      }
+    } else {
+      taskTypeCriteria = {
+        Name: { [Op.ne]: 'Pool' }
+      }
+    }
+  } else {
+    taskTypeCriteria = {
+      Name: { [Op.ne]: 'Pool' }
+    }
+  }
   Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name'],
+      where: taskTypeCriteria
+    }],
     where: criteria,
   }).then(function(task) {
     if(task.length > 0) {
@@ -333,6 +374,7 @@ router.post('/getTaskByName', function(req, res, next) {
             resJson.task_issue_date = task[i].IssueDate;
             resJson.task_target_complete = task[i].TargetCompleteDate;
             resJson.task_scope = task[i].Scope;
+            resJson.task_reference = task[i].Reference;
             resJson.task_top_opp_name = task[i].TopOppName;
             resJson.task_top_customer = task[i].TopCustomer;
             var targetStartTime = null;
@@ -835,6 +877,7 @@ router.get('/getAllTaskType', function(req, res, next) {
         resJson.type_prefix = taskType[i].Prefix;
         resJson.type_category = taskType[i].Category;
         resJson.type_value = taskType[i].Value;
+        resJson.type_parent = taskType[i].ParentType;
         rtnResult.push(resJson);
       }
       return res.json(responseMessage(0, rtnResult, ''));
@@ -854,6 +897,7 @@ router.post('/addTaskType', function(req, res, next) {
   TaskType.findOrCreate({
     where: reqData, 
     defaults: {
+      ParentType: req.body.taskTypeParent,
       Name: req.body.taskTypeName,
       Prefix: req.body.taskTypePrefix,
       Category: req.body.taskTypeCategory,
@@ -870,6 +914,7 @@ router.post('/addTaskType', function(req, res, next) {
         console.log('Old Prefix['+oldPrefix+'] New Prefix['+newPrefix+']');
       }
       taskType.update({
+        ParentType: req.body.taskTypeParent,
         Name: req.body.taskTypeName,
         Prefix: req.body.taskTypePrefix,
         Category: req.body.taskTypeCategory,

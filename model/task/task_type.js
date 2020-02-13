@@ -8,6 +8,9 @@ var TaskType = sequelize.define('task_type', {
         primaryKey: true,
         autoIncrement:true
     },
+    ParentType: {
+        type: Sequelize.STRING
+    },
     Name: {
         type: Sequelize.STRING,
         allowNull: false

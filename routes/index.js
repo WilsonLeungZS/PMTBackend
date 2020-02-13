@@ -109,10 +109,10 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
               var autoAssignToTask = await getTaskByDescriptionKeyWord(taskDescKeyWord);
               if(autoAssignToTask != null){
                 tParentTaskName = autoAssignToTask.TaskName;
+                if (autoAssignToTaskRef.Remark != null && autoAssignToTaskRef.Remark != '') {
+                  autoAssignToTaskType = autoAssignToTaskRef.Remark;
+                }
               }
-            }
-            if (autoAssignToTaskRef.Remark != null && autoAssignToTaskRef.Remark != '') {
-              autoAssignToTaskType = autoAssignToTaskRef.Remark;
             }
           }
         }
