@@ -876,12 +876,6 @@ function getSubTaskCount(iParentTask) {
   });
 }
 
-
-/* router.post('/removeTaskIfNoSubTaskAndWorklog', function(req, res, next) {
-  var reqTaskId = req.body.tTaskId;
-
-}); */
-
 //Task Type
 router.get('/getAllTaskType', function(req, res, next) {
   var rtnResult = [];
