@@ -6,6 +6,7 @@ var Task = require('../model/task/task');
 var Team = require('../model/team/team');
 var Reference = require('../model/reference');
 var User = require('../model/user');
+var TaskGroup = require('../model/task/task_group');
 
 const Op = Sequelize.Op;
 
@@ -106,6 +107,9 @@ router.get('/getTaskList', function(req, res, next) {
     TaskName: {[Op.notLike]: 'Dummy - %'},
     TaskLevel: reqTaskLevel,
     Id: { [Op.ne]: null }
+  }
+  if (req.query.reqTaskGroupId != null && req.query.reqTaskGroupId != '') {
+    criteria.TaskGroupId = Number(req.query.reqTaskGroupId)
   }
   if (req.query.reqFilterAssignee != null && req.query.reqFilterAssignee != '') {
     criteria.AssigneeId = Number(req.query.reqFilterAssignee)
@@ -235,6 +239,9 @@ router.get('/getTotalTaskSize', function(req, res, next) {
     TaskName: {[Op.notLike]: 'Dummy - %'},
     TaskLevel: reqTaskLevel,
     Id: { [Op.ne]: null }
+  }
+  if (req.query.reqTaskGroupId != null && req.query.reqTaskGroupId != '') {
+    criteria.TaskGroupId = Number(req.query.reqTaskGroupId)
   }
   if (req.query.reqFilterAssignee != null && req.query.reqFilterAssignee != '') {
     criteria.AssigneeId = Number(req.query.reqFilterAssignee)
@@ -557,6 +564,7 @@ router.post('/getTaskById', function(req, res, next) {
             resJson.task_reference = task[i].Reference;
             resJson.task_referencetaskdesc = await getTaskDescription(task[i].Reference);
             resJson.task_scope = task[i].Scope;
+            resJson.task_group_id = task[i].TaskGroupId;
             resJson.task_top_constraint = task[i].TopConstraint;
             resJson.task_top_opp_name = task[i].TopOppName;
             resJson.task_top_customer = task[i].TopCustomer;
@@ -624,6 +632,7 @@ router.post('/getTaskByParentTask', function(req, res, next) {
             resJson.task_reference = task[i].Reference;
             resJson.task_referencetaskdesc = await getTaskDescription(task[i].Reference);
             resJson.task_scope = task[i].Scope;
+            resJson.task_group_id = task[i].TaskGroupId;
             resJson.task_top_constraint = task[i].TopConstraint;
             resJson.task_top_opp_name = task[i].TopOppName;
             resJson.task_top_customer = task[i].TopCustomer;
@@ -745,7 +754,8 @@ async function addOrUpdateTask(req, res) {
         RespLeaderId: req.body.tRespLeader != '' ? req.body.tRespLeader : null,
         AssigneeId: req.body.tAssignee != '' ? req.body.tAssignee : null,
         Reference: req.body.tReference,
-        Scope: req.body.tScope
+        Scope: req.body.tScope,
+        TaskGroupId: req.body.tGroupId != '' ? req.body.tGroupId : null
       }})
     .spread(function(task, created) {
       if(created) {
@@ -768,7 +778,8 @@ async function addOrUpdateTask(req, res) {
             RespLeaderId: req.body.tRespLeader != '' ? req.body.tRespLeader : null,
             AssigneeId: req.body.tAssignee != '' ? req.body.tAssignee : null,
             Reference: req.body.tReference,
-            Scope: req.body.tScope
+            Scope: req.body.tScope,
+            TaskGroupId: req.body.tGroupId != '' ? req.body.tGroupId : null
           },
           {where: {TaskName: req.body.tName}}
         );
@@ -865,6 +876,12 @@ function getSubTaskCount(iParentTask) {
   });
 }
 
+
+/* router.post('/removeTaskIfNoSubTaskAndWorklog', function(req, res, next) {
+  var reqTaskId = req.body.tTaskId;
+
+}); */
+
 //Task Type
 router.get('/getAllTaskType', function(req, res, next) {
   var rtnResult = [];
@@ -947,6 +964,84 @@ router.post('/getNewTaskNumberByType', function(req, res, next) {
       return res.json(responseMessage(1, null, 'Get new task number failed'));
     }
   })
+});
+
+//Task Group
+router.get('/getTaskGroup', function(req, res, next) {
+  var rtnResult = [];
+  var groupCriteria = {}
+  if( req.query.tGroupId != "0"){
+    groupCriteria = { 
+      Id: req.query.tGroupId 
+    };
+  } else {
+    groupCriteria = { 
+      Id: { [Op.ne]: null }
+    };
+  }
+  TaskGroup.findAll({
+    where: groupCriteria,
+    order: [
+      ['createdAt', 'DESC']
+    ]
+  }).then(async function(taskGroup) {
+    if(taskGroup.length > 0) {
+      for(var i=0;i<taskGroup.length;i++){
+        var resJson = {};
+        resJson.group_id = taskGroup[i].Id;
+        resJson.group_name = taskGroup[i].Name;
+        resJson.group_start_time = taskGroup[i].StartTime;
+        resJson.group_end_time = taskGroup[i].EndTime;
+        resJson.group_task_count = await getTaskGroupTaskCount(taskGroup[i].Id);
+        rtnResult.push(resJson);
+      }
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No task group existed'));
+    }
+  })
+});
+
+function getTaskGroupTaskCount (iGroupId) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      where: {
+        TaskGroupId: iGroupId
+      }
+    }).then(function(task) {
+      if(task != null) {
+        resolve(Number(task.length));
+      }
+    });
+  });
+}
+
+router.post('/addOrUpdateTaskGroup', function(req, res, next) {
+  TaskGroup.findOrCreate({
+    where: { 
+      Id: req.body.tGroupId 
+    }, 
+    defaults: {
+      Name: req.body.tGroupName,
+      StartTime: req.body.tGroupStartTime,
+      EndTime: req.body.tGroupEndTime
+    }})
+  .spread(function(taskGroup, created) {
+    if(created) {
+      return res.json(responseMessage(0, taskGroup, 'Created task group successfully!'));
+    } 
+    else if(taskGroup != null && !created) {
+      taskGroup.update({
+        Name: req.body.tGroupName,
+      StartTime: req.body.tGroupStartTime,
+      EndTime: req.body.tGroupEndTime
+      });
+      return res.json(responseMessage(0, taskGroup, 'Updated task group successfully!'));
+    }
+    else {
+      return res.json(responseMessage(1, null, 'Created/Update task group failed'));
+    }
+  });
 });
 
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {

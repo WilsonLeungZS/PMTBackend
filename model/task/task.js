@@ -43,6 +43,7 @@ var Task = sequelize.define('task', {
     TopOppsProject: { type:Sequelize.STRING },
     Reference: { type:Sequelize.STRING },
     Scope: { type:Sequelize.STRING },
+    TaskGroupId: { type:Sequelize.INTEGER },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
