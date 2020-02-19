@@ -8,6 +8,7 @@ var User = require('../model/user');
 var Team = require('../model//team/team');
 var TaskType = require('../model/task/task_type');
 var Worklog = require('../model/worklog');
+var TaskGroup = require('../model/task/task_group');
 var Sequelize = require('sequelize');
 const Op = Sequelize.Op;
 
@@ -91,27 +92,27 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
       var tAssigneeId = await getUserMapping(tAssignee);
       var tTaskIssueDate = taskObj.TaskIssueDate;
       var autoAssignToTaskType = null;
+      var tTaskGroupId = null;
       if(tAssigneeId != '' && tAssigneeId != null){
-        var issueDate = new Date(tTaskIssueDate);
-        var issueYear = null;
-        var issueMonth = null;
-        if(issueDate != null){
-          issueYear = issueDate.getFullYear();
-          issueMonth = issueDate.getMonth() + 1;
-          if(Number(issueMonth) < 10) {
-            issueMonth = '0' + issueMonth;
+        var issueDateArray = tTaskIssueDate.split(" ");
+        var issueDateStr = issueDateArray[0];
+        if(issueDateStr != null){
+          var taskGroup = await getTaskGroupByDate(issueDateStr);
+          var taskGroupIdArr = []
+          if(taskGroup != null) {
+            for(var a=0; a< taskGroup.length; a++){
+              taskGroupIdArr.push(taskGroup[a].Id);
+            }
           }
           var autoAssignToTaskRef = await getReference('AutoAssignToTask', tTaskType);
           if (autoAssignToTaskRef != null) {
             if (autoAssignToTaskRef.Value != null && autoAssignToTaskRef.Value != '') {
               var autoAssignToTaskKeyWord = autoAssignToTaskRef.Value;
-              var taskDescKeyWord = autoAssignToTaskKeyWord + '-' + issueYear + issueMonth + ']';
-              var autoAssignToTask = await getTaskByDescriptionKeyWord(taskDescKeyWord);
+              var autoAssignToTask = await getTaskByDescriptionKeyWord(autoAssignToTaskKeyWord, taskGroupIdArr);
               if(autoAssignToTask != null){
                 tParentTaskName = autoAssignToTask.TaskName;
-                if (autoAssignToTaskRef.Remark != null && autoAssignToTaskRef.Remark != '') {
-                  autoAssignToTaskType = autoAssignToTaskRef.Remark;
-                }
+                autoAssignToTaskType = autoAssignToTask.task_type.Name;
+                tTaskGroupId = autoAssignToTask.TaskGroupId;
               }
             }
           }
@@ -156,7 +157,8 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             BusinessArea: tBusinessArea,
             TaskLevel: 3, 
             IssueDate: tTaskIssueDate,
-            AssigneeId: tAssigneeId
+            AssigneeId: tAssigneeId,
+            TaskGroupId: (tTaskGroupId != '' && tTaskGroupId != null)? tTaskGroupId: null
         }
       })
       .spread(function(task, created) {
@@ -176,7 +178,8 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             BusinessArea: tBusinessArea,
             TaskLevel: 3,
             IssueDate: tTaskIssueDate,
-            AssigneeId: tAssigneeId
+            AssigneeId: tAssigneeId,
+            TaskGroupId: (tTaskGroupId != '' && tTaskGroupId != null)? tTaskGroupId: null
           });
           console.log('Task updated');
           Logger.info('Task updated');
@@ -252,6 +255,7 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
         errMsg = 'Task [' + taskObj.TaskName + ']: Task type [' + taskObj.TaskType + '] is not exist'
         console.log(errMsg)
       }
+      tTaskIssueDate = dateToString(new Date());
       console.log('Start to create/Update task');
       Task.findOrCreate({
         where: {TaskName: tName}, 
@@ -289,8 +293,7 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
             Creator: tCreator,
             BizProject: tTaskBizProject,
             BusinessArea: tBusinessArea,
-            TaskLevel: 3,
-            IssueDate: tTaskIssueDate
+            TaskLevel: 3
           });
           console.log('Task updated');
           Logger.info('Task updated');
@@ -468,11 +471,17 @@ function getReference(iRefName, iType) {
   });
 }
 
-function getTaskByDescriptionKeyWord(iKeyWord) {
+function getTaskByDescriptionKeyWord(iKeyWord, iTaskGroupIdArr) {
   return new Promise((resolve, reject) => {
     Task.findOne({
+      include: [{
+        model: TaskType, 
+        attributes: ['Name']
+      }],
       where: {
-        Description: {[Op.like]: iKeyWord + '%'}
+        Description: {[Op.like]: iKeyWord + '%'},
+        TaskLevel: 2,
+        TaskGroupId: {[Op.in]: iTaskGroupIdArr}
       }
     }).then(function(task) {
       if(task != null) {
@@ -482,6 +491,47 @@ function getTaskByDescriptionKeyWord(iKeyWord) {
       }
     });
   });
+}
+
+function getTaskGroupByDate(iDate) {
+  return new Promise((resolve, reject) => {
+    TaskGroup.findAll({
+      where: {
+        [Op.and]: [
+          { StartTime: { [Op.lte]: iDate }},
+          { EndTime: { [Op.gte]: iDate }}
+        ]
+      }
+    }).then(function(taskGroup) {
+      if(taskGroup != null && taskGroup.length > 0){
+        resolve(taskGroup);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+function stringAddZero (iValue) {
+  if (iValue < 10) {
+    return '0' + iValue
+  } else {
+    return '' + iValue
+  }
+}
+
+function dateToString (iDate) {
+  if (iDate !== null && iDate !== '' && iDate !== 'Invalid Date') {
+    var changeDateYear = iDate.getFullYear()
+    var changeDateMonth = stringAddZero(iDate.getMonth() + 1)
+    var changeDateDay = stringAddZero(iDate.getDate())
+    var changeDateHours = stringAddZero(iDate.getHours())
+    var changeDateMinutes = stringAddZero(iDate.getMinutes())
+    var changeDateSeconds = stringAddZero(iDate.getHours())
+    return changeDateYear + '-' + changeDateMonth + '-' + changeDateDay + ' ' + changeDateHours + ':' + changeDateMinutes + ':' + changeDateSeconds
+  } else {
+    return null
+  }
 }
 
 router.get('/queryTimesheet', function(req, res, next) {

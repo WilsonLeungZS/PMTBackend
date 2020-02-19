@@ -757,7 +757,7 @@ async function addOrUpdateTask(req, res) {
         Scope: req.body.tScope,
         TaskGroupId: req.body.tGroupId != '' ? req.body.tGroupId : null
       }})
-    .spread(function(task, created) {
+    .spread(async function(task, created) {
       if(created) {
         console.log("Task created"); 
         return res.json(responseMessage(0, task, 'Task Created'));
@@ -783,8 +783,53 @@ async function addOrUpdateTask(req, res) {
           },
           {where: {TaskName: req.body.tName}}
         );
+        //Update sub-tasks task group
+        if (Number(req.body.tLevel) == 2) {
+          var updateResult = 1;
+          var subTasks = await getSubTasks(req.body.tName);
+          if(subTasks != null) {
+            updateResult = await updateSubTasksGroup(req.body.tName, req.body.tGroupId);
+            if (updateResult == 0) {
+              if(subTasks.length > 0) {
+                for(var i = 0; i < subTasks.length; i++) {
+                  var subTasks1 = await getSubTasks(subTasks[i].TaskName);
+                  if(subTasks1 != null) {
+                    updateResult = await updateSubTasksGroup(subTasks[i].TaskName, req.body.tGroupId);
+                  }
+                }
+              }
+            }
+          }
+        }
         return res.json(responseMessage(1, task, 'Task existed'));
       }
+  });
+}
+
+function updateSubTasksGroup (iTaskName, iGroupId) {
+  return new Promise((resolve, reject) => {
+    Task.update({
+        TaskGroupId: iGroupId != '' ? iGroupId : null
+      },
+      {where: {ParentTaskName: iTaskName}
+    });
+    resolve(0);
+  });
+}
+
+function getSubTasks (iTaskName) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      where: {
+        ParentTaskName: iTaskName
+      }
+    }).then(function(task) {
+      if(task != null && task.length > 0){
+        resolve(task);
+      } else {
+        resolve(null)
+      }
+    })
   });
 }
 
@@ -817,7 +862,8 @@ async function addOrUpdateTaskTop(req, res) {
         TopSkill: req.body.tTopSkill,
         TopOppsProject: req.body.tTopOppsProject,
         RespLeaderId: req.body.tTopRespLeader != '' ? req.body.tTopRespLeader : null,
-        Creator: req.body.tCreator
+        Creator: req.body.tCreator,
+        IssueDate: req.body.tIssueDate
       }})
     .spread(function(task, created) {
       if(created) {
@@ -845,7 +891,8 @@ async function addOrUpdateTaskTop(req, res) {
             TopTeamSizing: req.body.tTopTeamSizing,
             TopSkill: req.body.tTopSkill,
             TopOppsProject: req.body.tTopOppsProject,
-            RespLeaderId: req.body.tTopRespLeader != '' ? req.body.tTopRespLeader : null
+            RespLeaderId: req.body.tTopRespLeader != '' ? req.body.tTopRespLeader : null,
+            IssueDate: req.body.tIssueDate
           },
           {where: {TaskName: req.body.tTopName}}
         );
@@ -986,7 +1033,26 @@ router.get('/getTaskGroup', function(req, res, next) {
         resJson.group_name = taskGroup[i].Name;
         resJson.group_start_time = taskGroup[i].StartTime;
         resJson.group_end_time = taskGroup[i].EndTime;
-        resJson.group_task_count = await getTaskGroupTaskCount(taskGroup[i].Id);
+        var taskGroupTasks = await getTaskGroupTask(taskGroup[i].Id);
+        var level2TaskCount = 0;
+        var level3TaskCount = 0;
+        var level4TaskCount = 0;
+        if(taskGroupTasks != null && taskGroupTasks.length > 0) {
+          for(var a=0; a<taskGroupTasks.length; a++){
+            if(taskGroupTasks[a].TaskLevel == 2){
+              level2TaskCount = level2TaskCount + 1;
+            }
+            if(taskGroupTasks[a].TaskLevel == 3){
+              level3TaskCount = level3TaskCount + 1;
+            }
+            if(taskGroupTasks[a].TaskLevel == 4){
+              level4TaskCount = level4TaskCount + 1;
+            }
+          }
+        }
+        resJson.group_lv2_task_count = level2TaskCount;
+        resJson.group_lv3_task_count = level3TaskCount;
+        resJson.group_lv4_task_count = level4TaskCount;
         rtnResult.push(resJson);
       }
       return res.json(responseMessage(0, rtnResult, ''));
@@ -996,15 +1062,17 @@ router.get('/getTaskGroup', function(req, res, next) {
   })
 });
 
-function getTaskGroupTaskCount (iGroupId) {
+function getTaskGroupTask (iGroupId) {
   return new Promise((resolve, reject) => {
     Task.findAll({
       where: {
         TaskGroupId: iGroupId
       }
     }).then(function(task) {
-      if(task != null) {
-        resolve(Number(task.length));
+      if(task != null && task.length > 0) {
+        resolve(task);
+      } else {
+        resolve(null);
       }
     });
   });
