@@ -129,7 +129,8 @@ router.post('/addOrUpdateUser', function(req, res, next) {
         NameMapping: req.body.reqUserNameMapping,
         IsActive: reqUserIsActive,
         Level: req.body.reqUserLevel,
-        EmployeeNumber: req.body.reqUserEmployeeNumber
+        EmployeeNumber: req.body.reqUserEmployeeNumber,
+        Assignment: req.body.reqUserAssignment
       }})
     .spread(function(user, created) {
       if(created) {
@@ -144,7 +145,8 @@ router.post('/addOrUpdateUser', function(req, res, next) {
           NameMapping: req.body.reqUserNameMapping,
           IsActive: reqUserIsActive,
           Level: req.body.reqUserLevel,
-          EmployeeNumber: req.body.reqUserEmployeeNumber
+          EmployeeNumber: req.body.reqUserEmployeeNumber,
+          Assignment: req.body.reqUserAssignment
         });
         return res.json(responseMessage(0, user, 'Update user successfully!'));
       }
@@ -200,6 +202,7 @@ router.get('/getUserList', function(req, res, next) {
         resJson.user_namemapping = user[i].NameMapping;
         resJson.user_level = user[i].Level;
         resJson.user_employee_number = user[i].EmployeeNumber;
+        resJson.user_assignment = user[i].Assignment;
         rtnResult.push(resJson);
       }
       return res.json(responseMessage(0, rtnResult, ''));
@@ -235,6 +238,7 @@ router.post('/getUserById', function(req, res, next) {
         resJson.user_namemapping = user.NameMapping;
         resJson.user_level = user.Level;
         resJson.user_employee_number = user.EmployeeNumber;
+        resJson.user_assignment = user[i].Assignment;
         if(team != null){
           var teamArray = [];
           for(var i=0; i< team.length; i++){
@@ -278,6 +282,7 @@ router.post('/getUserListByName', function(req, res, next) {
         resJson.user_namemapping = user[i].NameMapping;
         resJson.user_level = user[i].Level;
         resJson.user_employee_number = user[i].EmployeeNumber;
+        resJson.user_assignment = user[i].Assignment;
         rtnResult.push(resJson);
       }
       return res.json(responseMessage(0, rtnResult, ''));

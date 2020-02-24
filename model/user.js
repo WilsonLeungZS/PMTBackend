@@ -40,6 +40,9 @@ var User = sequelize.define('user', {
         allowNull: false,
         defaultValue: -1
     },
+    Assignment: {
+        type: Sequelize.STRING
+    },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,

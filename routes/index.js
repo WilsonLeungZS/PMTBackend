@@ -91,6 +91,8 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
       var tAssignee = taskObj.TaskAssignee;
       var tAssigneeId = await getUserMapping(tAssignee);
       var tTaskIssueDate = taskObj.TaskIssueDate;
+      var taskAssignTeam = taskObj.AssignTeam;
+      var userAssignmentList = await getAssignmentUser(taskAssignTeam);
       var autoAssignToTaskType = null;
       var tTaskGroupId = null;
       if(tAssigneeId != '' && tAssigneeId != null){
@@ -108,7 +110,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
           if (autoAssignToTaskRef != null) {
             if (autoAssignToTaskRef.Value != null && autoAssignToTaskRef.Value != '') {
               var autoAssignToTaskKeyWord = autoAssignToTaskRef.Value;
-              var autoAssignToTask = await getTaskByDescriptionKeyWord(autoAssignToTaskKeyWord, taskGroupIdArr);
+              var autoAssignToTask = await getTaskByDescriptionKeyWord(autoAssignToTaskKeyWord, taskGroupIdArr, userAssignmentList);
               if(autoAssignToTask != null){
                 tParentTaskName = autoAssignToTask.TaskName;
                 autoAssignToTaskType = autoAssignToTask.task_type.Name;
@@ -454,6 +456,36 @@ function getUserMapping (iUser) {
   });
 }
 
+function getAssignmentUser(iAssignment) {
+  return new Promise((resolve, reject) => {
+    User.findAll({
+      where: {
+        IsActive: 1,
+        Role: {[Op.ne]: 'Special'}
+      }
+    }).then(function(users) {
+      if(users != null) {
+        var result = [];
+        for(var i=0; i<users.length; i++) {
+          var assignmentStr = users[i].Assignment;
+          if(assignmentStr != '' && assignmentStr != null) {
+            var assignmentArray = assignmentStr.split(',');
+            for(var a=0; a<assignmentArray.length; a++) {
+              if(assignmentArray[a] == iAssignment){
+                result.push(users[i].Id);
+                break;
+              }
+            }
+          }
+        }
+        resolve(result);
+      } else {
+        resolve([]);
+      }
+    });
+  });
+}
+
 function getReference(iRefName, iType) {
   return new Promise((resolve, reject) => {
     Reference.findOne({
@@ -471,7 +503,7 @@ function getReference(iRefName, iType) {
   });
 }
 
-function getTaskByDescriptionKeyWord(iKeyWord, iTaskGroupIdArr) {
+function getTaskByDescriptionKeyWord(iKeyWord, iTaskGroupIdArr, iAssignmentList) {
   return new Promise((resolve, reject) => {
     Task.findOne({
       include: [{
@@ -481,7 +513,8 @@ function getTaskByDescriptionKeyWord(iKeyWord, iTaskGroupIdArr) {
       where: {
         Description: {[Op.like]: iKeyWord + '%'},
         TaskLevel: 2,
-        TaskGroupId: {[Op.in]: iTaskGroupIdArr}
+        TaskGroupId: {[Op.in]: iTaskGroupIdArr},
+        RespLeaderId: {[Op.in]: iAssignmentList}
       }
     }).then(function(task) {
       if(task != null) {

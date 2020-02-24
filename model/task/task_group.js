@@ -18,7 +18,7 @@ var TaskGroup = sequelize.define('task_group', {
     EndTime: {
         type: Sequelize.STRING
     },
-    Remark: {
+    RelatedTaskName: {
         type: Sequelize.STRING
     },
     createdAt: {

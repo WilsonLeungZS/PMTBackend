@@ -800,7 +800,25 @@ async function addOrUpdateTask(req, res) {
               }
             }
           }
-        }
+        } // End of update sub-tasks task group
+        //Update sub-tasks responsilbe leader
+        if (Number(req.body.tLevel) == 2) {
+          var updateResult = 1;
+          var subTasks = await getSubTasks(req.body.tName);
+          if(subTasks != null) {
+            updateResult = await updateSubTasksRespLeader(req.body.tName, req.body.tRespLeader);
+            if (updateResult == 0) {
+              if(subTasks.length > 0) {
+                for(var i = 0; i < subTasks.length; i++) {
+                  var subTasks1 = await getSubTasks(subTasks[i].TaskName);
+                  if(subTasks1 != null) {
+                    updateResult = await updateSubTasksRespLeader(subTasks[i].TaskName, req.body.tRespLeader);
+                  }
+                }
+              }
+            }
+          }
+        } // End of update sub-tasks task group
         return res.json(responseMessage(1, task, 'Task existed'));
       }
   });
@@ -810,6 +828,17 @@ function updateSubTasksGroup (iTaskName, iGroupId) {
   return new Promise((resolve, reject) => {
     Task.update({
         TaskGroupId: iGroupId != '' ? iGroupId : null
+      },
+      {where: {ParentTaskName: iTaskName}
+    });
+    resolve(0);
+  });
+}
+
+function updateSubTasksRespLeader (iTaskName, iRespLeaderId) {
+  return new Promise((resolve, reject) => {
+    Task.update({
+      RespLeaderId: iRespLeaderId != '' ? iRespLeaderId : null
       },
       {where: {ParentTaskName: iTaskName}
     });
@@ -923,6 +952,27 @@ function getSubTaskCount(iParentTask) {
   });
 }
 
+/*router.post('/removeTaskIfNoSubTaskAndWorklog', function(req, res, next) {
+  var reqTaskId = req.body.tTaskId;
+  var reqTaskName = req.body.tTaskName;
+});
+
+function checkWorklogExist (iTaskId) {
+  return new Promise((resolve, reject) => {
+    Worklog.findAll({
+      where: {
+        TaskId: iTaskId,
+        Effort: { [Op.ne]: 0 }
+      }
+    }).then(function(task) {
+      if(task != null) {
+        console.log('Task length: ' + task.length);
+        resolve(task.length);
+      }
+    });
+  });
+}*/
+
 //Task Type
 router.get('/getAllTaskType', function(req, res, next) {
   var rtnResult = [];
@@ -1013,11 +1063,13 @@ router.get('/getTaskGroup', function(req, res, next) {
   var groupCriteria = {}
   if( req.query.tGroupId != "0"){
     groupCriteria = { 
-      Id: req.query.tGroupId 
+      Id: req.query.tGroupId,
+      RelatedTaskName: req.query.tGroupRelatedTask
     };
   } else {
     groupCriteria = { 
-      Id: { [Op.ne]: null }
+      Id: { [Op.ne]: null },
+      RelatedTaskName: req.query.tGroupRelatedTask
     };
   }
   TaskGroup.findAll({
@@ -1078,6 +1130,29 @@ function getTaskGroupTask (iGroupId) {
   });
 }
 
+router.get('/getTaskGroupAll', function(req, res, next) {
+  var rtnResult = [];
+  TaskGroup.findAll({
+    order: [
+      ['createdAt', 'DESC']
+    ]
+  }).then(async function(taskGroup) {
+    if(taskGroup.length > 0) {
+      for(var i=0;i<taskGroup.length;i++){
+        var resJson = {};
+        resJson.group_id = taskGroup[i].Id;
+        resJson.group_name = taskGroup[i].Name;
+        resJson.group_start_time = taskGroup[i].StartTime;
+        resJson.group_end_time = taskGroup[i].EndTime;
+        rtnResult.push(resJson);
+      }
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No task group existed'));
+    }
+  })
+});
+
 router.post('/addOrUpdateTaskGroup', function(req, res, next) {
   TaskGroup.findOrCreate({
     where: { 
@@ -1086,7 +1161,8 @@ router.post('/addOrUpdateTaskGroup', function(req, res, next) {
     defaults: {
       Name: req.body.tGroupName,
       StartTime: req.body.tGroupStartTime,
-      EndTime: req.body.tGroupEndTime
+      EndTime: req.body.tGroupEndTime,
+      RelatedTaskName: req.body.tGroupRelatedTask
     }})
   .spread(function(taskGroup, created) {
     if(created) {
@@ -1096,7 +1172,8 @@ router.post('/addOrUpdateTaskGroup', function(req, res, next) {
       taskGroup.update({
         Name: req.body.tGroupName,
       StartTime: req.body.tGroupStartTime,
-      EndTime: req.body.tGroupEndTime
+      EndTime: req.body.tGroupEndTime,
+      RelatedTaskName: req.body.tGroupRelatedTask
       });
       return res.json(responseMessage(0, taskGroup, 'Updated task group successfully!'));
     }
