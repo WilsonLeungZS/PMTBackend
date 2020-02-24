@@ -7,6 +7,7 @@ var Team = require('../model/team/team');
 var Reference = require('../model/reference');
 var User = require('../model/user');
 var TaskGroup = require('../model/task/task_group');
+var Worklog = require('../model/worklog');
 
 const Op = Sequelize.Op;
 
@@ -952,26 +953,105 @@ function getSubTaskCount(iParentTask) {
   });
 }
 
-/*router.post('/removeTaskIfNoSubTaskAndWorklog', function(req, res, next) {
+router.post('/removeTaskIfNoSubTaskAndWorklog', async function(req, res, next) {
+  console.log(JSON.stringify(req.body))
   var reqTaskId = req.body.tTaskId;
   var reqTaskName = req.body.tTaskName;
+  var reqUpdateDate = req.body.tUpdateDate;
+  var subTaskCount = await getSubTaskCount(reqTaskName);
+  if(subTaskCount == 0) {
+    var worklogExist = await checkWorklogExist(reqTaskId, reqUpdateDate);
+    if(!worklogExist) {
+      console.log('No worklog exist, can remove outdate worklog and task safely!');
+      //Remove worklog of this task
+      var result1 = false; 
+      var result12 = false;
+      result1 = await removeWorklogBefore3Days(reqTaskId, reqUpdateDate);
+      if(result1) {
+        console.log('Remove worklog done');
+      }
+      result2 = await removeTask(reqTaskId);
+      if(result2){
+        console.log('Remove task done');
+      }
+      return res.json(responseMessage(0, null, 'Task removed successfully!'));
+    } else {
+      return res.json(responseMessage(1, null, 'Task existed worklog updated records within 3 days, could not be removed!'));
+    } 
+  } else {
+    return res.json(responseMessage(1, null, 'Task existed sub tasks, could not be removed!'));
+  }
 });
 
-function checkWorklogExist (iTaskId) {
+function checkWorklogExist (iTaskId, iUpdateDate) {
+  return new Promise(async (resolve, reject) => {
+    Worklog.findAll({
+      where: {
+        [Op.or]: [
+          {
+            TaskId: iTaskId,
+            Effort: { [Op.ne]: 0}
+          },
+          {
+            TaskId: iTaskId,
+            Effort: 0,
+            updatedAt: { [Op.gt]: iUpdateDate}
+          }
+        ]
+      }
+    }).then(function(worklog) {
+      if(worklog != null && worklog.length > 0) {
+        resolve(true);
+      } else {
+        resolve(false);
+      }
+    });
+  });
+}
+
+function removeWorklogBefore3Days(iTaskId, iUpdateDate) {
   return new Promise((resolve, reject) => {
     Worklog.findAll({
       where: {
         TaskId: iTaskId,
-        Effort: { [Op.ne]: 0 }
+        Effort: 0,
+        updatedAt: { [Op.lt]: iUpdateDate}
       }
-    }).then(function(task) {
-      if(task != null) {
-        console.log('Task length: ' + task.length);
-        resolve(task.length);
+    }).then(function(worklog) {
+      if(worklog != null) {
+        Worklog.destroy({
+          where: {
+            TaskId: iTaskId,
+            Effort: 0,
+            updatedAt: { [Op.lt]: iUpdateDate}
+          }
+        }).then(function(){
+          resolve(true)
+        });
+      } else {
+        resolve(false)
       }
     });
   });
-}*/
+}
+
+function removeTask(iTaskId) {
+  return new Promise((resolve, reject) => {
+    Task.findOne({
+      where: {
+        Id: iTaskId
+      }
+    }).then(function(task) {
+      if(task != null) {
+        task.destroy().then(function(){
+          resolve(true);
+        });
+      } else {
+        resolve(false);
+      }
+    });
+  });
+}
 
 //Task Type
 router.get('/getAllTaskType', function(req, res, next) {
