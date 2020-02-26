@@ -726,6 +726,56 @@ router.post('/getSubTaskByParentTaskName', function(req, res, next) {
   })
 });
 
+//Plan Task for web
+router.post('/getSubTaskByParentTaskAndGroup', function(req, res, next) {
+  var rtnResult = [];
+  console.log(JSON.stringify(req.body))
+  var reqParentTaskName = req.body.tParentTaskName;
+  var reqTaskGroupId = Number(req.body.tGroupId);
+  Task.findAll({
+    where: {
+      ParentTaskName: reqParentTaskName,
+      TaskGroupId: reqTaskGroupId,
+      TaskLevel: 2
+    },
+    order: [
+      ['createdAt', 'DESC']
+    ]
+  }).then(async function(task) {
+      if(task != null && task.length > 0) {
+        for(var i=0;i<task.length;i++){
+          var resJson = {};
+          resJson.task_id = task[i].Id;
+          resJson.task_name = task[i].TaskName;
+          resJson.task_desc = task[i].Description;
+          resJson.task_scope = task[i].Scope;
+          resJson.task_totaleffort =  task[i].Estimation;
+          resJson.task_subtasks_totaleffort = await getSubTaskTotalEstimation(task[i].TaskName);
+          resJson.task_group_id = task[i].TaskGroupId;
+          resJson.task_type_id = task[i].TaskTypeId;
+          resJson.task_responsible_leader = task[i].RespLeaderId;
+          var taskSubtasks = [];
+          var subTaskArray = await getSubTasks(task[i].TaskName);
+          if(subTaskArray != null) {
+            for(var a=0; a<subTaskArray.length; a++) {
+              var resJsonSub = {};
+              resJsonSub.task_id = subTaskArray[a].Id;
+              resJsonSub.sub_task_name = subTaskArray[a].TaskName;
+              resJsonSub.sub_task_desc = subTaskArray[a].Description;
+              resJsonSub.sub_task_totaleffort = 'Estimation: ' + subTaskArray[a].Estimation;
+              taskSubtasks.push(resJsonSub);
+            }
+          }
+          resJson.task_subtasks = taskSubtasks;
+          rtnResult.push(resJson);
+        }
+        return res.json(responseMessage(0, rtnResult, ''));
+      } else {
+        return res.json(responseMessage(1, null, 'No sub task exist'));
+      }
+  })
+});
+
 router.post('/addOrUpdateTask', function(req, res, next) {
   console.log(req.body)
   addOrUpdateTask(req, res);
