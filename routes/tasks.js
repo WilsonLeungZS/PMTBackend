@@ -664,12 +664,19 @@ function getSubTaskTotalEstimation(iTaskName) {
       where: {
         ParentTaskName: iTaskName 
       }
-    }).then(function(task) {
+    }).then(async function(task) {
       if(task != null && task.length > 0) {
         var rtnTotalEstimation = 0
         for(var i=0; i< task.length; i++){
-          if(task[i].Estimation != null && task[i].Estimation != ''){
-            rtnTotalEstimation = rtnTotalEstimation + Number(task[i].Estimation);
+          var subTaskCount = await getSubTaskCount(task[i].TaskName);
+          var subTaskEstimation = 0;
+          if(subTaskCount != null && subTaskCount > 0){
+            subTaskEstimation = await getSubTaskTotalEstimation(task[i].TaskName);
+            rtnTotalEstimation = rtnTotalEstimation + Number(subTaskEstimation);
+          } else {
+            if(task[i].Estimation != null && task[i].Estimation != ''){
+              rtnTotalEstimation = rtnTotalEstimation + Number(task[i].Estimation);
+            }
           }
         }
         resolve(rtnTotalEstimation);
@@ -748,7 +755,7 @@ router.post('/getSubTaskByParentTaskAndGroup', function(req, res, next) {
           resJson.task_id = task[i].Id;
           resJson.task_name = task[i].TaskName;
           resJson.task_desc = task[i].Description;
-          resJson.task_scope = task[i].Scope;
+          resJson.task_currenteffort = task[i].Effort;
           resJson.task_totaleffort =  task[i].Estimation;
           resJson.task_subtasks_totaleffort = await getSubTaskTotalEstimation(task[i].TaskName);
           resJson.task_group_id = task[i].TaskGroupId;
@@ -762,7 +769,12 @@ router.post('/getSubTaskByParentTaskAndGroup', function(req, res, next) {
               resJsonSub.task_id = subTaskArray[a].Id;
               resJsonSub.sub_task_name = subTaskArray[a].TaskName;
               resJsonSub.sub_task_desc = subTaskArray[a].Description;
-              resJsonSub.sub_task_totaleffort = 'Estimation: ' + subTaskArray[a].Estimation;
+              var subTaskCount = await getSubTaskCount(subTaskArray[a].TaskName)
+              if (subTaskCount != null && subTaskCount > 0) {
+                resJsonSub.sub_task_totaleffort = 'Estimation: ' + await getSubTaskTotalEstimation(subTaskArray[a].TaskName);
+              } else {
+                resJsonSub.sub_task_totaleffort = 'Estimation: ' + subTaskArray[a].Estimation;
+              }
               taskSubtasks.push(resJsonSub);
             }
           }
@@ -998,6 +1010,8 @@ function getSubTaskCount(iParentTask) {
       if(task != null) {
         console.log('Task length: ' + task.length);
         resolve(task.length);
+      } else {
+        resolve(0);
       }
     });
   });
