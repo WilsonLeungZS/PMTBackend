@@ -436,6 +436,10 @@ router.post('/getTaskByNameForWorklogTask', function(req, res, next) {
         { TaskLevel: {[Op.ne]: 1}},
         { TaskLevel: {[Op.ne]: 2}}
       ],
+      [Op.and]: [
+        { Status: {[Op.ne]: 'Drafting'}},
+        { Status: {[Op.ne]: 'Planning'}}
+      ],
       Id: { [Op.ne]: null }
     },
     limit:100,
@@ -771,9 +775,9 @@ router.post('/getSubTaskByParentTaskAndGroup', function(req, res, next) {
               resJsonSub.sub_task_desc = subTaskArray[a].Description;
               var subTaskCount = await getSubTaskCount(subTaskArray[a].TaskName)
               if (subTaskCount != null && subTaskCount > 0) {
-                resJsonSub.sub_task_totaleffort = 'Estimation: ' + await getSubTaskTotalEstimation(subTaskArray[a].TaskName);
+                resJsonSub.sub_task_totaleffort = 'Est: ' + await getSubTaskTotalEstimation(subTaskArray[a].TaskName);
               } else {
-                resJsonSub.sub_task_totaleffort = 'Estimation: ' + subTaskArray[a].Estimation;
+                resJsonSub.sub_task_totaleffort = 'Est: ' + subTaskArray[a].Estimation;
               }
               taskSubtasks.push(resJsonSub);
             }
