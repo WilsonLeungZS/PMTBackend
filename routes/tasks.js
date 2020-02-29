@@ -747,7 +747,8 @@ router.post('/getSubTaskByParentTaskAndGroup', function(req, res, next) {
     where: {
       ParentTaskName: reqParentTaskName,
       TaskGroupId: reqTaskGroupId,
-      TaskLevel: 2
+      TaskLevel: 2,
+      Status:  { [Op.ne]: 'Drafting' }
     },
     order: [
       ['createdAt', 'DESC']
@@ -759,6 +760,7 @@ router.post('/getSubTaskByParentTaskAndGroup', function(req, res, next) {
           resJson.task_id = task[i].Id;
           resJson.task_name = task[i].TaskName;
           resJson.task_desc = task[i].Description;
+          resJson.task_status = task[i].Status;
           resJson.task_currenteffort = task[i].Effort;
           resJson.task_totaleffort =  task[i].Estimation;
           resJson.task_subtasks_totaleffort = await getSubTaskTotalEstimation(task[i].TaskName);
@@ -773,6 +775,7 @@ router.post('/getSubTaskByParentTaskAndGroup', function(req, res, next) {
               resJsonSub.task_id = subTaskArray[a].Id;
               resJsonSub.sub_task_name = subTaskArray[a].TaskName;
               resJsonSub.sub_task_desc = subTaskArray[a].Description;
+              resJsonSub.sub_task_status = subTaskArray[a].Status;
               var subTaskCount = await getSubTaskCount(subTaskArray[a].TaskName)
               if (subTaskCount != null && subTaskCount > 0) {
                 resJsonSub.sub_task_totaleffort = 'Est: ' + await getSubTaskTotalEstimation(subTaskArray[a].TaskName);
@@ -1121,6 +1124,62 @@ function removeTask(iTaskId) {
   });
 }
 
+router.post('/updateTaskStatus', function(req, res, next) {
+  var reqTaskIdArray = req.body.tTaskIdArray.split(',');
+  console.log('Updated Array: ' + reqTaskIdArray);
+  var reqTaskUpdatedStatus = req.body.tUpdatedStatus;
+  Task.findAll({
+    where: {
+      Id: {[Op.in]: reqTaskIdArray}
+    }
+  }).then(async function(tasks) {
+    console.log('Lv 2 task: ' + JSON.stringify(tasks))
+    if(tasks != null && tasks.length > 0) {
+      var isTaskUpdated = false;
+      Task.update({Status: reqTaskUpdatedStatus}, {where: {Id: {[Op.in]: reqTaskIdArray}}});
+      for(var i=0; i<tasks.length; i++) {
+        console.log('Updated Task length: ' + tasks.length);
+        console.log('Start to update tasks sub task: ' + tasks[i].TaskName);
+        isTaskUpdated = await updateSubTaskStatus(tasks[i].TaskName, reqTaskUpdatedStatus);
+      }
+      if(isTaskUpdated) {
+        return res.json(responseMessage(0, tasks, ''));
+      } else {
+        return res.json(responseMessage(1, null, 'Fail to update tasks status'));
+      }
+    } else {
+      return res.json(responseMessage(1, null, 'Fail to update tasks status'));
+    }
+  })
+});
+
+function updateSubTaskStatus(iTaskName, iStatus) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      where: {
+        ParentTaskName: iTaskName,
+        Status: { [Op.ne]: 'Done' }
+      }
+    }).then(async function(tasks) {
+      console.log('Task Name: ' + iTaskName);
+      console.log(JSON.stringify(tasks));
+      if(tasks != null && tasks.length > 0) {
+        Task.update({Status: iStatus}, {where: {ParentTaskName: iTaskName, Status: { [Op.ne]: 'Done' }}});
+        for (var i=0; i< tasks.length; i++) {
+          var subTasks = await getSubTasks(tasks[i].TaskName);
+          if(subTasks != null && subTasks.length > 0) {
+            var isTaskUpdated = await updateSubTaskStatus(tasks[i].TaskName, iStatus);
+          }
+        }
+        resolve(true)
+      } else {
+        resolve(false);
+      }
+    });
+  })
+}
+
+
 //Task Type
 router.get('/getAllTaskType', function(req, res, next) {
   var rtnResult = [];
@@ -1266,7 +1325,8 @@ function getTaskGroupTask (iGroupId) {
   return new Promise((resolve, reject) => {
     Task.findAll({
       where: {
-        TaskGroupId: iGroupId
+        TaskGroupId: iGroupId,
+        Status:  { [Op.ne]: 'Drafting' }
       }
     }).then(function(task) {
       if(task != null && task.length > 0) {
