@@ -91,11 +91,14 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
       var tAssignee = taskObj.TaskAssignee;
       var tAssigneeId = await getUserMapping(tAssignee);
       var tTaskIssueDate = taskObj.TaskIssueDate;
+      if(tTaskIssueDate == null) {
+        tTaskIssueDate = dateToString(new Date());
+      }
       var taskAssignTeam = taskObj.AssignTeam;
       var userAssignmentList = await getAssignmentUser(taskAssignTeam);
       var autoAssignToTaskType = null;
       var tTaskGroupId = null;
-      if(tAssigneeId != '' && tAssigneeId != null){
+      if(tAssigneeId != '' && tAssigneeId != null && tTaskIssueDate != null){
         var issueDateArray = tTaskIssueDate.split(" ");
         var issueDateStr = issueDateArray[0];
         if(issueDateStr != null){
