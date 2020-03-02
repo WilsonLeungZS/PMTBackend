@@ -560,7 +560,11 @@ router.post('/getTaskById', function(req, res, next) {
               resJson.task_progress = "0";
               resJson.task_progress_nosymbol = "0";
             }
-            resJson.task_subtasks_totaleffort = await getSubTaskTotalEstimation(task[i].TaskName);
+            if(Number(task[i].TaskLevel) === 1) {
+              resJson.task_subtasks_totaleffort = 0;
+            } else {
+              resJson.task_subtasks_totaleffort = await getSubTaskTotalEstimation(task[i].TaskName);
+            }
             resJson.task_issue_date = task[i].IssueDate;
             resJson.task_target_complete = task[i].TargetCompleteDate;
             resJson.task_actual_complete = task[i].ActualCompleteDate;
@@ -628,7 +632,11 @@ router.post('/getTaskByParentTask', function(req, res, next) {
               resJson.task_progress = "0";
               resJson.task_progress_nosymbol = "0";
             }
-            resJson.task_subtasks_totaleffort = await getSubTaskTotalEstimation(task[i].TaskName);
+            if(Number(task[i].TaskLevel) === 1) {
+              resJson.task_subtasks_totaleffort = 0;
+            } else {
+              resJson.task_subtasks_totaleffort = await getSubTaskTotalEstimation(task[i].TaskName);
+            }
             resJson.task_issue_date = task[i].IssueDate;
             resJson.task_target_complete = task[i].TargetCompleteDate;
             resJson.task_actual_complete = task[i].ActualCompleteDate;
@@ -665,8 +673,15 @@ function getSubTaskTotalEstimation(iTaskName) {
   return new Promise((resolve, reject) => {
     console.log(iTaskName)
     Task.findAll({
+      include: [{
+        model: TaskType, 
+        attributes: ['Name'],
+        where: {
+          Name: { [Op.ne]: 'Pool' }
+          }
+      }],
       where: {
-        ParentTaskName: iTaskName 
+        ParentTaskName: iTaskName
       }
     }).then(async function(task) {
       if(task != null && task.length > 0) {
