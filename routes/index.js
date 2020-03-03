@@ -247,6 +247,9 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
       var tTaskBizProject = taskObj.BizProject;
       var tBusinessArea = '';
       var tTaskIssueDate = taskObj.TaskIssueDate;
+      if(tTaskIssueDate == null) {
+        tTaskIssueDate = dateToString(new Date());
+      }
       //Get task type info
       var inTaskStatus = await getStatusMapping(tTaskType, tStatus);
       if(inTaskStatus != null){
@@ -260,7 +263,6 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
         errMsg = 'Task [' + taskObj.TaskName + ']: Task type [' + taskObj.TaskType + '] is not exist'
         console.log(errMsg)
       }
-      tTaskIssueDate = dateToString(new Date());
       console.log('Start to create/Update task');
       Task.findOrCreate({
         where: {TaskName: tName}, 
@@ -328,7 +330,7 @@ function processRequest(req){
   var taskBizProject = req.body.bizProject;
   var taskCategorization = req.body.path;
   var taskAssignee = req.body.assigned_to;
-  var taskReportedDate = req.body.reported_date;
+  var taskReportedDate = req.body.created;
   var taskCollection = [];
   for(var i=0; i<taskNumber.length; i++){
     var taskJson = {};
