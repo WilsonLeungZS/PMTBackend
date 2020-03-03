@@ -239,6 +239,8 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
       var tTaskType = taskObj.TaskType;
       var tTaskTypeId = 0;
       var taskPoolRef = await getReference('TaskPool', tTaskType);
+      Logger.info('Debug 1');
+      Logger.info(taskPoolRef);
       if (taskPoolRef != null) {
         if (taskPoolRef.Value != null && taskPoolRef.Value != '') {
           tParentTaskName = taskPoolRef.Value;
@@ -251,19 +253,23 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
         tTaskIssueDate = dateToString(new Date());
       }
       //Get task type info
+      Logger.info('Debug 2 Start');
       var inTaskStatus = await getStatusMapping(tTaskType, tStatus);
+      Logger.info('Debug 2 End');
+      Logger.info('Status: ' + inTaskStatus);
       if(inTaskStatus != null){
         tStatus = inTaskStatus;
       }
+      Logger.info('Debug 3 Start');
       var inTaskType = await getTaskTypeInfo('Pool');
-      console.log('Type --> ' + JSON.stringify(inTaskType));
+      Logger.info('Type --> ' + JSON.stringify(inTaskType));
       if(inTaskType != null){
         tTaskTypeId = inTaskType.Id;
       } else {
         errMsg = 'Task [' + taskObj.TaskName + ']: Task type [' + taskObj.TaskType + '] is not exist'
-        console.log(errMsg)
+        Logger.info(errMsg)
       }
-      console.log('Start to create/Update task');
+      Logger.info('Start to create/Update task');
       Task.findOrCreate({
         where: {TaskName: tName}, 
         defaults: {
