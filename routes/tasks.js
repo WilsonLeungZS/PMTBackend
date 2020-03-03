@@ -325,7 +325,8 @@ router.post('/getTaskByName', function(req, res, next) {
     criteria = {
       [Op.or]: [
         {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
-        {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
+        {Description: {[Op.like]:'%' + taskKeyWord + '%'}},
+        {TopOppName: {[Op.like]:'%' + taskKeyWord + '%'}}
       ],
       TaskName: {[Op.notLike]: 'Dummy - %'},
       TaskLevel: Number(req.body.tTaskLevel)
