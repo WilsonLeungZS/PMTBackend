@@ -240,7 +240,6 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
       var tTaskTypeId = 0;
       var taskPoolRef = await getReference('TaskPool', tTaskType);
       Logger.info('Debug 1');
-      Logger.info(taskPoolRef);
       if (taskPoolRef != null) {
         if (taskPoolRef.Value != null && taskPoolRef.Value != '') {
           tParentTaskName = taskPoolRef.Value;
