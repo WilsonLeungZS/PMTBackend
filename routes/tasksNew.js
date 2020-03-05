@@ -226,6 +226,313 @@ function getUserById(iUserId) {
   });
 }
 
+//2. Get Task by Id
+router.post('/getTaskById', function(req, res, next) {
+  console.log('Start to get task by id: ' + req.body.reqTaskId)
+  Task.findOne({
+    where: {
+      Id: req.body.reqTaskId 
+    }
+  }).then(async function(task) {
+    if(task != null) {
+      var response = await generateTaskInfo(task);
+      return res.json(responseMessage(0, response, ''));  
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
+router.post('/getTaskByName', function(req, res, next) {
+  console.log('Start to get task by name: ' + req.body.reqTaskName)
+  Task.findOne({
+    where: {
+      TaskName: req.body.reqTaskName 
+    }
+  }).then(async function(task) {
+    if(task != null) {
+      var response = await generateTaskInfo(task);
+      return res.json(responseMessage(0, response, ''));  
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
+function generateTaskInfo (iTask) {
+  return new Promise(async (resolve, reject) => {
+    var resJson = {};
+    resJson.task_id = iTask.Id;
+    resJson.task_parent_name = iTask.ParentTaskName;
+    if(iTask.ParentTaskName != 'N/A') {
+      resJson.task_parent_desc = await getTaskDescription(iTask.ParentTaskName);
+    } else {
+      resJson.task_parent_desc = null;
+    }
+    resJson.task_name = iTask.TaskName;
+    resJson.task_level = iTask.TaskLevel;
+    resJson.task_desc = iTask.Description;
+    resJson.task_type_id = iTask.TaskTypeId;
+    resJson.task_creator = iTask.Creator;
+    resJson.task_status = iTask.Status;
+    resJson.task_effort = iTask.Effort;
+    if(iTask.Estimation != null && iTask.Estimation >0){
+      resJson.task_estimation =  iTask.Estimation;
+      resJson.task_progress = toPercent(iTask.Effort, iTask.Estimation);
+      var percentage =  "" + toPercent(iTask.Effort, iTask.Estimation);
+      resJson.task_progress_nosymbol = percentage.replace("%","");
+    } else {
+      resJson.task_estimation = "0"
+      resJson.task_progress = "0";
+      resJson.task_progress_nosymbol = "0";
+    }
+    if(Number(iTask.TaskLevel) === 1) {
+      resJson.task_subtasks_estimation = 0;
+    } else {
+      resJson.task_subtasks_estimation = await getSubTaskTotalEstimation(iTask.TaskName);
+    }
+    resJson.task_issue_date = iTask.IssueDate;
+    resJson.task_target_complete = iTask.TargetCompleteDate;
+    resJson.task_actual_complete = iTask.ActualCompleteDate;
+    resJson.task_responsible_leader = iTask.RespLeaderId;
+    resJson.task_assignee = iTask.AssigneeId;
+    resJson.task_reference = iTask.Reference;
+    if(iTask.Reference != null && iTask.Reference != '') {
+      resJson.task_reference_desc = await getTaskDescription(iTask.Reference);
+    } else {
+      resJson.task_reference_desc = null;
+    }
+    resJson.task_scope = iTask.Scope;
+    resJson.task_group_id = iTask.TaskGroupId;
+    resJson.task_top_constraint = iTask.TopConstraint;
+    resJson.task_top_opp_name = iTask.TopOppName;
+    resJson.task_top_customer = iTask.TopCustomer;
+    resJson.task_top_facing_client = iTask.TopFacingClient;
+    resJson.task_top_type_of_work = iTask.TopTypeOfWork;
+    resJson.task_top_chance_winning = iTask.TopChanceWinning;
+    resJson.task_top_sow_confirmation = iTask.TopSowConfirmation;
+    resJson.task_top_business_value = iTask.TopBusinessValue;
+    resJson.task_top_target_start = iTask.TopTargetStart;
+    resJson.task_top_target_end = iTask.TopTargetEnd;
+    resJson.task_top_paint_points = iTask.TopPaintPoints;
+    resJson.task_top_team_sizing = iTask.TopTeamSizing;
+    resJson.task_top_skill = iTask.TopSkill;
+    resJson.task_top_opps_project = iTask.TopOppsProject;
+    resolve(resJson);
+  });
+}
+
+function getSubTaskTotalEstimation(iTaskName) {
+  return new Promise((resolve, reject) => {
+    console.log(iTaskName)
+    Task.findAll({
+      include: [{
+        model: TaskType, 
+        attributes: ['Name'],
+        where: {
+          Name: { [Op.ne]: 'Pool' }
+          }
+      }],
+      where: {
+        ParentTaskName: iTaskName
+      }
+    }).then(async function(task) {
+      if(task != null && task.length > 0) {
+        var rtnTotalEstimation = 0
+        for(var i=0; i< task.length; i++){
+          var subTaskCount = await getSubTaskCount(task[i].TaskName);
+          var subTaskEstimation = 0;
+          if(subTaskCount != null && subTaskCount > 0){
+            subTaskEstimation = await getSubTaskTotalEstimation(task[i].TaskName);
+            rtnTotalEstimation = rtnTotalEstimation + Number(subTaskEstimation);
+          } else {
+            if(task[i].Estimation != null && task[i].Estimation != ''){
+              rtnTotalEstimation = rtnTotalEstimation + Number(task[i].Estimation);
+            }
+          }
+        }
+        resolve(rtnTotalEstimation);
+      } else {
+        resolve(0);
+      }
+    });
+  })
+}
+
+function getTaskDescription(iTaskname) {
+  return new Promise((resolve, reject) => {
+    Task.findOne({
+      where: {
+        TaskName: iTaskname 
+      }
+    }).then(function(task) {
+      if (task != null) {
+        if(task.TaskLevel == 1) {
+          resolve(task.TopOppName);
+        } else {
+          resolve(task.Description);
+        }
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+router.post('/getSubTaskByTaskName', function(req, res, next) {
+  var rtnResult = [];
+  Task.findAll({
+    attributes: ['Id', 'TaskName', 'Description'],
+    where: {
+      ParentTaskName: req.body.reqTaskName
+    },
+    order: [
+      ['Id', 'ASC']
+    ]
+  }).then(function(task) {
+      if(task.length > 0) {
+        for(var i=0;i<task.length;i++){
+          var resJson = {};
+          resJson.task_id = task[i].Id;
+          resJson.task_name = task[i].TaskName;
+          resJson.task_desc = task[i].Description;
+          rtnResult.push(resJson);
+        }
+        return res.json(responseMessage(0, rtnResult, ''));
+      } else {
+        return res.json(responseMessage(1, null, 'No sub task exist'));
+      }
+  })
+});
+
+//3. Save task
+router.post('/saveTask', function(req, res, next) {
+  saveTask(req, res);
+});
+
+async function saveTask(req, res) {
+  var reqTask = JSON.parse(req.body.reqTask);
+  var reqTaskName = reqTask.task_name;
+  var reqTaskParent = reqTask.task_parent_name;
+  if((reqTaskName == null || reqTaskName == '') && reqTaskParent != 'N/A'){
+    reqTaskName = await getSubTaskName(reqTaskParent);
+  }
+  var taskObj = {
+    ParentTaskName: reqTaskParent,
+    TaskName: reqTaskName,
+    Description: reqTask.task_desc != ''? reqTask.task_desc: null,
+    Priority: null,
+    Status: reqTask.task_status != ''? reqTask.task_status: null,
+    Creator: reqTask.task_creator != ''? reqTask.task_creator: null,
+    TaskTypeId: reqTask.task_type_id != ''? Number(reqTask.task_type_id): null,
+    Effort: reqTask.task_effort != ''? Number(reqTask.task_effort): 0,
+    Estimation: reqTask.task_estimation != ''? Number(reqTask.task_estimation): 0,
+    IssueDate: reqTask.task_issue_date != ''? reqTask.task_issue_date: null,
+    TargetCompleteDate: reqTask.task_target_complete != ''? reqTask.task_target_complete: null,
+    ActualCompleteDate: reqTask.task_actual_complete != ''? reqTask.task_actual_complete: null,
+    BusinessArea: null,
+    BizProject: null,
+    TaskLevel: reqTask.task_level != ''? reqTask.task_level: 0,
+    RespLeaderId: reqTask.task_responsible_leader != ''? reqTask.task_responsible_leader: null,
+    AssigneeId: reqTask.task_assignee != ''? reqTask.task_assignee: null,
+    Reference: reqTask.task_reference != ''? reqTask.task_reference: null,
+    Scope: reqTask.task_scope != ''? reqTask.task_scope: null,
+    TopConstraint: reqTask.task_top_constraint != ''? reqTask.task_top_constraint: null,
+    TopOppName: reqTask.task_top_opp_name != ''? reqTask.task_top_opp_name: null,
+    TopCustomer: reqTask.task_top_customer != ''? reqTask.task_top_customer: null,
+    TopFacingClient: reqTask.task_top_facing_client != ''? reqTask.task_top_facing_client: null,
+    TopTypeOfWork: reqTask.task_top_type_of_work != ''? reqTask.task_top_type_of_work: null,
+    TopChanceWinning: reqTask.task_top_chance_winning != ''? reqTask.task_top_chance_winning: null, 
+    TopSowConfirmation: reqTask.task_top_sow_confirmation != ''? reqTask.task_top_sow_confirmation: null,
+    TopBusinessValue: reqTask.task_top_business_value != ''? reqTask.task_top_business_value: null,
+    TopTargetStart: reqTask.task_top_target_start != ''? reqTask.task_top_target_start: null,
+    TopTargetEnd: reqTask.task_top_target_end != ''? reqTask.task_top_target_end: null,
+    TopPaintPoints: reqTask.task_top_paint_points != ''? reqTask.task_top_paint_points: null,
+    TopTeamSizing: reqTask.task_top_team_sizing != ''? reqTask.task_top_team_sizing: null,
+    TopSkill: reqTask.task_top_skill != ''? reqTask.task_top_skill: null,
+    TopOppsProject: reqTask.task_top_opps_project != ''? reqTask.task_top_opps_project: null,
+    TaskGroupId: reqTask.task_group_id != ''? reqTask.task_group_id: null
+  }
+  Task.findOrCreate({
+      where: { TaskName: reqTaskName }, 
+      defaults: taskObj
+    })
+    .spread(async function(task, created) {
+      if(created) {
+        console.log("Task created"); 
+        return res.json(responseMessage(0, task, 'Task Created'));
+      } else {
+        console.log("Task existed");
+        Task.update(taskObj, {where: { TaskName: reqTaskName }});
+        return res.json(responseMessage(1, task, 'Task existed'));
+      }
+  });
+}
+
+async function getSubTaskName(iParentTask) {
+  var subTaskCount = await getSubTaskCount(iParentTask);
+  subTaskCount = Number(subTaskCount) + 1;
+  var taskName = iParentTask + '-' + subTaskCount;
+  return taskName;
+}
+
+function getSubTaskCount(iParentTask) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      where: {
+        ParentTaskName: iParentTask
+      }
+    }).then(function(task) {
+      if(task != null) {
+        console.log('Task length: ' + task.length);
+        resolve(task.length);
+      } else {
+        resolve(0);
+      }
+    });
+  });
+}
+
+function updateSubTasksGroup (iTaskName, iGroupId) {
+  return new Promise((resolve, reject) => {
+    Task.update({
+        TaskGroupId: iGroupId != '' ? iGroupId : null
+      },
+      {where: {ParentTaskName: iTaskName}
+    });
+    resolve(0);
+  });
+}
+
+function updateSubTasksRespLeader (iTaskName, iRespLeaderId) {
+  return new Promise((resolve, reject) => {
+    Task.update({
+      RespLeaderId: iRespLeaderId != '' ? iRespLeaderId : null
+      },
+      {where: {ParentTaskName: iTaskName}
+    });
+    resolve(0);
+  });
+}
+
+function getSubTasks (iTaskName) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      where: {
+        ParentTaskName: iTaskName
+      }
+    }).then(function(task) {
+      if(task != null && task.length > 0){
+        resolve(task);
+      } else {
+        resolve(null)
+      }
+    })
+  });
+}
+
+
+
 router.post('/getTaskByNameForWorklogTask', function(req, res, next) {
   var rtnResult = [];
   var taskKeyWord = req.body.tTaskName.trim();
@@ -336,78 +643,6 @@ router.post('/getTaskByNameForReference', function(req, res, next) {
   })
 });
 
-router.post('/getTaskById', function(req, res, next) {
-  var rtnResult = [];
-  Task.findAll({
-      where: {
-        Id: req.body.tId 
-      }
-  }).then(async function(task) {
-      if(task.length > 0) {
-          for(var i=0;i<task.length;i++){
-            var resJson = {};
-            resJson.task_id = task[i].Id;
-            resJson.task_parenttaskname = task[i].ParentTaskName;
-            resJson.task_parenttaskdesc = await getTaskDescription(task[i].ParentTaskName);
-            resJson.task_name = task[i].TaskName;
-            resJson.task_level = task[i].TaskLevel;
-            resJson.task_creator = task[i].Creator;
-            resJson.task_type = task[i].TaskTypeId;
-            resJson.task_type_id = task[i].TaskTypeId;
-            if(task[i].Status != null && !task[i].Status == ""){
-              resJson.task_status = task[i].Status;
-            } else {
-              resJson.task_status = "N/A";
-            }
-            resJson.task_desc = task[i].Description;
-            resJson.task_currenteffort = task[i].Effort;
-            if(task[i].Estimation != null && task[i].Estimation >0){
-              resJson.task_totaleffort =  task[i].Estimation;
-              resJson.task_progress = toPercent(task[i].Effort, task[i].Estimation);
-              var percentage =  "" + toPercent(task[i].Effort, task[i].Estimation);
-              resJson.task_progress_nosymbol = percentage.replace("%","");
-            } else {
-              resJson.task_totaleffort = "0"
-              resJson.task_progress = "0";
-              resJson.task_progress_nosymbol = "0";
-            }
-            if(Number(task[i].TaskLevel) === 1) {
-              resJson.task_subtasks_totaleffort = 0;
-            } else {
-              resJson.task_subtasks_totaleffort = await getSubTaskTotalEstimation(task[i].TaskName);
-            }
-            resJson.task_issue_date = task[i].IssueDate;
-            resJson.task_target_complete = task[i].TargetCompleteDate;
-            resJson.task_actual_complete = task[i].ActualCompleteDate;
-            resJson.task_responsible_leader = task[i].RespLeaderId;
-            resJson.task_assignee = task[i].AssigneeId;
-            resJson.task_reference = task[i].Reference;
-            resJson.task_referencetaskdesc = await getTaskDescription(task[i].Reference);
-            resJson.task_scope = task[i].Scope;
-            resJson.task_group_id = task[i].TaskGroupId;
-            resJson.task_top_constraint = task[i].TopConstraint;
-            resJson.task_top_opp_name = task[i].TopOppName;
-            resJson.task_top_customer = task[i].TopCustomer;
-            resJson.task_top_facing_client = task[i].TopFacingClient;
-            resJson.task_top_type_of_work = task[i].TopTypeOfWork;
-            resJson.task_top_chance_winning = task[i].TopChanceWinning;
-            resJson.task_top_sow_confirmation = task[i].TopSowConfirmation;
-            resJson.task_top_business_value = task[i].TopBusinessValue;
-            resJson.task_top_target_start = task[i].TopTargetStart;
-            resJson.task_top_target_end = task[i].TopTargetEnd;
-            resJson.task_top_paint_points = task[i].TopPaintPoints;
-            resJson.task_top_team_sizing = task[i].TopTeamSizing;
-            resJson.task_top_skill = task[i].TopSkill;
-            resJson.task_top_opps_project = task[i].TopOppsProject;
-            rtnResult.push(resJson);
-          }
-          return res.json(responseMessage(0, rtnResult, ''));
-      } else {
-          return res.json(responseMessage(1, null, 'No task exist'));
-      }
-  })
-});
-
 router.post('/getTaskByParentTask', function(req, res, next) {
   var rtnResult = [];
   Task.findAll({
@@ -479,63 +714,6 @@ router.post('/getTaskByParentTask', function(req, res, next) {
       }
   })
 });
-
-function getSubTaskTotalEstimation(iTaskName) {
-  return new Promise((resolve, reject) => {
-    console.log(iTaskName)
-    Task.findAll({
-      include: [{
-        model: TaskType, 
-        attributes: ['Name'],
-        where: {
-          Name: { [Op.ne]: 'Pool' }
-          }
-      }],
-      where: {
-        ParentTaskName: iTaskName
-      }
-    }).then(async function(task) {
-      if(task != null && task.length > 0) {
-        var rtnTotalEstimation = 0
-        for(var i=0; i< task.length; i++){
-          var subTaskCount = await getSubTaskCount(task[i].TaskName);
-          var subTaskEstimation = 0;
-          if(subTaskCount != null && subTaskCount > 0){
-            subTaskEstimation = await getSubTaskTotalEstimation(task[i].TaskName);
-            rtnTotalEstimation = rtnTotalEstimation + Number(subTaskEstimation);
-          } else {
-            if(task[i].Estimation != null && task[i].Estimation != ''){
-              rtnTotalEstimation = rtnTotalEstimation + Number(task[i].Estimation);
-            }
-          }
-        }
-        resolve(rtnTotalEstimation);
-      } else {
-        resolve(0);
-      }
-    });
-  })
-}
-
-function getTaskDescription(iTaskname) {
-  return new Promise((resolve, reject) => {
-    Task.findOne({
-      where: {
-        TaskName: iTaskname 
-      }
-    }).then(function(task) {
-      if (task != null) {
-        if(task.TaskLevel == 1) {
-          resolve(task.TopOppName);
-        } else {
-          resolve(task.Description);
-        }
-      } else {
-        resolve(null);
-      }
-    });
-  });
-}
 
 router.post('/getSubTaskByParentTaskName', function(req, res, next) {
   var rtnResult = [];
