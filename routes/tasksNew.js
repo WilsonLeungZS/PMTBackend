@@ -230,6 +230,10 @@ function getUserById(iUserId) {
 router.post('/getTaskById', function(req, res, next) {
   console.log('Start to get task by id: ' + req.body.reqTaskId)
   Task.findOne({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name']
+    }],
     where: {
       Id: req.body.reqTaskId 
     }
@@ -246,6 +250,10 @@ router.post('/getTaskById', function(req, res, next) {
 router.post('/getTaskByName', function(req, res, next) {
   console.log('Start to get task by name: ' + req.body.reqTaskName)
   Task.findOne({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name']
+    }],
     where: {
       TaskName: req.body.reqTaskName 
     }
@@ -266,13 +274,16 @@ function generateTaskInfo (iTask) {
     resJson.task_parent_name = iTask.ParentTaskName;
     if(iTask.ParentTaskName != 'N/A') {
       resJson.task_parent_desc = await getTaskDescription(iTask.ParentTaskName);
+      resJson.task_parent_type = await getTaskType(iTask.ParentTaskName)
     } else {
       resJson.task_parent_desc = null;
+      resJson.task_parent_type = null;
     }
     resJson.task_name = iTask.TaskName;
     resJson.task_level = iTask.TaskLevel;
     resJson.task_desc = iTask.Description;
     resJson.task_type_id = iTask.TaskTypeId;
+    resJson.task_type = iTask.task_type.Name;
     resJson.task_creator = iTask.Creator;
     resJson.task_status = iTask.Status;
     resJson.task_effort = iTask.Effort;
@@ -290,6 +301,10 @@ function generateTaskInfo (iTask) {
       resJson.task_subtasks_estimation = 0;
     } else {
       resJson.task_subtasks_estimation = await getSubTaskTotalEstimation(iTask.TaskName);
+    }
+    if(resJson.task_subtasks_estimation > 0) {
+      resJson.task_progress = toPercent(iTask.Effort, resJson.task_subtasks_estimation);
+      resJson.task_progress_nosymbol = resJson.task_progress.replace("%","");
     }
     resJson.task_issue_date = iTask.IssueDate;
     resJson.task_target_complete = iTask.TargetCompleteDate;
@@ -372,6 +387,26 @@ function getTaskDescription(iTaskname) {
         } else {
           resolve(task.Description);
         }
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+function getTaskType(iTaskname) {
+  return new Promise((resolve, reject) => {
+    Task.findOne({
+      include: [{
+        model: TaskType, 
+        attributes: ['Name']
+      }],
+      where: {
+        TaskName: iTaskname 
+      }
+    }).then(function(task) {
+      if (task != null) {
+        resolve(task.task_type.Name)
       } else {
         resolve(null);
       }
@@ -463,16 +498,40 @@ async function saveTask(req, res) {
         return res.json(responseMessage(0, task, 'Task Created'));
       } else {
         console.log("Task existed");
-        Task.update(taskObj, {where: { TaskName: reqTaskName }});
+        await Task.update(taskObj, {where: { TaskName: reqTaskName }});
+        //Update sub-tasks responsilbe leader
+        if (Number(reqTask.task_level) == 2) {
+          var updateResult1 = await updateSubTasksRespLeader(reqTask.task_name, reqTask.task_responsible_leader);
+        }
         return res.json(responseMessage(1, task, 'Task existed'));
       }
   });
 }
 
 async function getSubTaskName(iParentTask) {
-  var subTaskCount = await getSubTaskCount(iParentTask);
+  console.log('Start to get Sub task Name!!')
+  var subTasks = await getSubTasks(iParentTask);
+  var subTaskCount = 0;
+  if(subTasks != null && subTasks.length > 0) {
+    var lastSubTaskName = subTasks[subTasks.length-1].TaskName;
+    var nameArr = lastSubTaskName.split('-');
+    var lastNameNum = Number(nameArr[nameArr.length-1]);
+    var subTasksLength = subTasks.length;
+    console.log('Sub Task Last Number: ' + lastNameNum);
+    console.log('Sub Task Length: ' + subTasksLength);
+    if(lastNameNum == subTasksLength) {
+      subTaskCount = subTasksLength;
+    }
+    if(lastNameNum < subTasksLength) {
+      subTaskCount = subTasksLength;
+    }
+    if(lastNameNum > subTasksLength) {
+      subTaskCount = lastNameNum;
+    }
+  }
   subTaskCount = Number(subTaskCount) + 1;
   var taskName = iParentTask + '-' + subTaskCount;
+  console.log('Sub Task Name: ' + taskName);
   return taskName;
 }
 
@@ -506,12 +565,21 @@ function updateSubTasksGroup (iTaskName, iGroupId) {
 
 function updateSubTasksRespLeader (iTaskName, iRespLeaderId) {
   return new Promise((resolve, reject) => {
-    Task.update({
-      RespLeaderId: iRespLeaderId != '' ? iRespLeaderId : null
-      },
-      {where: {ParentTaskName: iTaskName}
+    Task.findAll({
+      where: {
+        ParentTaskName: iTaskName
+      }
+    }).then(async function(tasks) {
+      if (tasks != null && tasks.length > 0) {
+        await Task.update({RespLeaderId: iRespLeaderId != '' ? iRespLeaderId : null}, {where: {ParentTaskName: iTaskName}});
+        for(var i=0; i<tasks.length; i++) {
+          await updateSubTasksRespLeader(tasks[i].TaskName, iRespLeaderId)
+        }
+        resolve(0);
+      } else {
+        resolve(1);
+      }
     });
-    resolve(0);
   });
 }
 
@@ -520,7 +588,10 @@ function getSubTasks (iTaskName) {
     Task.findAll({
       where: {
         ParentTaskName: iTaskName
-      }
+      },
+      order: [
+        ['createdAt', 'DESC']
+      ]
     }).then(function(task) {
       if(task != null && task.length > 0){
         resolve(task);
@@ -531,11 +602,10 @@ function getSubTasks (iTaskName) {
   });
 }
 
-
-
-router.post('/getTaskByNameForWorklogTask', function(req, res, next) {
+router.post('/getTaskByNameForParentTask', function(req, res, next) {
   var rtnResult = [];
-  var taskKeyWord = req.body.tTaskName.trim();
+  var reqTaskKeyWord = req.body.reqTaskKeyword.trim();
+  var reqTaskLevel = req.body.reqTaskLevel;
   Task.findAll({
     include: [{
       model: TaskType, 
@@ -546,35 +616,31 @@ router.post('/getTaskByNameForWorklogTask', function(req, res, next) {
     }],
     where: {
       [Op.or]: [
-        {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
-        {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
+        {TaskName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {Description: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}}
       ],
       TaskName: {[Op.notLike]: 'Dummy - %'},
-      [Op.and]: [
-        { TaskLevel: {[Op.ne]: 1}},
-        { TaskLevel: {[Op.ne]: 2}}
-      ],
-      [Op.and]: [
-        { Status: {[Op.ne]: 'Drafting'}},
-        { Status: {[Op.ne]: 'Planning'}}
-      ],
+      TaskLevel: reqTaskLevel,
       Id: { [Op.ne]: null }
     },
-    limit:100,
+    limit: 30,
     order: [
-      ['updatedAt', 'DESC']
+      ['createdAt', 'DESC']
     ]
   }).then(async function(task) {
     if(task.length > 0) {
       for(var i=0;i<task.length;i++){
-        var existSubTask = await getSubTaskExist(task[i].TaskName);
-        if(existSubTask){
-          continue;
-        }
         var resJson = {};
         resJson.task_id = task[i].Id;
         resJson.task_name = task[i].TaskName;
         resJson.task_desc = task[i].Description;
+        if(resJson.task_desc == null || resJson.task_desc == '') {
+          resJson.task_desc = task[i].TopOppName;
+        }
+        resJson.task_type = task[i].task_type.Name;
+        resJson.task_type_id = task[i].TaskTypeId;
+        resJson.task_responsible_leader = task[i].RespLeaderId;
         rtnResult.push(resJson);
       }
       return res.json(responseMessage(0, rtnResult, ''));
@@ -584,25 +650,9 @@ router.post('/getTaskByNameForWorklogTask', function(req, res, next) {
   })
 });
 
-function getSubTaskExist (iParentTaskName) {
-  return new Promise((resolve, reject) => {
-    Task.findAll({
-      where: {
-        ParentTaskName: iParentTaskName 
-      }
-    }).then(function(task) {
-      if(task != null && task.length > 0) {
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    });
-  });
-}
-
-router.post('/getTaskByNameForReference', function(req, res, next) {
+router.post('/getTaskByNameForRefPool', function(req, res, next) {
   var rtnResult = [];
-  var taskKeyWord = req.body.tTaskName.trim();
+  var reqTaskKeyWord = req.body.reqTaskKeyword.trim();
   Task.findAll({
     include: [{
       model: TaskType, 
@@ -613,19 +663,17 @@ router.post('/getTaskByNameForReference', function(req, res, next) {
     }],
     where: {
       [Op.or]: [
-        {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
-        {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
+        {TaskName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {Description: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}}
       ],
       TaskName: {[Op.notLike]: 'Dummy - %'},
-      [Op.and]: [
-        { TaskLevel: {[Op.ne]: 1}},
-        { TaskLevel: {[Op.ne]: 2}}
-      ],
+      TaskLevel: 3,
       Id: { [Op.ne]: null }
     },
-    limit:100,
+    limit: 30,
     order: [
-      ['updatedAt', 'DESC']
+      ['createdAt', 'DESC']
     ]
   }).then(async function(task) {
     if(task.length > 0) {
@@ -642,391 +690,6 @@ router.post('/getTaskByNameForReference', function(req, res, next) {
     }
   })
 });
-
-router.post('/getTaskByParentTask', function(req, res, next) {
-  var rtnResult = [];
-  Task.findAll({
-      where: {
-        TaskName: req.body.tParentTask 
-      }
-  }).then(async function(task) {
-      if(task.length > 0) {
-          for(var i=0;i<task.length;i++){
-            var resJson = {};
-            resJson.task_id = task[i].Id;
-            resJson.task_parenttaskname = task[i].ParentTaskName;
-            resJson.task_parenttaskdesc = await getTaskDescription(task[i].ParentTaskName);
-            resJson.task_name = task[i].TaskName;
-            resJson.task_level = task[i].TaskLevel;
-            resJson.task_creator = task[i].Creator;
-            resJson.task_type = task[i].TaskTypeId;
-            resJson.task_type_id = task[i].TaskTypeId;
-            if(task[i].Status != null && !task[i].Status == ""){
-              resJson.task_status = task[i].Status;
-            } else {
-              resJson.task_status = "N/A";
-            }
-            resJson.task_desc = task[i].Description;
-            resJson.task_currenteffort = task[i].Effort;
-            if(task[i].Estimation != null && task[i].Estimation >0){
-              resJson.task_totaleffort =  task[i].Estimation;
-              resJson.task_progress = toPercent(task[i].Effort, task[i].Estimation);
-              var percentage =  "" + toPercent(task[i].Effort, task[i].Estimation);
-              resJson.task_progress_nosymbol = percentage.replace("%","");
-            } else {
-              resJson.task_totaleffort = "0"
-              resJson.task_progress = "0";
-              resJson.task_progress_nosymbol = "0";
-            }
-            if(Number(task[i].TaskLevel) === 1) {
-              resJson.task_subtasks_totaleffort = 0;
-            } else {
-              resJson.task_subtasks_totaleffort = await getSubTaskTotalEstimation(task[i].TaskName);
-            }
-            resJson.task_issue_date = task[i].IssueDate;
-            resJson.task_target_complete = task[i].TargetCompleteDate;
-            resJson.task_actual_complete = task[i].ActualCompleteDate;
-            resJson.task_responsible_leader = task[i].RespLeaderId;
-            resJson.task_assignee = task[i].AssigneeId;
-            resJson.task_reference = task[i].Reference;
-            resJson.task_referencetaskdesc = await getTaskDescription(task[i].Reference);
-            resJson.task_scope = task[i].Scope;
-            resJson.task_group_id = task[i].TaskGroupId;
-            resJson.task_top_constraint = task[i].TopConstraint;
-            resJson.task_top_opp_name = task[i].TopOppName;
-            resJson.task_top_customer = task[i].TopCustomer;
-            resJson.task_top_facing_client = task[i].TopFacingClient;
-            resJson.task_top_type_of_work = task[i].TopTypeOfWork;
-            resJson.task_top_chance_winning = task[i].TopChanceWinning;
-            resJson.task_top_sow_confirmation = task[i].TopSowConfirmation;
-            resJson.task_top_business_value = task[i].TopBusinessValue;
-            resJson.task_top_target_start = task[i].TopTargetStart;
-            resJson.task_top_target_end = task[i].TopTargetEnd;
-            resJson.task_top_paint_points = task[i].TopPaintPoints;
-            resJson.task_top_team_sizing = task[i].TopTeamSizing;
-            resJson.task_top_skill = task[i].TopSkill;
-            resJson.task_top_opps_project = task[i].TopOppsProject;
-            rtnResult.push(resJson);
-          }
-          return res.json(responseMessage(0, rtnResult, ''));
-      } else {
-          return res.json(responseMessage(1, null, 'No task exist'));
-      }
-  })
-});
-
-router.post('/getSubTaskByParentTaskName', function(req, res, next) {
-  var rtnResult = [];
-  Task.findAll({
-    attributes: ['Id', 'TaskName', 'Description'],
-    where: {
-      ParentTaskName: req.body.tTaskName
-    },
-    order: [
-      ['Id', 'ASC']
-    ]
-  }).then(function(task) {
-      if(task.length > 0) {
-        for(var i=0;i<task.length;i++){
-          var resJson = {};
-          resJson.task_id = task[i].Id;
-          resJson.task_name = task[i].TaskName;
-          resJson.task_desc = task[i].Description;
-          rtnResult.push(resJson);
-        }
-        return res.json(responseMessage(0, rtnResult, ''));
-      } else {
-        return res.json(responseMessage(1, null, 'No sub task exist'));
-      }
-  })
-});
-
-//Plan Task for web
-router.post('/getSubTaskByParentTaskAndGroup', function(req, res, next) {
-  var rtnResult = [];
-  console.log(JSON.stringify(req.body))
-  var reqParentTaskName = req.body.tParentTaskName;
-  var reqTaskGroupId = Number(req.body.tGroupId);
-  Task.findAll({
-    where: {
-      ParentTaskName: reqParentTaskName,
-      TaskGroupId: reqTaskGroupId,
-      TaskLevel: 2,
-      Status:  { [Op.ne]: 'Drafting' }
-    },
-    order: [
-      ['createdAt', 'DESC']
-    ]
-  }).then(async function(task) {
-      if(task != null && task.length > 0) {
-        for(var i=0;i<task.length;i++){
-          var resJson = {};
-          resJson.task_id = task[i].Id;
-          resJson.task_name = task[i].TaskName;
-          resJson.task_desc = task[i].Description;
-          resJson.task_status = task[i].Status;
-          resJson.task_currenteffort = task[i].Effort;
-          resJson.task_totaleffort =  task[i].Estimation;
-          resJson.task_subtasks_totaleffort = await getSubTaskTotalEstimation(task[i].TaskName);
-          resJson.task_group_id = task[i].TaskGroupId;
-          resJson.task_type_id = task[i].TaskTypeId;
-          resJson.task_responsible_leader = task[i].RespLeaderId;
-          var taskSubtasks = [];
-          var subTaskArray = await getSubTasks(task[i].TaskName);
-          if(subTaskArray != null) {
-            for(var a=0; a<subTaskArray.length; a++) {
-              var resJsonSub = {};
-              resJsonSub.task_id = subTaskArray[a].Id;
-              resJsonSub.sub_task_name = subTaskArray[a].TaskName;
-              resJsonSub.sub_task_desc = subTaskArray[a].Description;
-              resJsonSub.sub_task_status = subTaskArray[a].Status;
-              var subTaskCount = await getSubTaskCount(subTaskArray[a].TaskName)
-              if (subTaskCount != null && subTaskCount > 0) {
-                resJsonSub.sub_task_totaleffort = 'Est: ' + await getSubTaskTotalEstimation(subTaskArray[a].TaskName);
-              } else {
-                resJsonSub.sub_task_totaleffort = 'Est: ' + subTaskArray[a].Estimation;
-              }
-              taskSubtasks.push(resJsonSub);
-            }
-          }
-          resJson.task_subtasks = taskSubtasks;
-          rtnResult.push(resJson);
-        }
-        return res.json(responseMessage(0, rtnResult, ''));
-      } else {
-        return res.json(responseMessage(1, null, 'No sub task exist'));
-      }
-  })
-});
-
-router.post('/addOrUpdateTask', function(req, res, next) {
-  console.log(req.body)
-  addOrUpdateTask(req, res);
-});
-
-async function addOrUpdateTask(req, res) {
-  var reqTaskName = req.body.tName;
-  var reqTaskParent = req.body.tParent;
-  if((reqTaskName == null || reqTaskName == '') && reqTaskParent != 'N/A'){
-    reqTaskName = await getSubTaskName(reqTaskParent);
-  }
-  Task.findOrCreate({
-      where: { TaskName: req.body.tName }, 
-      defaults: {
-        ParentTaskName: reqTaskParent,
-        TaskName: reqTaskName,
-        TaskLevel: Number(req.body.tLevel),
-        Description: req.body.tDescription,
-        TaskTypeId: Number(req.body.tTaskTypeId),
-        Status: req.body.tStatus,
-        Creator: req.body.tCreator,
-        Effort: Number(req.body.tEffort),
-        Estimation: Number(req.body.tEstimation),
-        IssueDate: req.body.tIssueDate,
-        TargetCompleteDate: req.body.tTargetComplete,
-        ActualCompleteDate: req.body.tActualComplete,
-        RespLeaderId: req.body.tRespLeader != '' ? req.body.tRespLeader : null,
-        AssigneeId: req.body.tAssignee != '' ? req.body.tAssignee : null,
-        Reference: req.body.tReference,
-        Scope: req.body.tScope,
-        TaskGroupId: req.body.tGroupId != '' ? req.body.tGroupId : null
-      }})
-    .spread(async function(task, created) {
-      if(created) {
-        console.log("Task created"); 
-        return res.json(responseMessage(0, task, 'Task Created'));
-      } else {
-        console.log("Task existed");
-        Task.update({
-            ParentTaskName: req.body.tParent,
-            TaskName: req.body.tName,
-            TaskLevel: Number(req.body.tLevel),
-            Description: req.body.tDescription,
-            TaskTypeId: Number(req.body.tTaskTypeId),
-            Status: req.body.tStatus,
-            Effort: Number(req.body.tEffort),
-            Estimation: Number(req.body.tEstimation),
-            IssueDate: req.body.tIssueDate,
-            TargetCompleteDate: req.body.tTargetComplete,
-            ActualCompleteDate: req.body.tActualComplete,
-            RespLeaderId: req.body.tRespLeader != '' ? req.body.tRespLeader : null,
-            AssigneeId: req.body.tAssignee != '' ? req.body.tAssignee : null,
-            Reference: req.body.tReference,
-            Scope: req.body.tScope,
-            TaskGroupId: req.body.tGroupId != '' ? req.body.tGroupId : null
-          },
-          {where: {TaskName: req.body.tName}}
-        );
-        //Update sub-tasks task group
-        if (Number(req.body.tLevel) == 2) {
-          var updateResult = 1;
-          var subTasks = await getSubTasks(req.body.tName);
-          if(subTasks != null) {
-            updateResult = await updateSubTasksGroup(req.body.tName, req.body.tGroupId);
-            if (updateResult == 0) {
-              if(subTasks.length > 0) {
-                for(var i = 0; i < subTasks.length; i++) {
-                  var subTasks1 = await getSubTasks(subTasks[i].TaskName);
-                  if(subTasks1 != null) {
-                    updateResult = await updateSubTasksGroup(subTasks[i].TaskName, req.body.tGroupId);
-                  }
-                }
-              }
-            }
-          }
-        } // End of update sub-tasks task group
-        //Update sub-tasks responsilbe leader
-        if (Number(req.body.tLevel) == 2) {
-          var updateResult = 1;
-          var subTasks = await getSubTasks(req.body.tName);
-          if(subTasks != null) {
-            updateResult = await updateSubTasksRespLeader(req.body.tName, req.body.tRespLeader);
-            if (updateResult == 0) {
-              if(subTasks.length > 0) {
-                for(var i = 0; i < subTasks.length; i++) {
-                  var subTasks1 = await getSubTasks(subTasks[i].TaskName);
-                  if(subTasks1 != null) {
-                    updateResult = await updateSubTasksRespLeader(subTasks[i].TaskName, req.body.tRespLeader);
-                  }
-                }
-              }
-            }
-          }
-        } // End of update sub-tasks task group
-        return res.json(responseMessage(1, task, 'Task existed'));
-      }
-  });
-}
-
-function updateSubTasksGroup (iTaskName, iGroupId) {
-  return new Promise((resolve, reject) => {
-    Task.update({
-        TaskGroupId: iGroupId != '' ? iGroupId : null
-      },
-      {where: {ParentTaskName: iTaskName}
-    });
-    resolve(0);
-  });
-}
-
-function updateSubTasksRespLeader (iTaskName, iRespLeaderId) {
-  return new Promise((resolve, reject) => {
-    Task.update({
-      RespLeaderId: iRespLeaderId != '' ? iRespLeaderId : null
-      },
-      {where: {ParentTaskName: iTaskName}
-    });
-    resolve(0);
-  });
-}
-
-function getSubTasks (iTaskName) {
-  return new Promise((resolve, reject) => {
-    Task.findAll({
-      where: {
-        ParentTaskName: iTaskName
-      }
-    }).then(function(task) {
-      if(task != null && task.length > 0){
-        resolve(task);
-      } else {
-        resolve(null)
-      }
-    })
-  });
-}
-
-router.post('/addOrUpdateTaskTop', function(req, res, next) {
-  console.log(req.body)
-  addOrUpdateTaskTop(req, res);
-});
-
-async function addOrUpdateTaskTop(req, res) {
-  Task.findOrCreate({
-      where: { TaskName: req.body.tTopName }, 
-      defaults: {
-        ParentTaskName: 'N/A',
-        TaskName: req.body.tTopName,
-        TaskLevel: Number(req.body.tTopLevel),
-        TaskTypeId: Number(req.body.tTopTaskTypeId),
-        Status: req.body.tTopStatus,
-        TopConstraint: req.body.tTopConstraint,
-        TopOppName: req.body.tTopOppName,
-        TopCustomer: req.body.tTopCustomer,
-        TopFacingClient: req.body.tTopFacingClient,
-        TopTypeOfWork: req.body.tTopTypeOfWork,
-        TopChanceWinning: req.body.tTopChanceWinning,
-        TopBusinessValue: req.body.tTopBusinessValue,
-        TopSowConfirmation: req.body.tTopSowConfirmation,
-        TopTargetStart: req.body.tTopTargetStart,
-        TopTargetEnd: req.body.tTopTargetEnd,
-        TopPaintPoints: req.body.tTopPaintPoints,
-        TopTeamSizing: req.body.tTopTeamSizing,
-        TopSkill: req.body.tTopSkill,
-        TopOppsProject: req.body.tTopOppsProject,
-        RespLeaderId: req.body.tTopRespLeader != '' ? req.body.tTopRespLeader : null,
-        Creator: req.body.tCreator,
-        IssueDate: req.body.tIssueDate
-      }})
-    .spread(function(task, created) {
-      if(created) {
-        console.log("Task created"); 
-        return res.json(responseMessage(0, task, 'Task Created'));
-      } else {
-        console.log("Task existed");
-        Task.update({
-            ParentTaskName: 'N/A',
-            TaskName: req.body.tTopName,
-            TaskLevel: Number(req.body.tTopLevel),
-            TaskTypeId: Number(req.body.tTopTaskTypeId),
-            Status: req.body.tTopStatus,
-            TopConstraint: req.body.tTopConstraint,
-            TopOppName: req.body.tTopOppName,
-            TopCustomer: req.body.tTopCustomer,
-            TopFacingClient: req.body.tTopFacingClient,
-            TopTypeOfWork: req.body.tTopTypeOfWork,
-            TopChanceWinning: req.body.tTopChanceWinning,
-            TopBusinessValue: req.body.tTopBusinessValue,
-            TopSowConfirmation: req.body.tTopSowConfirmation,
-            TopTargetStart: req.body.tTopTargetStart,
-            TopTargetEnd: req.body.tTopTargetEnd,
-            TopPaintPoints: req.body.tTopPaintPoints,
-            TopTeamSizing: req.body.tTopTeamSizing,
-            TopSkill: req.body.tTopSkill,
-            TopOppsProject: req.body.tTopOppsProject,
-            RespLeaderId: req.body.tTopRespLeader != '' ? req.body.tTopRespLeader : null,
-            IssueDate: req.body.tIssueDate
-          },
-          {where: {TaskName: req.body.tTopName}}
-        );
-        return res.json(responseMessage(1, task, 'Task existed and updated'));
-      }
-  });
-}
-
-async function getSubTaskName(iParentTask) {
-  var subTaskCount = await getSubTaskCount(iParentTask);
-  subTaskCount = Number(subTaskCount) + 1;
-  var taskName = iParentTask + '-' + subTaskCount;
-  return taskName;
-}
-
-function getSubTaskCount(iParentTask) {
-  return new Promise((resolve, reject) => {
-    Task.findAll({
-      where: {
-        ParentTaskName: iParentTask
-      }
-    }).then(function(task) {
-      if(task != null) {
-        console.log('Task length: ' + task.length);
-        resolve(task.length);
-      } else {
-        resolve(0);
-      }
-    });
-  });
-}
 
 router.post('/removeTaskIfNoSubTaskAndWorklog', async function(req, res, next) {
   console.log(JSON.stringify(req.body))
@@ -1040,7 +703,7 @@ router.post('/removeTaskIfNoSubTaskAndWorklog', async function(req, res, next) {
       console.log('No worklog exist, can remove outdate worklog and task safely!');
       //Remove worklog of this task
       var result1 = false; 
-      var result12 = false;
+      var result2 = false;
       result1 = await removeWorklogBefore3Days(reqTaskId, reqUpdateDate);
       if(result1) {
         console.log('Remove worklog done');
@@ -1128,61 +791,72 @@ function removeTask(iTaskId) {
   });
 }
 
-router.post('/updateTaskStatus', function(req, res, next) {
-  var reqTaskIdArray = req.body.tTaskIdArray.split(',');
-  console.log('Updated Array: ' + reqTaskIdArray);
-  var reqTaskUpdatedStatus = req.body.tUpdatedStatus;
+router.post('/getTaskByNameForWorklogTask', function(req, res, next) {
+  var rtnResult = [];
+  var taskKeyWord = req.body.tTaskName.trim();
   Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name'],
+      where: {
+        Name: { [Op.ne]: 'Pool' }
+      }
+    }],
     where: {
-      Id: {[Op.in]: reqTaskIdArray}
-    }
-  }).then(async function(tasks) {
-    console.log('Lv 2 task: ' + JSON.stringify(tasks))
-    if(tasks != null && tasks.length > 0) {
-      var isTaskUpdated = false;
-      Task.update({Status: reqTaskUpdatedStatus}, {where: {Id: {[Op.in]: reqTaskIdArray}}});
-      for(var i=0; i<tasks.length; i++) {
-        console.log('Updated Task length: ' + tasks.length);
-        console.log('Start to update tasks sub task: ' + tasks[i].TaskName);
-        isTaskUpdated = await updateSubTaskStatus(tasks[i].TaskName, reqTaskUpdatedStatus);
+      [Op.or]: [
+        {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
+        {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
+      ],
+      TaskName: {[Op.notLike]: 'Dummy - %'},
+      [Op.and]: [
+        { TaskLevel: {[Op.ne]: 1}},
+        { TaskLevel: {[Op.ne]: 2}}
+      ],
+      [Op.and]: [
+        { Status: {[Op.ne]: 'Drafting'}},
+        { Status: {[Op.ne]: 'Planning'}}
+      ],
+      Id: { [Op.ne]: null }
+    },
+    limit:100,
+    order: [
+      ['updatedAt', 'DESC']
+    ]
+  }).then(async function(task) {
+    if(task.length > 0) {
+      for(var i=0;i<task.length;i++){
+        var existSubTask = await getSubTaskExist(task[i].TaskName);
+        if(existSubTask){
+          continue;
+        }
+        var resJson = {};
+        resJson.task_id = task[i].Id;
+        resJson.task_name = task[i].TaskName;
+        resJson.task_desc = task[i].Description;
+        rtnResult.push(resJson);
       }
-      if(isTaskUpdated) {
-        return res.json(responseMessage(0, tasks, ''));
-      } else {
-        return res.json(responseMessage(1, null, 'Fail to update tasks status'));
-      }
+      return res.json(responseMessage(0, rtnResult, ''));
     } else {
-      return res.json(responseMessage(1, null, 'Fail to update tasks status'));
+      return res.json(responseMessage(1, null, 'No task exist'));
     }
   })
 });
 
-function updateSubTaskStatus(iTaskName, iStatus) {
+function getSubTaskExist (iParentTaskName) {
   return new Promise((resolve, reject) => {
     Task.findAll({
       where: {
-        ParentTaskName: iTaskName,
-        Status: { [Op.ne]: 'Done' }
+        ParentTaskName: iParentTaskName 
       }
-    }).then(async function(tasks) {
-      console.log('Task Name: ' + iTaskName);
-      console.log(JSON.stringify(tasks));
-      if(tasks != null && tasks.length > 0) {
-        Task.update({Status: iStatus}, {where: {ParentTaskName: iTaskName, Status: { [Op.ne]: 'Done' }}});
-        for (var i=0; i< tasks.length; i++) {
-          var subTasks = await getSubTasks(tasks[i].TaskName);
-          if(subTasks != null && subTasks.length > 0) {
-            var isTaskUpdated = await updateSubTaskStatus(tasks[i].TaskName, iStatus);
-          }
-        }
-        resolve(true)
+    }).then(function(task) {
+      if(task != null && task.length > 0) {
+        resolve(true);
       } else {
         resolve(false);
       }
     });
-  })
+  });
 }
-
 
 //Task Type
 router.get('/getAllTaskType', function(req, res, next) {
