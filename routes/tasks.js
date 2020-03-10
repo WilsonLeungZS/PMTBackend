@@ -922,7 +922,7 @@ function generateTaskListForPlanTask(iTaskObjArray) {
   });
 }
 
-router.post('/getPlanTaskListByParentTask', function(req, res, next) {
+router.post('/getPlanTaskSizeByParentTask', function(req, res, next) {
   console.log('Start to get plan task list by parent task name: ' + req.body.reqParentTaskName)
   var reqParentTaskName = req.body.reqParentTaskName;
   var reqTaskGroupId = Number(req.body.reqTaskGroupId);
@@ -950,8 +950,53 @@ router.post('/getPlanTaskListByParentTask', function(req, res, next) {
     include: [{model: TaskType, attributes: ['Name']}],
     where: criteria,
     order: [
-      ['createdAt', 'ASC']
+      ['createdAt', 'DESC']
     ]
+  }).then(async function(tasks) {
+    if(tasks != null && tasks.length > 0) {
+      var resJson = {};
+      resJson.task_list_total_size = tasks.length;
+      return res.json(responseMessage(0, resJson, '')); 
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
+router.post('/getPlanTaskListByParentTask', function(req, res, next) {
+  console.log('Start to get plan task list by parent task name: ' + req.body.reqParentTaskName)
+  var reqPage = Number(req.body.reqPage);
+  var reqSize = Number(req.body.reqSize);
+  var reqParentTaskName = req.body.reqParentTaskName;
+  var reqTaskGroupId = Number(req.body.reqTaskGroupId);
+  var criteria = {
+    ParentTaskName: reqParentTaskName,
+    TaskLevel: 3
+  }
+  if(reqTaskGroupId != null && reqTaskGroupId != '') {
+    if(reqTaskGroupId == 0) {
+      groupCriteria = {} 
+    }
+    else if(reqTaskGroupId == -1) {
+      groupCriteria = {
+        TaskGroupId: null
+      } 
+    }
+    else {
+      groupCriteria = {
+        TaskGroupId: reqTaskGroupId
+      } 
+    }
+    var c = Object.assign(criteria, groupCriteria);
+  }
+  Task.findAll({
+    include: [{model: TaskType, attributes: ['Name']}],
+    where: criteria,
+    order: [
+      ['createdAt', 'DESC']
+    ],
+    limit: reqSize,
+    offset: reqSize * (reqPage - 1),
   }).then(async function(tasks) {
     if(tasks != null && tasks.length > 0) {
       var response = await generatePlanTaskList(tasks);
@@ -984,7 +1029,22 @@ function generatePlanTaskList(iTaskObjArray) {
       } else {
         resJson.task_assignee = null;
       }
-      resJson.task_sub_tasks = [];
+      var subTaskList = await getSubTasks(iTaskObjArray[i].TaskName);
+      var resResult = [];
+      if(subTaskList != null && subTaskList.length > 0) {
+        for(var a=0; a<subTaskList.length; a++) {
+          var resJson1 = {};
+          resJson1.sub_task_id = subTaskList[a].Id;
+          resJson1.sub_task_name = subTaskList[a].TaskName;
+          resJson1.sub_task_status = subTaskList[a].Status;
+          resJson1.sub_task_desc = subTaskList[a].Description;
+          resJson1.sub_task_effort = 'Effort: ' + subTaskList[a].Effort;
+          resJson1.sub_task_estimation = 'Est: ' + subTaskList[a].Estimation;
+          resJson1.sub_task_assignee = subTaskList[a].Assignee;
+          resResult.push(resJson1)
+        }
+      }
+      resJson.task_sub_tasks = resResult;
       rtnResult.push(resJson);  
     } 
     resolve(rtnResult);
