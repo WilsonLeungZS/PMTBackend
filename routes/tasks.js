@@ -16,113 +16,117 @@ router.get('/', function(req, res, next) {
 });
 
 //Task
-router.get('/getAllTasksLimited', function(req, res, next) {
-  var rtnResult = [];
+// 1. Search task function
+router.get('/searchTaskByKeywordAndLevel', function(req, res, next) {
+  var reqTaskKeyWord = req.query.reqTaskKeyword.trim();
+  var reqTaskLevel = Number(req.query.reqTaskLevel);
   Task.findAll({
     include: [{
       model: TaskType, 
       attributes: ['Name']
     }],
     where: {
-      TaskName: {[Op.notLike]: 'Dummy - %'}
+      [Op.or]: [
+        {TaskName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {Description: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}}
+      ],
+      TaskName: {[Op.notLike]: 'Dummy - %'},
+      TaskLevel: reqTaskLevel
     },
     order: [
-      ['updatedAt', 'DESC']
-    ],
-    limit:300
-  }).then(function(task) {
-    if(task.length > 0) {
-      for(var i=0;i<task.length;i++){
-        var resJson = {};
-        resJson.task_id = task[i].Id;
-        resJson.task_name = task[i].TaskName;
-        resJson.task_type = task[i].task_type.Name;
-        if(task[i].Estimation != null && task[i].Estimation > 0){
-          var percentage =  "" + toPercent(task[i].Effort, task[i].Estimation);
-          resJson.task_progress = percentage.replace("%","");
-        } else {
-          resJson.task_progress = "-1";
-        }
-        rtnResult.push(resJson);
-      }
-      return res.json(responseMessage(0, rtnResult, ''));
-    } else {
-      return res.json(responseMessage(1, null, 'No task exist'));
-    }
-  })
-});
-
-router.post('/getTaskByCompletedName', function(req, res, next) {
-  var rtnResult = [];
-  Task.findAll({
-      include: [{
-        model: TaskType, 
-        attributes: ['Name']
-      }],
-      where: {
-        TaskName: req.body.tTaskName 
-      }
-  }).then(function(task) {
-      if(task.length > 0) {
-          for(var i=0;i<task.length;i++){
-            var resJson = {};
-            resJson.task_id = task[i].Id;
-            resJson.task_parenttaskname = task[i].ParentTaskName;
-            resJson.task_name = task[i].TaskName;
-            resJson.task_level = task[i].TaskLevel;
-            resJson.task_type = task[i].task_type.Name;
-            if(task[i].Status != null && !task[i].Status == ""){
-              resJson.task_status = task[i].Status;
-            } else {
-              resJson.task_status = "N/A";
-            }
-            resJson.task_desc = task[i].Description;
-            resJson.task_currenteffort = task[i].Effort;
-            if(task[i].Estimation != null && task[i].Estimation >0){
-              resJson.task_totaleffort =  task[i].Estimation;
-              resJson.task_progress = toPercent(task[i].Effort, task[i].Estimation);
-              var percentage =  "" + toPercent(task[i].Effort, task[i].Estimation);
-              resJson.task_progress_nosymbol = percentage.replace("%","");
-            } else {
-              resJson.task_totaleffort = "0"
-              resJson.task_progress = "0";
-              resJson.task_progress_nosymbol = "0";
-            }
-            rtnResult.push(resJson);
-          }
-          return res.json(responseMessage(0, rtnResult, ''));
+      ['createdAt', 'DESC']
+    ]
+  }).then(async function(tasks) {
+      if(tasks != null && tasks.length > 0) {
+        var response = await generateTaskList(tasks);
+        return res.json(responseMessage(0, response, ''));
       } else {
-          return res.json(responseMessage(1, null, 'No task exist'));
+        return res.json(responseMessage(1, null, 'No task exist'));
       }
   })
 });
 
-//Task list for web PMT
+//1. Get Task list for web PMT
 router.get('/getTaskList', function(req, res, next) {
   var reqPage = Number(req.query.reqPage);
   var reqSize = Number(req.query.reqSize);
-  var reqFilterIssueDateStart = null
-  var reqFilterIssueDateEnd = null
-  var reqTaskLevel = Number(req.query.reqTaskLevel);
+  var taskCriteria = generateTaskCriteria(req);
+  var taskTypeCriteria = generateTaskTypeCriteria(req);
+  Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name'],
+      where: taskTypeCriteria
+    }],
+    where: taskCriteria,
+    order: [
+      ['createdAt', 'DESC']
+    ],
+    limit: reqSize,
+    offset: reqSize * (reqPage - 1),
+  }).then(async function(tasks) {
+    if(tasks != null && tasks.length > 0) {
+      var response = await generateTaskList(tasks);
+      return res.json(responseMessage(0, response, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    } 
+  })
+});
+
+router.get('/getTaskListTotalSize', function(req, res, next) {
+  var taskCriteria = generateTaskCriteria(req);
+  var taskTypeCriteria = generateTaskTypeCriteria(req);
+  Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name'],
+      where: taskTypeCriteria
+    }],
+    where: taskCriteria
+  }).then(async function(tasks) {
+    if(tasks != null && tasks.length > 0) {
+      var resJson = {};
+      resJson.task_list_total_size = tasks.length;
+      return res.json(responseMessage(0, resJson, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    } 
+  })
+});
+
+function generateTaskCriteria(iReq) {
+  var reqTaskLevel = Number(iReq.query.reqTaskLevel);
   var criteria = {
     TaskName: {[Op.notLike]: 'Dummy - %'},
     TaskLevel: reqTaskLevel,
     Id: { [Op.ne]: null }
   }
-  if (req.query.reqTaskGroupId != null && req.query.reqTaskGroupId != '') {
-    criteria.TaskGroupId = Number(req.query.reqTaskGroupId)
+  if (iReq.query.reqTaskKeyword != null && iReq.query.reqTaskKeyword != '') {
+    var reqTaskKeyWord = iReq.query.reqTaskKeyword.trim();
+    var searchKeywordCriteria = {
+      [Op.or]: [
+        {TaskName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {Description: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}}
+      ]
+    }
+    var c1 = Object.assign(criteria, searchKeywordCriteria);
+  } 
+  if (iReq.query.reqFilterAssignee != null && iReq.query.reqFilterAssignee != '') {
+    criteria.AssigneeId = Number(iReq.query.reqFilterAssignee)
   }
-  if (req.query.reqFilterAssignee != null && req.query.reqFilterAssignee != '') {
-    criteria.AssigneeId = Number(req.query.reqFilterAssignee)
+  if (iReq.query.reqFilterStatus != null && iReq.query.reqFilterStatus != '') {
+    criteria.Status = iReq.query.reqFilterStatus
   }
-  if (req.query.reqFilterStatus != null && req.query.reqFilterStatus != '') {
-    criteria.Status = req.query.reqFilterStatus
+  var reqFilterIssueDateStart = null;
+  var reqFilterIssueDateEnd = null;
+  if (iReq.query.reqFilterIssueDateStart != null && iReq.query.reqFilterIssueDateStart != '') {
+    reqFilterIssueDateStart = iReq.query.reqFilterIssueDateStart + ' 00:00:00'
   }
-  if (req.query.reqFilterIssueDateStart != null && req.query.reqFilterIssueDateStart != '') {
-    reqFilterIssueDateStart = req.query.reqFilterIssueDateStart + ' 00:00:00'
-  }
-  if (req.query.reqFilterIssueDateEnd != null && req.query.reqFilterIssueDateEnd != '') {
-    reqFilterIssueDateEnd = req.query.reqFilterIssueDateEnd + ' 23:59:59'
+  if (iReq.query.reqFilterIssueDateEnd != null && iReq.query.reqFilterIssueDateEnd != '') {
+    reqFilterIssueDateEnd = iReq.query.reqFilterIssueDateEnd + ' 23:59:59'
   }
   if (reqFilterIssueDateStart != null && reqFilterIssueDateEnd != null) {
     var issueDateCriteria = {
@@ -131,12 +135,15 @@ router.get('/getTaskList', function(req, res, next) {
         { IssueDate: { [Op.lte]:  reqFilterIssueDateEnd }}
       ]
     }
-    var c = Object.assign(criteria, issueDateCriteria);
-    console.log(c);
+    var c2 = Object.assign(criteria, issueDateCriteria);
   }
+  return criteria;
+}
+
+function generateTaskTypeCriteria(iReq) {
   var taskTypeCriteria = {}
-  if (req.query.reqFilterShowRefPool != null && req.query.reqFilterShowRefPool != '') {
-    if (req.query.reqFilterShowRefPool == 'true') {
+  if (iReq.query.reqFilterShowRefPool != null && iReq.query.reqFilterShowRefPool != '') {
+    if (iReq.query.reqFilterShowRefPool == 'true') {
       taskTypeCriteria = {
         Name: 'Pool'
       }
@@ -150,69 +157,58 @@ router.get('/getTaskList', function(req, res, next) {
       Name: { [Op.ne]: 'Pool' }
     }
   }
-  var rtnResult = [];
-  Task.findAll({
-    include: [{
-      model: TaskType, 
-      attributes: ['Name'],
-      where: taskTypeCriteria
-    }],
-    where: criteria,
-    order: [
-      ['createdAt', 'DESC']
-    ],
-    limit: reqSize,
-    offset: reqSize * (reqPage - 1),
-  }).then(async function(task) {
-    if(task.length > 0) {
-      for(var i=0;i<task.length;i++){
-        var resJson = {};
-        resJson.task_id = task[i].Id;
-        resJson.task_parenttaskname = task[i].ParentTaskName;
-        resJson.task_name = task[i].TaskName;
-        resJson.task_type = task[i].task_type.Name;
-        resJson.task_level = task[i].TaskLevel;
-        resJson.task_desc = task[i].Description;
-        resJson.task_status = task[i].Status;
-        resJson.task_effort = task[i].Effort;
-        resJson.task_estimation = task[i].Estimation;
-        resJson.task_created = task[i].createdAt;
-        var assigneeId = task[i].AssigneeId;
-        if (assigneeId != null && assigneeId != '') {
-          var assigneeName = await getUserById(assigneeId);
-          resJson.task_assignee = assigneeName;
-        } else {
-          resJson.task_assignee = null;
-        }
-        resJson.task_issue_date = task[i].IssueDate;
-        resJson.task_target_complete = task[i].TargetCompleteDate;
-        resJson.task_scope = task[i].Scope;
-        resJson.task_reference = task[i].Reference;
-        resJson.task_top_opp_name = task[i].TopOppName;
-        resJson.task_top_customer = task[i].TopCustomer;
-        var targetStartTime = null;
-        if(task[i].TopTargetStart != null && task[i].TopTargetStart != ''){
-          var startTime = new Date(task[i].TopTargetStart);
-          targetStartTime = startTime.getFullYear() + '-' + ((startTime.getMonth() + 1) < 10 ? '0' + (startTime.getMonth() + 1) : (startTime.getMonth() + 1));
-        }
-        resJson.task_top_target_start = targetStartTime;
-        resJson.task_top_type_of_work = task[i].TopTypeOfWork;
-        resJson.task_top_team_sizing = task[i].TopTeamSizing;
-        var respLeaderId = task[i].RespLeaderId;
-        if (respLeaderId != null && respLeaderId != '') {
-          var respLeaderName = await getUserById(respLeaderId);
-          resJson.task_top_resp_leader = respLeaderName;
-        } else {
-          resJson.task_top_resp_leader = null;
-        }
-        rtnResult.push(resJson);
+  return taskTypeCriteria;
+}
+
+function generateTaskList(iTaskObjArray) {
+  return new Promise(async (resolve, reject) => {
+    var rtnResult = [];
+    for (var i=0; i<iTaskObjArray.length; i++) {
+      var resJson = {}
+      resJson.task_id = iTaskObjArray[i].Id;
+      resJson.task_name = iTaskObjArray[i].TaskName;
+      // Level 2 ~ 4
+      resJson.task_parent_name = iTaskObjArray[i].ParentTaskName;
+      resJson.task_level = iTaskObjArray[i].TaskLevel;
+      resJson.task_desc = iTaskObjArray[i].Description;
+      resJson.task_status = iTaskObjArray[i].Status;
+      resJson.task_effort = iTaskObjArray[i].Effort;
+      resJson.task_estimation = iTaskObjArray[i].Estimation;
+      resJson.task_scope = iTaskObjArray[i].Scope;
+      resJson.task_reference = iTaskObjArray[i].Reference;
+      var assigneeId = iTaskObjArray[i].AssigneeId;
+      if (assigneeId != null && assigneeId != '') {
+        var assigneeName = await getUserById(assigneeId);
+        resJson.task_assignee = assigneeName;
+      } else {
+        resJson.task_assignee = null;
       }
-      return res.json(responseMessage(0, rtnResult, ''));
-    } else {
-      return res.json(responseMessage(1, null, 'No task exist'));
-    }
-  })
-});
+      resJson.task_issue_date = iTaskObjArray[i].IssueDate;
+      resJson.task_target_complete = iTaskObjArray[i].TargetCompleteDate;
+      //Level 1
+      resJson.task_top_opp_name = iTaskObjArray[i].TopOppName;
+      resJson.task_top_customer = iTaskObjArray[i].TopCustomer;
+      resJson.task_top_type_of_work = iTaskObjArray[i].TopTypeOfWork;
+      resJson.task_top_team_sizing = iTaskObjArray[i].TopTeamSizing;
+      var respLeaderId = iTaskObjArray[i].RespLeaderId;
+      if (respLeaderId != null && respLeaderId != '') {
+        var respLeaderName = await getUserById(respLeaderId);
+        resJson.task_top_resp_leader = respLeaderName;
+      } else {
+        resJson.task_top_resp_leader = null;
+      }
+      var trgtStartTime = iTaskObjArray[i].TopTargetStart;
+      if( trgtStartTime != null && trgtStartTime != ''){
+        var startTime = new Date(trgtStartTime);
+        resJson.task_top_target_start = startTime.getFullYear() + '-' + ((startTime.getMonth() + 1) < 10 ? '0' + (startTime.getMonth() + 1) : (startTime.getMonth() + 1));
+      } else {
+        resJson.task_top_target_start = null
+      }
+      rtnResult.push(resJson);  
+    } 
+    resolve(rtnResult);
+  });
+}
 
 function getUserById(iUserId) {
   return new Promise((resolve, reject) => {
@@ -230,445 +226,116 @@ function getUserById(iUserId) {
   });
 }
 
-//Get Total Task Size for web PMT
-router.get('/getTotalTaskSize', function(req, res, next) {
-  var rtnResult = [];
-  var reqFilterIssueDateStart = null
-  var reqFilterIssueDateEnd = null
-  var reqTaskLevel = Number(req.query.reqTaskLevel);
-  var criteria = {
-    TaskName: {[Op.notLike]: 'Dummy - %'},
-    TaskLevel: reqTaskLevel,
-    Id: { [Op.ne]: null }
-  }
-  if (req.query.reqTaskGroupId != null && req.query.reqTaskGroupId != '') {
-    criteria.TaskGroupId = Number(req.query.reqTaskGroupId)
-  }
-  if (req.query.reqFilterAssignee != null && req.query.reqFilterAssignee != '') {
-    criteria.AssigneeId = Number(req.query.reqFilterAssignee)
-  }
-  if (req.query.reqFilterStatus != null && req.query.reqFilterStatus != '') {
-    criteria.Status = req.query.reqFilterStatus
-  }
-  if (req.query.reqFilterIssueDateStart != null && req.query.reqFilterIssueDateStart != '') {
-    reqFilterIssueDateStart = req.query.reqFilterIssueDateStart + ' 00:00:00'
-  }
-  if (req.query.reqFilterIssueDateEnd != null && req.query.reqFilterIssueDateEnd != '') {
-    reqFilterIssueDateEnd = req.query.reqFilterIssueDateEnd + ' 00:00:00'
-  }
-  if (reqFilterIssueDateStart != null && reqFilterIssueDateEnd != null) {
-    var issueDateCriteria = {
-      [Op.and]: [
-        { IssueDate: { [Op.gte]:  reqFilterIssueDateStart }},
-        { IssueDate: { [Op.lte]:  reqFilterIssueDateEnd }}
-      ]
-    }
-    var c = Object.assign(criteria, issueDateCriteria);
-    console.log(c);
-  }
-  var taskTypeCriteria = {}
-  if (req.query.reqFilterShowRefPool != null && req.query.reqFilterShowRefPool != '') {
-    if (req.query.reqFilterShowRefPool == 'true') {
-      taskTypeCriteria = {
-        Name: 'Pool'
-      }
-    } else {
-      taskTypeCriteria = {
-        Name: { [Op.ne]: 'Pool' }
-      }
-    }
-  } else {
-    taskTypeCriteria = {
-      Name: { [Op.ne]: 'Pool' }
-    }
-  }
-  Task.findAll({
-    include: [{
-      model: TaskType, 
-      attributes: ['Name'],
-      where: taskTypeCriteria
-    }],
-    where: criteria,
-  }).then(function(task) {
-    if(task.length > 0) {
-      var resJson = {};
-      resJson.task_total_size = task.length;
-      rtnResult.push(resJson);
-      return res.json(responseMessage(0, rtnResult, ''));
-    } else {
-      return res.json(responseMessage(1, null, 'No task exist'));
-    }
-  })
-});
-
-router.post('/getTaskByCreatedDate', function(req, res, next) {
-    Task.findAll({
-        where: {
-            TaskName: req.body.tTaskName,
-            createdAt: { [Op.gt]: req.body.tCreatedDate}
-        }
-    }).then(function(task) {
-        if(task.length > 0) {
-            return res.json(responseMessage(0, task, ''));
-        } else {
-            return res.json(responseMessage(1, null, 'No task exist after created time'));
-        }
-    })
-});
-
-// To search task
-router.post('/getTaskByName', function(req, res, next) {
-  var rtnResult = [];
-  var taskKeyWord = req.body.tTaskName.trim();
-  var criteria = {};
-  if( req.body.tTaskTypeId == null || req.body.tTaskTypeId == '' || req.body.tTaskTypeId === '0'){
-    criteria = {
-      [Op.or]: [
-        {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
-        {Description: {[Op.like]:'%' + taskKeyWord + '%'}},
-        {TopOppName: {[Op.like]:'%' + taskKeyWord + '%'}}
-      ],
-      TaskName: {[Op.notLike]: 'Dummy - %'},
-      TaskLevel: Number(req.body.tTaskLevel)
-    }
-  }
-  else {
-    criteria = {
-      [Op.or]: [
-        {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
-        {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
-      ],
-      TaskTypeId: Number(req.body.tTaskTypeId),
-      TaskName: {[Op.notLike]: 'Dummy - %'},
-      TaskLevel: Number(req.body.tTaskLevel)
-    }
-  }
-  Task.findAll({
+//2. Get Task by Id
+router.post('/getTaskById', function(req, res, next) {
+  console.log('Start to get task by id: ' + req.body.reqTaskId)
+  Task.findOne({
     include: [{
       model: TaskType, 
       attributes: ['Name']
     }],
-    where: criteria,
-    limit:100,
-    order: [
-      ['updatedAt', 'DESC']
-    ]
-  }).then(async function(task) {
-      if(task.length > 0) {
-          for(var i=0;i<task.length;i++){
-            var resJson = {};
-            resJson.task_id = task[i].Id;
-            resJson.task_parenttaskname = task[i].ParentTaskName;
-            resJson.task_name = task[i].TaskName;
-            resJson.task_level = task[i].TaskLevel;
-            resJson.task_type = task[i].task_type.Name;
-            resJson.task_desc = task[i].Description;
-            if(task[i].Estimation != null && task[i].Estimation > 0){
-              var percentage =  "" + toPercent(task[i].Effort, task[i].Estimation);
-              resJson.task_progress = percentage.replace("%","");
-            } else {
-              resJson.task_progress = "-1";
-            }
-            resJson.task_status = task[i].Status;
-            resJson.task_effort = task[i].Effort;
-            resJson.task_estimation = task[i].Estimation;
-            resJson.task_created = task[i].createdAt;
-            var assigneeId = task[i].AssigneeId;
-            if (assigneeId != null && assigneeId != '') {
-              var assigneeName = await getUserById(assigneeId);
-              resJson.task_assignee = assigneeName;
-            } else {
-              resJson.task_assignee = null;
-            }
-            resJson.task_issue_date = task[i].IssueDate;
-            resJson.task_target_complete = task[i].TargetCompleteDate;
-            resJson.task_scope = task[i].Scope;
-            resJson.task_reference = task[i].Reference;
-            resJson.task_top_opp_name = task[i].TopOppName;
-            resJson.task_top_customer = task[i].TopCustomer;
-            var targetStartTime = null;
-            if(task[i].TopTargetStart != null && task[i].TopTargetStart != ''){
-              var startTime = new Date(task[i].TopTargetStart);
-              targetStartTime = startTime.getFullYear() + '-' + ((startTime.getMonth() + 1) < 10 ? '0' + (startTime.getMonth() + 1) : (startTime.getMonth() + 1));
-            }
-            resJson.task_top_target_start = targetStartTime;
-            var targetEndTime = null;
-            if(task[i].TopTargetEnd != null && task[i].TopTargetStart != ''){
-              var endTime = new Date(task[i].TopTargetEnd);
-              targetEndTime = endTime.getFullYear() + '-' + ((endTime.getMonth() + 1) < 10 ? '0' + (endTime.getMonth() + 1) : (endTime.getMonth() + 1));
-            }
-            resJson.task_top_target_end = targetEndTime;
-            resJson.task_top_type_of_work = task[i].TopTypeOfWork;
-            resJson.task_top_team_sizing = task[i].TopTeamSizing;
-            var respLeaderId = task[i].RespLeaderId;
-            if (respLeaderId != null && respLeaderId != '') {
-              var respLeaderName = await getUserById(respLeaderId);
-              resJson.task_top_resp_leader = respLeaderName;
-            } else {
-              resJson.task_top_resp_leader = null;
-            }
-            rtnResult.push(resJson);
-          }
-          return res.json(responseMessage(0, rtnResult, ''));
-      } else {
-          return res.json(responseMessage(1, null, 'No task exist'));
-      }
-  })
-});
-
-router.post('/getTaskByNameForWorklogTask', function(req, res, next) {
-  var rtnResult = [];
-  var taskKeyWord = req.body.tTaskName.trim();
-  Task.findAll({
-    include: [{
-      model: TaskType, 
-      attributes: ['Name'],
-      where: {
-        Name: { [Op.ne]: 'Pool' }
-      }
-    }],
     where: {
-      [Op.or]: [
-        {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
-        {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
-      ],
-      TaskName: {[Op.notLike]: 'Dummy - %'},
-      [Op.and]: [
-        { TaskLevel: {[Op.ne]: 1}},
-        { TaskLevel: {[Op.ne]: 2}}
-      ],
-      [Op.and]: [
-        { Status: {[Op.ne]: 'Drafting'}},
-        { Status: {[Op.ne]: 'Planning'}}
-      ],
-      Id: { [Op.ne]: null }
-    },
-    limit:100,
-    order: [
-      ['updatedAt', 'DESC']
-    ]
+      Id: req.body.reqTaskId 
+    }
   }).then(async function(task) {
-    if(task.length > 0) {
-      for(var i=0;i<task.length;i++){
-        var existSubTask = await getSubTaskExist(task[i].TaskName);
-        if(existSubTask){
-          continue;
-        }
-        var resJson = {};
-        resJson.task_id = task[i].Id;
-        resJson.task_name = task[i].TaskName;
-        resJson.task_desc = task[i].Description;
-        rtnResult.push(resJson);
-      }
-      return res.json(responseMessage(0, rtnResult, ''));
+    if(task != null) {
+      var response = await generateTaskInfo(task);
+      return res.json(responseMessage(0, response, ''));  
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
     }
   })
 });
 
-function getSubTaskExist (iParentTaskName) {
-  return new Promise((resolve, reject) => {
-    Task.findAll({
-      where: {
-        ParentTaskName: iParentTaskName 
-      }
-    }).then(function(task) {
-      if(task != null && task.length > 0) {
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    });
+router.post('/getTaskByName', function(req, res, next) {
+  console.log('Start to get task by name: ' + req.body.reqTaskName)
+  Task.findOne({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name']
+    }],
+    where: {
+      TaskName: req.body.reqTaskName 
+    }
+  }).then(async function(task) {
+    if(task != null) {
+      var response = await generateTaskInfo(task);
+      return res.json(responseMessage(0, response, ''));  
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
+function generateTaskInfo (iTask) {
+  return new Promise(async (resolve, reject) => {
+    var resJson = {};
+    resJson.task_id = iTask.Id;
+    resJson.task_parent_name = iTask.ParentTaskName;
+    if(iTask.ParentTaskName != 'N/A') {
+      resJson.task_parent_desc = await getTaskDescription(iTask.ParentTaskName);
+      resJson.task_parent_type = await getTaskType(iTask.ParentTaskName)
+    } else {
+      resJson.task_parent_desc = null;
+      resJson.task_parent_type = null;
+    }
+    resJson.task_name = iTask.TaskName;
+    resJson.task_level = iTask.TaskLevel;
+    resJson.task_desc = iTask.Description;
+    resJson.task_type_id = iTask.TaskTypeId;
+    resJson.task_type = iTask.task_type.Name;
+    resJson.task_creator = iTask.Creator;
+    resJson.task_status = iTask.Status;
+    resJson.task_effort = iTask.Effort;
+    if(iTask.Estimation != null && iTask.Estimation >0){
+      resJson.task_estimation =  iTask.Estimation;
+      resJson.task_progress = toPercent(iTask.Effort, iTask.Estimation);
+      var percentage =  "" + toPercent(iTask.Effort, iTask.Estimation);
+      resJson.task_progress_nosymbol = percentage.replace("%","");
+    } else {
+      resJson.task_estimation = "0"
+      resJson.task_progress = "0";
+      resJson.task_progress_nosymbol = "0";
+    }
+    if(Number(iTask.TaskLevel) === 1) {
+      resJson.task_subtasks_estimation = 0;
+    } else {
+      resJson.task_subtasks_estimation = await getSubTaskTotalEstimation(iTask.TaskName);
+    }
+    if(resJson.task_subtasks_estimation > 0) {
+      resJson.task_progress = toPercent(iTask.Effort, resJson.task_subtasks_estimation);
+      resJson.task_progress_nosymbol = resJson.task_progress.replace("%","");
+    }
+    resJson.task_issue_date = iTask.IssueDate;
+    resJson.task_target_complete = iTask.TargetCompleteDate;
+    resJson.task_actual_complete = iTask.ActualCompleteDate;
+    resJson.task_responsible_leader = iTask.RespLeaderId;
+    resJson.task_assignee = iTask.AssigneeId;
+    resJson.task_reference = iTask.Reference;
+    if(iTask.Reference != null && iTask.Reference != '') {
+      resJson.task_reference_desc = await getTaskDescription(iTask.Reference);
+    } else {
+      resJson.task_reference_desc = null;
+    }
+    resJson.task_scope = iTask.Scope;
+    resJson.task_group_id = iTask.TaskGroupId;
+    resJson.task_top_constraint = iTask.TopConstraint;
+    resJson.task_top_opp_name = iTask.TopOppName;
+    resJson.task_top_customer = iTask.TopCustomer;
+    resJson.task_top_facing_client = iTask.TopFacingClient;
+    resJson.task_top_type_of_work = iTask.TopTypeOfWork;
+    resJson.task_top_chance_winning = iTask.TopChanceWinning;
+    resJson.task_top_sow_confirmation = iTask.TopSowConfirmation;
+    resJson.task_top_business_value = iTask.TopBusinessValue;
+    resJson.task_top_target_start = iTask.TopTargetStart;
+    resJson.task_top_target_end = iTask.TopTargetEnd;
+    resJson.task_top_paint_points = iTask.TopPaintPoints;
+    resJson.task_top_team_sizing = iTask.TopTeamSizing;
+    resJson.task_top_skill = iTask.TopSkill;
+    resJson.task_top_opps_project = iTask.TopOppsProject;
+    resolve(resJson);
   });
 }
-
-router.post('/getTaskByNameForReference', function(req, res, next) {
-  var rtnResult = [];
-  var taskKeyWord = req.body.tTaskName.trim();
-  Task.findAll({
-    include: [{
-      model: TaskType, 
-      attributes: ['Name'],
-      where: {
-        Name: 'Pool'
-      }
-    }],
-    where: {
-      [Op.or]: [
-        {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
-        {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
-      ],
-      TaskName: {[Op.notLike]: 'Dummy - %'},
-      [Op.and]: [
-        { TaskLevel: {[Op.ne]: 1}},
-        { TaskLevel: {[Op.ne]: 2}}
-      ],
-      Id: { [Op.ne]: null }
-    },
-    limit:100,
-    order: [
-      ['updatedAt', 'DESC']
-    ]
-  }).then(async function(task) {
-    if(task.length > 0) {
-      for(var i=0;i<task.length;i++){
-        var resJson = {};
-        resJson.task_id = task[i].Id;
-        resJson.task_name = task[i].TaskName;
-        resJson.task_desc = task[i].Description;
-        rtnResult.push(resJson);
-      }
-      return res.json(responseMessage(0, rtnResult, ''));
-    } else {
-      return res.json(responseMessage(1, null, 'No task exist'));
-    }
-  })
-});
-
-router.post('/getTaskById', function(req, res, next) {
-  var rtnResult = [];
-  Task.findAll({
-      where: {
-        Id: req.body.tId 
-      }
-  }).then(async function(task) {
-      if(task.length > 0) {
-          for(var i=0;i<task.length;i++){
-            var resJson = {};
-            resJson.task_id = task[i].Id;
-            resJson.task_parenttaskname = task[i].ParentTaskName;
-            resJson.task_parenttaskdesc = await getTaskDescription(task[i].ParentTaskName);
-            resJson.task_name = task[i].TaskName;
-            resJson.task_level = task[i].TaskLevel;
-            resJson.task_creator = task[i].Creator;
-            resJson.task_type = task[i].TaskTypeId;
-            resJson.task_type_id = task[i].TaskTypeId;
-            if(task[i].Status != null && !task[i].Status == ""){
-              resJson.task_status = task[i].Status;
-            } else {
-              resJson.task_status = "N/A";
-            }
-            resJson.task_desc = task[i].Description;
-            resJson.task_currenteffort = task[i].Effort;
-            if(task[i].Estimation != null && task[i].Estimation >0){
-              resJson.task_totaleffort =  task[i].Estimation;
-              resJson.task_progress = toPercent(task[i].Effort, task[i].Estimation);
-              var percentage =  "" + toPercent(task[i].Effort, task[i].Estimation);
-              resJson.task_progress_nosymbol = percentage.replace("%","");
-            } else {
-              resJson.task_totaleffort = "0"
-              resJson.task_progress = "0";
-              resJson.task_progress_nosymbol = "0";
-            }
-            if(Number(task[i].TaskLevel) === 1) {
-              resJson.task_subtasks_totaleffort = 0;
-            } else {
-              resJson.task_subtasks_totaleffort = await getSubTaskTotalEstimation(task[i].TaskName);
-            }
-            resJson.task_issue_date = task[i].IssueDate;
-            resJson.task_target_complete = task[i].TargetCompleteDate;
-            resJson.task_actual_complete = task[i].ActualCompleteDate;
-            resJson.task_responsible_leader = task[i].RespLeaderId;
-            resJson.task_assignee = task[i].AssigneeId;
-            resJson.task_reference = task[i].Reference;
-            resJson.task_referencetaskdesc = await getTaskDescription(task[i].Reference);
-            resJson.task_scope = task[i].Scope;
-            resJson.task_group_id = task[i].TaskGroupId;
-            resJson.task_top_constraint = task[i].TopConstraint;
-            resJson.task_top_opp_name = task[i].TopOppName;
-            resJson.task_top_customer = task[i].TopCustomer;
-            resJson.task_top_facing_client = task[i].TopFacingClient;
-            resJson.task_top_type_of_work = task[i].TopTypeOfWork;
-            resJson.task_top_chance_winning = task[i].TopChanceWinning;
-            resJson.task_top_sow_confirmation = task[i].TopSowConfirmation;
-            resJson.task_top_business_value = task[i].TopBusinessValue;
-            resJson.task_top_target_start = task[i].TopTargetStart;
-            resJson.task_top_target_end = task[i].TopTargetEnd;
-            resJson.task_top_paint_points = task[i].TopPaintPoints;
-            resJson.task_top_team_sizing = task[i].TopTeamSizing;
-            resJson.task_top_skill = task[i].TopSkill;
-            resJson.task_top_opps_project = task[i].TopOppsProject;
-            rtnResult.push(resJson);
-          }
-          return res.json(responseMessage(0, rtnResult, ''));
-      } else {
-          return res.json(responseMessage(1, null, 'No task exist'));
-      }
-  })
-});
-
-router.post('/getTaskByParentTask', function(req, res, next) {
-  var rtnResult = [];
-  Task.findAll({
-      where: {
-        TaskName: req.body.tParentTask 
-      }
-  }).then(async function(task) {
-      if(task.length > 0) {
-          for(var i=0;i<task.length;i++){
-            var resJson = {};
-            resJson.task_id = task[i].Id;
-            resJson.task_parenttaskname = task[i].ParentTaskName;
-            resJson.task_parenttaskdesc = await getTaskDescription(task[i].ParentTaskName);
-            resJson.task_name = task[i].TaskName;
-            resJson.task_level = task[i].TaskLevel;
-            resJson.task_creator = task[i].Creator;
-            resJson.task_type = task[i].TaskTypeId;
-            resJson.task_type_id = task[i].TaskTypeId;
-            if(task[i].Status != null && !task[i].Status == ""){
-              resJson.task_status = task[i].Status;
-            } else {
-              resJson.task_status = "N/A";
-            }
-            resJson.task_desc = task[i].Description;
-            resJson.task_currenteffort = task[i].Effort;
-            if(task[i].Estimation != null && task[i].Estimation >0){
-              resJson.task_totaleffort =  task[i].Estimation;
-              resJson.task_progress = toPercent(task[i].Effort, task[i].Estimation);
-              var percentage =  "" + toPercent(task[i].Effort, task[i].Estimation);
-              resJson.task_progress_nosymbol = percentage.replace("%","");
-            } else {
-              resJson.task_totaleffort = "0"
-              resJson.task_progress = "0";
-              resJson.task_progress_nosymbol = "0";
-            }
-            if(Number(task[i].TaskLevel) === 1) {
-              resJson.task_subtasks_totaleffort = 0;
-            } else {
-              resJson.task_subtasks_totaleffort = await getSubTaskTotalEstimation(task[i].TaskName);
-            }
-            resJson.task_issue_date = task[i].IssueDate;
-            resJson.task_target_complete = task[i].TargetCompleteDate;
-            resJson.task_actual_complete = task[i].ActualCompleteDate;
-            resJson.task_responsible_leader = task[i].RespLeaderId;
-            resJson.task_assignee = task[i].AssigneeId;
-            resJson.task_reference = task[i].Reference;
-            resJson.task_referencetaskdesc = await getTaskDescription(task[i].Reference);
-            resJson.task_scope = task[i].Scope;
-            resJson.task_group_id = task[i].TaskGroupId;
-            resJson.task_top_constraint = task[i].TopConstraint;
-            resJson.task_top_opp_name = task[i].TopOppName;
-            resJson.task_top_customer = task[i].TopCustomer;
-            resJson.task_top_facing_client = task[i].TopFacingClient;
-            resJson.task_top_type_of_work = task[i].TopTypeOfWork;
-            resJson.task_top_chance_winning = task[i].TopChanceWinning;
-            resJson.task_top_sow_confirmation = task[i].TopSowConfirmation;
-            resJson.task_top_business_value = task[i].TopBusinessValue;
-            resJson.task_top_target_start = task[i].TopTargetStart;
-            resJson.task_top_target_end = task[i].TopTargetEnd;
-            resJson.task_top_paint_points = task[i].TopPaintPoints;
-            resJson.task_top_team_sizing = task[i].TopTeamSizing;
-            resJson.task_top_skill = task[i].TopSkill;
-            resJson.task_top_opps_project = task[i].TopOppsProject;
-            rtnResult.push(resJson);
-          }
-          return res.json(responseMessage(0, rtnResult, ''));
-      } else {
-          return res.json(responseMessage(1, null, 'No task exist'));
-      }
-  })
-});
 
 function getSubTaskTotalEstimation(iTaskName) {
   return new Promise((resolve, reject) => {
@@ -727,12 +394,32 @@ function getTaskDescription(iTaskname) {
   });
 }
 
-router.post('/getSubTaskByParentTaskName', function(req, res, next) {
+function getTaskType(iTaskname) {
+  return new Promise((resolve, reject) => {
+    Task.findOne({
+      include: [{
+        model: TaskType, 
+        attributes: ['Name']
+      }],
+      where: {
+        TaskName: iTaskname 
+      }
+    }).then(function(task) {
+      if (task != null) {
+        resolve(task.task_type.Name)
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+router.post('/getSubTaskByTaskName', function(req, res, next) {
   var rtnResult = [];
   Task.findAll({
     attributes: ['Id', 'TaskName', 'Description'],
     where: {
-      ParentTaskName: req.body.tTaskName
+      ParentTaskName: req.body.reqTaskName
     },
     order: [
       ['Id', 'ASC']
@@ -753,273 +440,98 @@ router.post('/getSubTaskByParentTaskName', function(req, res, next) {
   })
 });
 
-//Plan Task for web
-router.post('/getSubTaskByParentTaskAndGroup', function(req, res, next) {
-  var rtnResult = [];
-  console.log(JSON.stringify(req.body))
-  var reqParentTaskName = req.body.tParentTaskName;
-  var reqTaskGroupId = Number(req.body.tGroupId);
-  Task.findAll({
-    where: {
-      ParentTaskName: reqParentTaskName,
-      TaskGroupId: reqTaskGroupId,
-      TaskLevel: 2,
-      Status:  { [Op.ne]: 'Drafting' }
-    },
-    order: [
-      ['createdAt', 'DESC']
-    ]
-  }).then(async function(task) {
-      if(task != null && task.length > 0) {
-        for(var i=0;i<task.length;i++){
-          var resJson = {};
-          resJson.task_id = task[i].Id;
-          resJson.task_name = task[i].TaskName;
-          resJson.task_desc = task[i].Description;
-          resJson.task_status = task[i].Status;
-          resJson.task_currenteffort = task[i].Effort;
-          resJson.task_totaleffort =  task[i].Estimation;
-          resJson.task_subtasks_totaleffort = await getSubTaskTotalEstimation(task[i].TaskName);
-          resJson.task_group_id = task[i].TaskGroupId;
-          resJson.task_type_id = task[i].TaskTypeId;
-          resJson.task_responsible_leader = task[i].RespLeaderId;
-          var taskSubtasks = [];
-          var subTaskArray = await getSubTasks(task[i].TaskName);
-          if(subTaskArray != null) {
-            for(var a=0; a<subTaskArray.length; a++) {
-              var resJsonSub = {};
-              resJsonSub.task_id = subTaskArray[a].Id;
-              resJsonSub.sub_task_name = subTaskArray[a].TaskName;
-              resJsonSub.sub_task_desc = subTaskArray[a].Description;
-              resJsonSub.sub_task_status = subTaskArray[a].Status;
-              var subTaskCount = await getSubTaskCount(subTaskArray[a].TaskName)
-              if (subTaskCount != null && subTaskCount > 0) {
-                resJsonSub.sub_task_totaleffort = 'Est: ' + await getSubTaskTotalEstimation(subTaskArray[a].TaskName);
-              } else {
-                resJsonSub.sub_task_totaleffort = 'Est: ' + subTaskArray[a].Estimation;
-              }
-              taskSubtasks.push(resJsonSub);
-            }
-          }
-          resJson.task_subtasks = taskSubtasks;
-          rtnResult.push(resJson);
-        }
-        return res.json(responseMessage(0, rtnResult, ''));
-      } else {
-        return res.json(responseMessage(1, null, 'No sub task exist'));
-      }
-  })
+//3. Save task
+router.post('/saveTask', function(req, res, next) {
+  saveTask(req, res);
 });
 
-router.post('/addOrUpdateTask', function(req, res, next) {
-  console.log(req.body)
-  addOrUpdateTask(req, res);
-});
-
-async function addOrUpdateTask(req, res) {
-  var reqTaskName = req.body.tName;
-  var reqTaskParent = req.body.tParent;
+async function saveTask(req, res) {
+  var reqTask = JSON.parse(req.body.reqTask);
+  var reqTaskName = reqTask.task_name;
+  var reqTaskParent = reqTask.task_parent_name;
   if((reqTaskName == null || reqTaskName == '') && reqTaskParent != 'N/A'){
     reqTaskName = await getSubTaskName(reqTaskParent);
   }
+  var taskObj = {
+    ParentTaskName: reqTaskParent,
+    TaskName: reqTaskName,
+    Description: reqTask.task_desc != ''? reqTask.task_desc: null,
+    Priority: null,
+    Status: reqTask.task_status != ''? reqTask.task_status: null,
+    Creator: reqTask.task_creator != ''? reqTask.task_creator: null,
+    TaskTypeId: reqTask.task_type_id != ''? Number(reqTask.task_type_id): null,
+    Effort: reqTask.task_effort != ''? Number(reqTask.task_effort): 0,
+    Estimation: reqTask.task_estimation != ''? Number(reqTask.task_estimation): 0,
+    IssueDate: reqTask.task_issue_date != ''? reqTask.task_issue_date: null,
+    TargetCompleteDate: reqTask.task_target_complete != ''? reqTask.task_target_complete: null,
+    ActualCompleteDate: reqTask.task_actual_complete != ''? reqTask.task_actual_complete: null,
+    BusinessArea: null,
+    BizProject: null,
+    TaskLevel: reqTask.task_level != ''? reqTask.task_level: 0,
+    RespLeaderId: reqTask.task_responsible_leader != ''? reqTask.task_responsible_leader: null,
+    AssigneeId: reqTask.task_assignee != ''? reqTask.task_assignee: null,
+    Reference: reqTask.task_reference != ''? reqTask.task_reference: null,
+    Scope: reqTask.task_scope != ''? reqTask.task_scope: null,
+    TopConstraint: reqTask.task_top_constraint != ''? reqTask.task_top_constraint: null,
+    TopOppName: reqTask.task_top_opp_name != ''? reqTask.task_top_opp_name: null,
+    TopCustomer: reqTask.task_top_customer != ''? reqTask.task_top_customer: null,
+    TopFacingClient: reqTask.task_top_facing_client != ''? reqTask.task_top_facing_client: null,
+    TopTypeOfWork: reqTask.task_top_type_of_work != ''? reqTask.task_top_type_of_work: null,
+    TopChanceWinning: reqTask.task_top_chance_winning != ''? reqTask.task_top_chance_winning: null, 
+    TopSowConfirmation: reqTask.task_top_sow_confirmation != ''? reqTask.task_top_sow_confirmation: null,
+    TopBusinessValue: reqTask.task_top_business_value != ''? reqTask.task_top_business_value: null,
+    TopTargetStart: reqTask.task_top_target_start != ''? reqTask.task_top_target_start: null,
+    TopTargetEnd: reqTask.task_top_target_end != ''? reqTask.task_top_target_end: null,
+    TopPaintPoints: reqTask.task_top_paint_points != ''? reqTask.task_top_paint_points: null,
+    TopTeamSizing: reqTask.task_top_team_sizing != ''? reqTask.task_top_team_sizing: null,
+    TopSkill: reqTask.task_top_skill != ''? reqTask.task_top_skill: null,
+    TopOppsProject: reqTask.task_top_opps_project != ''? reqTask.task_top_opps_project: null,
+    TaskGroupId: reqTask.task_group_id != ''? reqTask.task_group_id: null
+  }
   Task.findOrCreate({
-      where: { TaskName: req.body.tName }, 
-      defaults: {
-        ParentTaskName: reqTaskParent,
-        TaskName: reqTaskName,
-        TaskLevel: Number(req.body.tLevel),
-        Description: req.body.tDescription,
-        TaskTypeId: Number(req.body.tTaskTypeId),
-        Status: req.body.tStatus,
-        Creator: req.body.tCreator,
-        Effort: Number(req.body.tEffort),
-        Estimation: Number(req.body.tEstimation),
-        IssueDate: req.body.tIssueDate,
-        TargetCompleteDate: req.body.tTargetComplete,
-        ActualCompleteDate: req.body.tActualComplete,
-        RespLeaderId: req.body.tRespLeader != '' ? req.body.tRespLeader : null,
-        AssigneeId: req.body.tAssignee != '' ? req.body.tAssignee : null,
-        Reference: req.body.tReference,
-        Scope: req.body.tScope,
-        TaskGroupId: req.body.tGroupId != '' ? req.body.tGroupId : null
-      }})
+      where: { TaskName: reqTaskName }, 
+      defaults: taskObj
+    })
     .spread(async function(task, created) {
       if(created) {
         console.log("Task created"); 
         return res.json(responseMessage(0, task, 'Task Created'));
       } else {
         console.log("Task existed");
-        Task.update({
-            ParentTaskName: req.body.tParent,
-            TaskName: req.body.tName,
-            TaskLevel: Number(req.body.tLevel),
-            Description: req.body.tDescription,
-            TaskTypeId: Number(req.body.tTaskTypeId),
-            Status: req.body.tStatus,
-            Effort: Number(req.body.tEffort),
-            Estimation: Number(req.body.tEstimation),
-            IssueDate: req.body.tIssueDate,
-            TargetCompleteDate: req.body.tTargetComplete,
-            ActualCompleteDate: req.body.tActualComplete,
-            RespLeaderId: req.body.tRespLeader != '' ? req.body.tRespLeader : null,
-            AssigneeId: req.body.tAssignee != '' ? req.body.tAssignee : null,
-            Reference: req.body.tReference,
-            Scope: req.body.tScope,
-            TaskGroupId: req.body.tGroupId != '' ? req.body.tGroupId : null
-          },
-          {where: {TaskName: req.body.tName}}
-        );
-        //Update sub-tasks task group
-        if (Number(req.body.tLevel) == 2) {
-          var updateResult = 1;
-          var subTasks = await getSubTasks(req.body.tName);
-          if(subTasks != null) {
-            updateResult = await updateSubTasksGroup(req.body.tName, req.body.tGroupId);
-            if (updateResult == 0) {
-              if(subTasks.length > 0) {
-                for(var i = 0; i < subTasks.length; i++) {
-                  var subTasks1 = await getSubTasks(subTasks[i].TaskName);
-                  if(subTasks1 != null) {
-                    updateResult = await updateSubTasksGroup(subTasks[i].TaskName, req.body.tGroupId);
-                  }
-                }
-              }
-            }
-          }
-        } // End of update sub-tasks task group
+        await Task.update(taskObj, {where: { TaskName: reqTaskName }});
         //Update sub-tasks responsilbe leader
-        if (Number(req.body.tLevel) == 2) {
-          var updateResult = 1;
-          var subTasks = await getSubTasks(req.body.tName);
-          if(subTasks != null) {
-            updateResult = await updateSubTasksRespLeader(req.body.tName, req.body.tRespLeader);
-            if (updateResult == 0) {
-              if(subTasks.length > 0) {
-                for(var i = 0; i < subTasks.length; i++) {
-                  var subTasks1 = await getSubTasks(subTasks[i].TaskName);
-                  if(subTasks1 != null) {
-                    updateResult = await updateSubTasksRespLeader(subTasks[i].TaskName, req.body.tRespLeader);
-                  }
-                }
-              }
-            }
-          }
-        } // End of update sub-tasks task group
+        if (Number(reqTask.task_level) == 2) {
+          var updateResult1 = await updateSubTasksRespLeader(reqTask.task_name, reqTask.task_responsible_leader);
+        }
         return res.json(responseMessage(1, task, 'Task existed'));
       }
   });
 }
 
-function updateSubTasksGroup (iTaskName, iGroupId) {
-  return new Promise((resolve, reject) => {
-    Task.update({
-        TaskGroupId: iGroupId != '' ? iGroupId : null
-      },
-      {where: {ParentTaskName: iTaskName}
-    });
-    resolve(0);
-  });
-}
-
-function updateSubTasksRespLeader (iTaskName, iRespLeaderId) {
-  return new Promise((resolve, reject) => {
-    Task.update({
-      RespLeaderId: iRespLeaderId != '' ? iRespLeaderId : null
-      },
-      {where: {ParentTaskName: iTaskName}
-    });
-    resolve(0);
-  });
-}
-
-function getSubTasks (iTaskName) {
-  return new Promise((resolve, reject) => {
-    Task.findAll({
-      where: {
-        ParentTaskName: iTaskName
-      }
-    }).then(function(task) {
-      if(task != null && task.length > 0){
-        resolve(task);
-      } else {
-        resolve(null)
-      }
-    })
-  });
-}
-
-router.post('/addOrUpdateTaskTop', function(req, res, next) {
-  console.log(req.body)
-  addOrUpdateTaskTop(req, res);
-});
-
-async function addOrUpdateTaskTop(req, res) {
-  Task.findOrCreate({
-      where: { TaskName: req.body.tTopName }, 
-      defaults: {
-        ParentTaskName: 'N/A',
-        TaskName: req.body.tTopName,
-        TaskLevel: Number(req.body.tTopLevel),
-        TaskTypeId: Number(req.body.tTopTaskTypeId),
-        Status: req.body.tTopStatus,
-        TopConstraint: req.body.tTopConstraint,
-        TopOppName: req.body.tTopOppName,
-        TopCustomer: req.body.tTopCustomer,
-        TopFacingClient: req.body.tTopFacingClient,
-        TopTypeOfWork: req.body.tTopTypeOfWork,
-        TopChanceWinning: req.body.tTopChanceWinning,
-        TopBusinessValue: req.body.tTopBusinessValue,
-        TopSowConfirmation: req.body.tTopSowConfirmation,
-        TopTargetStart: req.body.tTopTargetStart,
-        TopTargetEnd: req.body.tTopTargetEnd,
-        TopPaintPoints: req.body.tTopPaintPoints,
-        TopTeamSizing: req.body.tTopTeamSizing,
-        TopSkill: req.body.tTopSkill,
-        TopOppsProject: req.body.tTopOppsProject,
-        RespLeaderId: req.body.tTopRespLeader != '' ? req.body.tTopRespLeader : null,
-        Creator: req.body.tCreator,
-        IssueDate: req.body.tIssueDate
-      }})
-    .spread(function(task, created) {
-      if(created) {
-        console.log("Task created"); 
-        return res.json(responseMessage(0, task, 'Task Created'));
-      } else {
-        console.log("Task existed");
-        Task.update({
-            ParentTaskName: 'N/A',
-            TaskName: req.body.tTopName,
-            TaskLevel: Number(req.body.tTopLevel),
-            TaskTypeId: Number(req.body.tTopTaskTypeId),
-            Status: req.body.tTopStatus,
-            TopConstraint: req.body.tTopConstraint,
-            TopOppName: req.body.tTopOppName,
-            TopCustomer: req.body.tTopCustomer,
-            TopFacingClient: req.body.tTopFacingClient,
-            TopTypeOfWork: req.body.tTopTypeOfWork,
-            TopChanceWinning: req.body.tTopChanceWinning,
-            TopBusinessValue: req.body.tTopBusinessValue,
-            TopSowConfirmation: req.body.tTopSowConfirmation,
-            TopTargetStart: req.body.tTopTargetStart,
-            TopTargetEnd: req.body.tTopTargetEnd,
-            TopPaintPoints: req.body.tTopPaintPoints,
-            TopTeamSizing: req.body.tTopTeamSizing,
-            TopSkill: req.body.tTopSkill,
-            TopOppsProject: req.body.tTopOppsProject,
-            RespLeaderId: req.body.tTopRespLeader != '' ? req.body.tTopRespLeader : null,
-            IssueDate: req.body.tIssueDate
-          },
-          {where: {TaskName: req.body.tTopName}}
-        );
-        return res.json(responseMessage(1, task, 'Task existed and updated'));
-      }
-  });
-}
-
 async function getSubTaskName(iParentTask) {
-  var subTaskCount = await getSubTaskCount(iParentTask);
+  console.log('Start to get Sub task Name!!')
+  var subTasks = await getSubTasks(iParentTask);
+  var subTaskCount = 0;
+  if(subTasks != null && subTasks.length > 0) {
+    var lastSubTaskName = subTasks[subTasks.length-1].TaskName;
+    var nameArr = lastSubTaskName.split('-');
+    var lastNameNum = Number(nameArr[nameArr.length-1]);
+    var subTasksLength = subTasks.length;
+    console.log('Sub Task Last Number: ' + lastNameNum);
+    console.log('Sub Task Length: ' + subTasksLength);
+    if(lastNameNum == subTasksLength) {
+      subTaskCount = subTasksLength;
+    }
+    if(lastNameNum < subTasksLength) {
+      subTaskCount = subTasksLength;
+    }
+    if(lastNameNum > subTasksLength) {
+      subTaskCount = lastNameNum;
+    }
+  }
   subTaskCount = Number(subTaskCount) + 1;
   var taskName = iParentTask + '-' + subTaskCount;
+  console.log('Sub Task Name: ' + taskName);
   return taskName;
 }
 
@@ -1040,6 +552,145 @@ function getSubTaskCount(iParentTask) {
   });
 }
 
+function updateSubTasksGroup (iTaskName, iGroupId) {
+  return new Promise((resolve, reject) => {
+    Task.update({
+        TaskGroupId: iGroupId != '' ? iGroupId : null
+      },
+      {where: {ParentTaskName: iTaskName}
+    });
+    resolve(0);
+  });
+}
+
+function updateSubTasksRespLeader (iTaskName, iRespLeaderId) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      where: {
+        ParentTaskName: iTaskName
+      }
+    }).then(async function(tasks) {
+      if (tasks != null && tasks.length > 0) {
+        await Task.update({RespLeaderId: iRespLeaderId != '' ? iRespLeaderId : null}, {where: {ParentTaskName: iTaskName}});
+        for(var i=0; i<tasks.length; i++) {
+          await updateSubTasksRespLeader(tasks[i].TaskName, iRespLeaderId)
+        }
+        resolve(0);
+      } else {
+        resolve(1);
+      }
+    });
+  });
+}
+
+function getSubTasks (iTaskName) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      where: {
+        ParentTaskName: iTaskName
+      },
+      order: [
+        ['createdAt', 'DESC']
+      ]
+    }).then(function(task) {
+      if(task != null && task.length > 0){
+        resolve(task);
+      } else {
+        resolve(null)
+      }
+    })
+  });
+}
+
+router.post('/getTaskByNameForParentTask', function(req, res, next) {
+  var rtnResult = [];
+  var reqTaskKeyWord = req.body.reqTaskKeyword.trim();
+  var reqTaskLevel = req.body.reqTaskLevel;
+  Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name'],
+      where: {
+        Name: { [Op.ne]: 'Pool' }
+      }
+    }],
+    where: {
+      [Op.or]: [
+        {TaskName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {Description: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}}
+      ],
+      TaskName: {[Op.notLike]: 'Dummy - %'},
+      TaskLevel: reqTaskLevel,
+      Id: { [Op.ne]: null }
+    },
+    limit: 30,
+    order: [
+      ['createdAt', 'DESC']
+    ]
+  }).then(async function(task) {
+    if(task.length > 0) {
+      for(var i=0;i<task.length;i++){
+        var resJson = {};
+        resJson.task_id = task[i].Id;
+        resJson.task_name = task[i].TaskName;
+        resJson.task_desc = task[i].Description;
+        if(resJson.task_desc == null || resJson.task_desc == '') {
+          resJson.task_desc = task[i].TopOppName;
+        }
+        resJson.task_type = task[i].task_type.Name;
+        resJson.task_type_id = task[i].TaskTypeId;
+        resJson.task_responsible_leader = task[i].RespLeaderId;
+        rtnResult.push(resJson);
+      }
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
+router.post('/getTaskByNameForRefPool', function(req, res, next) {
+  var rtnResult = [];
+  var reqTaskKeyWord = req.body.reqTaskKeyword.trim();
+  Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name'],
+      where: {
+        Name: 'Pool'
+      }
+    }],
+    where: {
+      [Op.or]: [
+        {TaskName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {Description: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}}
+      ],
+      TaskName: {[Op.notLike]: 'Dummy - %'},
+      TaskLevel: 3,
+      Id: { [Op.ne]: null }
+    },
+    limit: 30,
+    order: [
+      ['createdAt', 'DESC']
+    ]
+  }).then(async function(task) {
+    if(task.length > 0) {
+      for(var i=0;i<task.length;i++){
+        var resJson = {};
+        resJson.task_id = task[i].Id;
+        resJson.task_name = task[i].TaskName;
+        resJson.task_desc = task[i].Description;
+        rtnResult.push(resJson);
+      }
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
 router.post('/removeTaskIfNoSubTaskAndWorklog', async function(req, res, next) {
   console.log(JSON.stringify(req.body))
   var reqTaskId = req.body.tTaskId;
@@ -1052,7 +703,7 @@ router.post('/removeTaskIfNoSubTaskAndWorklog', async function(req, res, next) {
       console.log('No worklog exist, can remove outdate worklog and task safely!');
       //Remove worklog of this task
       var result1 = false; 
-      var result12 = false;
+      var result2 = false;
       result1 = await removeWorklogBefore3Days(reqTaskId, reqUpdateDate);
       if(result1) {
         console.log('Remove worklog done');
@@ -1140,61 +791,205 @@ function removeTask(iTaskId) {
   });
 }
 
-router.post('/updateTaskStatus', function(req, res, next) {
-  var reqTaskIdArray = req.body.tTaskIdArray.split(',');
-  console.log('Updated Array: ' + reqTaskIdArray);
-  var reqTaskUpdatedStatus = req.body.tUpdatedStatus;
+router.post('/getTaskByNameForWorklogTask', function(req, res, next) {
+  var rtnResult = [];
+  var taskKeyWord = req.body.tTaskName.trim();
   Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name'],
+      where: {
+        Name: { [Op.ne]: 'Pool' }
+      }
+    }],
     where: {
-      Id: {[Op.in]: reqTaskIdArray}
-    }
-  }).then(async function(tasks) {
-    console.log('Lv 2 task: ' + JSON.stringify(tasks))
-    if(tasks != null && tasks.length > 0) {
-      var isTaskUpdated = false;
-      Task.update({Status: reqTaskUpdatedStatus}, {where: {Id: {[Op.in]: reqTaskIdArray}}});
-      for(var i=0; i<tasks.length; i++) {
-        console.log('Updated Task length: ' + tasks.length);
-        console.log('Start to update tasks sub task: ' + tasks[i].TaskName);
-        isTaskUpdated = await updateSubTaskStatus(tasks[i].TaskName, reqTaskUpdatedStatus);
+      [Op.or]: [
+        {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
+        {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
+      ],
+      TaskName: {[Op.notLike]: 'Dummy - %'},
+      [Op.and]: [
+        { TaskLevel: {[Op.ne]: 1}},
+        { TaskLevel: {[Op.ne]: 2}}
+      ],
+      [Op.and]: [
+        { Status: {[Op.ne]: 'Drafting'}},
+        { Status: {[Op.ne]: 'Planning'}}
+      ],
+      Id: { [Op.ne]: null }
+    },
+    limit:100,
+    order: [
+      ['updatedAt', 'DESC']
+    ]
+  }).then(async function(task) {
+    if(task.length > 0) {
+      for(var i=0;i<task.length;i++){
+        var existSubTask = await getSubTaskExist(task[i].TaskName);
+        if(existSubTask){
+          continue;
+        }
+        var resJson = {};
+        resJson.task_id = task[i].Id;
+        resJson.task_name = task[i].TaskName;
+        resJson.task_desc = task[i].Description;
+        rtnResult.push(resJson);
       }
-      if(isTaskUpdated) {
-        return res.json(responseMessage(0, tasks, ''));
-      } else {
-        return res.json(responseMessage(1, null, 'Fail to update tasks status'));
-      }
+      return res.json(responseMessage(0, rtnResult, ''));
     } else {
-      return res.json(responseMessage(1, null, 'Fail to update tasks status'));
+      return res.json(responseMessage(1, null, 'No task exist'));
     }
   })
 });
 
-function updateSubTaskStatus(iTaskName, iStatus) {
+function getSubTaskExist (iParentTaskName) {
   return new Promise((resolve, reject) => {
     Task.findAll({
       where: {
-        ParentTaskName: iTaskName,
-        Status: { [Op.ne]: 'Done' }
+        ParentTaskName: iParentTaskName 
       }
-    }).then(async function(tasks) {
-      console.log('Task Name: ' + iTaskName);
-      console.log(JSON.stringify(tasks));
-      if(tasks != null && tasks.length > 0) {
-        Task.update({Status: iStatus}, {where: {ParentTaskName: iTaskName, Status: { [Op.ne]: 'Done' }}});
-        for (var i=0; i< tasks.length; i++) {
-          var subTasks = await getSubTasks(tasks[i].TaskName);
-          if(subTasks != null && subTasks.length > 0) {
-            var isTaskUpdated = await updateSubTaskStatus(tasks[i].TaskName, iStatus);
-          }
-        }
-        resolve(true)
+    }).then(function(task) {
+      if(task != null && task.length > 0) {
+        resolve(true);
       } else {
         resolve(false);
       }
     });
-  })
+  });
 }
 
+// Plan Task API
+router.post('/getLevel2TaskByParentTask', function(req, res, next) {
+  console.log('Start to get level 2 task by parent task name: ' + req.body.reqParentTaskName)
+  Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name']
+    }],
+    where: {
+      ParentTaskName: req.body.reqParentTaskName,
+      TaskLevel: 2
+    },
+    order: [
+      ['createdAt', 'DESC']
+    ]
+  }).then(async function(tasks) {
+    if(tasks != null && tasks.length > 0) {
+      var response = await generateTaskListForPlanTask(tasks);
+      return res.json(responseMessage(0, response, ''));  
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
+function generateTaskListForPlanTask(iTaskObjArray) {
+  return new Promise(async (resolve, reject) => {
+    var rtnResult = [];
+    for (var i=0; i<iTaskObjArray.length; i++) {
+      var resJson = {}
+      resJson.task_id = iTaskObjArray[i].Id;
+      resJson.task_name = iTaskObjArray[i].TaskName;
+      resJson.task_parent_name = iTaskObjArray[i].ParentTaskName;
+      resJson.task_level = iTaskObjArray[i].TaskLevel;
+      resJson.task_desc = iTaskObjArray[i].Description;
+      resJson.task_status = iTaskObjArray[i].Status;
+      resJson.task_effort = iTaskObjArray[i].Effort;
+      resJson.task_estimation = iTaskObjArray[i].Estimation;
+      resJson.task_subtasks_estimation = await getSubTaskTotalEstimation(iTaskObjArray[i].TaskName);
+      resJson.task_scope = iTaskObjArray[i].Scope;
+      var respLeaderId = iTaskObjArray[i].RespLeaderId;
+      if (respLeaderId != null && respLeaderId != '') {
+        var respLeaderName = await getUserById(respLeaderId);
+        resJson.task_responsible_leader = respLeaderName;
+      } else {
+        resJson.task_responsible_leader = null;
+      }
+      var assigneeId = iTaskObjArray[i].AssigneeId;
+      if (assigneeId != null && assigneeId != '') {
+        var assigneeName = await getUserById(assigneeId);
+        resJson.task_assignee = assigneeName;
+      } else {
+        resJson.task_assignee = null;
+      }
+      resJson.task_issue_date = iTaskObjArray[i].IssueDate;
+      resJson.task_target_complete = iTaskObjArray[i].TargetCompleteDate;
+      resJson.task_plan_tasks_list = [];
+      resJson.task_plan_tasks_loading = false;
+      rtnResult.push(resJson);  
+    } 
+    resolve(rtnResult);
+  });
+}
+
+router.post('/getPlanTaskListByParentTask', function(req, res, next) {
+  console.log('Start to get plan task list by parent task name: ' + req.body.reqParentTaskName)
+  var reqParentTaskName = req.body.reqParentTaskName;
+  var reqTaskGroupId = Number(req.body.reqTaskGroupId);
+  var criteria = {
+    ParentTaskName: reqParentTaskName,
+    TaskLevel: 3
+  }
+  if(reqTaskGroupId != null && reqTaskGroupId != '') {
+    if(reqTaskGroupId == 0) {
+      groupCriteria = {} 
+    }
+    else if(reqTaskGroupId == -1) {
+      groupCriteria = {
+        TaskGroupId: null
+      } 
+    }
+    else {
+      groupCriteria = {
+        TaskGroupId: reqTaskGroupId
+      } 
+    }
+    var c = Object.assign(criteria, groupCriteria);
+  }
+  Task.findAll({
+    include: [{model: TaskType, attributes: ['Name']}],
+    where: criteria,
+    order: [
+      ['createdAt', 'ASC']
+    ]
+  }).then(async function(tasks) {
+    if(tasks != null && tasks.length > 0) {
+      var response = await generatePlanTaskList(tasks);
+      return res.json(responseMessage(0, response, ''));  
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
+function generatePlanTaskList(iTaskObjArray) {
+  return new Promise(async (resolve, reject) => {
+    var rtnResult = [];
+    for (var i=0; i<iTaskObjArray.length; i++) {
+      var resJson = {}
+      resJson.task_id = iTaskObjArray[i].Id;
+      resJson.task_name = iTaskObjArray[i].TaskName;
+      resJson.task_parent_name = iTaskObjArray[i].ParentTaskName;
+      resJson.task_level = iTaskObjArray[i].TaskLevel;
+      resJson.task_desc = iTaskObjArray[i].Description;
+      resJson.task_status = iTaskObjArray[i].Status;
+      resJson.task_effort = iTaskObjArray[i].Effort;
+      resJson.task_estimation = iTaskObjArray[i].Estimation;
+      resJson.task_subtasks_estimation = await getSubTaskTotalEstimation(iTaskObjArray[i].TaskName);
+      resJson.task_reference = iTaskObjArray[i].Reference;
+      var assigneeId = iTaskObjArray[i].AssigneeId;
+      if (assigneeId != null && assigneeId != '') {
+        var assigneeName = await getUserById(assigneeId);
+        resJson.task_assignee = assigneeName;
+      } else {
+        resJson.task_assignee = null;
+      }
+      resJson.task_sub_tasks = [];
+      rtnResult.push(resJson);  
+    } 
+    resolve(rtnResult);
+  });
+}
 
 //Task Type
 router.get('/getAllTaskType', function(req, res, next) {
@@ -1259,27 +1054,6 @@ router.post('/addTaskType', function(req, res, next) {
   });
 });
 
-router.post('/getNewTaskNumberByType', function(req, res, next) {
-  var reqTaskTypeId = req.body.tTaskTypeId;
-  TaskType.findOne({
-    where: {Id: reqTaskTypeId}
-  }).then(function(taskType) {
-    if(taskType != null && taskType.Prefix != '') {
-      Reference.findOne({where: {Name: 'TaskSeq'}}).then(function(reference) {
-        if (reference != null) {
-          var newTaskNumber = Number(reference.Value) + 1;
-          var newTask = '' + taskType.Prefix + prefixZero(newTaskNumber, 6);
-          return res.json(responseMessage(0, {task_name: newTask}, 'Get new task number successfully!'));
-        } else {
-          return res.json(responseMessage(1, null, 'Get new task number failed'));
-        }
-      });
-    } else {
-      return res.json(responseMessage(1, null, 'Get new task number failed'));
-    }
-  })
-});
-
 //Task Group
 router.get('/getTaskGroup', function(req, res, next) {
   var rtnResult = [];
@@ -1309,14 +1083,10 @@ router.get('/getTaskGroup', function(req, res, next) {
         resJson.group_start_time = taskGroup[i].StartTime;
         resJson.group_end_time = taskGroup[i].EndTime;
         var taskGroupTasks = await getTaskGroupTask(taskGroup[i].Id);
-        var level2TaskCount = 0;
         var level3TaskCount = 0;
         var level4TaskCount = 0;
         if(taskGroupTasks != null && taskGroupTasks.length > 0) {
           for(var a=0; a<taskGroupTasks.length; a++){
-            if(taskGroupTasks[a].TaskLevel == 2){
-              level2TaskCount = level2TaskCount + 1;
-            }
             if(taskGroupTasks[a].TaskLevel == 3){
               level3TaskCount = level3TaskCount + 1;
             }
@@ -1325,7 +1095,6 @@ router.get('/getTaskGroup', function(req, res, next) {
             }
           }
         }
-        resJson.group_lv2_task_count = level2TaskCount;
         resJson.group_lv3_task_count = level3TaskCount;
         resJson.group_lv4_task_count = level4TaskCount;
         rtnResult.push(resJson);
