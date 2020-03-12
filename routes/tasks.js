@@ -899,7 +899,7 @@ function generateTaskListForPlanTask(iTaskObjArray, iTaskGroupId, iTaskGroupFlag
       resJson.task_desc = iTaskObjArray[i].Description;
       resJson.task_type_id = iTaskObjArray[i].task_type.Id;
       resJson.task_status = iTaskObjArray[i].Status;
-      resJson.task_effort = iTaskObjArray[i].Effort;
+      resJson.task_effort = await getSubTaskTotalEffortForPlanTask(iTaskObjArray[i].TaskName, iTaskGroupId, iTaskGroupFlag);
       resJson.task_estimation = iTaskObjArray[i].Estimation;
       resJson.task_subtasks_estimation = await getSubTaskTotalEstimationForPlanTask(iTaskObjArray[i].TaskName, iTaskGroupId, iTaskGroupFlag);
       resJson.task_scope = iTaskObjArray[i].Scope;
@@ -1009,6 +1009,68 @@ function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGrou
           }
         }
         resolve(rtnTotalEstimation);
+      } else {
+        resolve(0);
+      }
+    });
+  })
+}
+
+function getSubTaskTotalEffortForPlanTask(iTaskName, iTaskGroupId, iTaskGroupFlag) {
+  return new Promise((resolve, reject) => {
+    var criteria = {}
+    if (iTaskGroupId > 0 ) {
+      if (iTaskGroupFlag == 0) {
+        criteria = {
+          ParentTaskName: iTaskName,
+          TaskLevel: 3,
+          TaskGroupId: iTaskGroupId,
+          Effort: { [Op.ne]: 0 }
+        }
+      }
+      if (iTaskGroupFlag == 1) {
+        criteria = {
+          ParentTaskName: iTaskName,
+          TaskLevel: 3,
+          [Op.or]: [
+            {TaskGroupId: iTaskGroupId},
+            {TaskGroupId: null}
+          ],
+          Effort: { [Op.ne]: 0 }
+        }
+      }
+    } 
+    else if (iTaskGroupId == -1 ) {
+      criteria = {
+        ParentTaskName: iTaskName,
+        TaskLevel: 3,
+        TaskGroupId: null,
+        Effort: { [Op.ne]: 0 }
+      }
+    } 
+    else {
+      criteria = {
+        ParentTaskName: iTaskName,
+        TaskLevel: 3,
+        Effort: { [Op.ne]: 0 }
+      }
+    }
+    Task.findAll({
+      include: [{
+        model: TaskType, 
+        attributes: ['Name'],
+        where: {
+          Name: { [Op.ne]: 'Pool' }
+        }
+      }],
+      where: criteria
+    }).then(async function(task) {
+      if(task != null && task.length > 0) {
+        var rtnTotalEffort = 0
+        for(var i=0; i< task.length; i++){
+          rtnTotalEffort = rtnTotalEffort + Number(task[i].Effort);
+        }
+        resolve(rtnTotalEffort);
       } else {
         resolve(0);
       }

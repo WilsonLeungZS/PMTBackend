@@ -99,28 +99,9 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
       var autoAssignToTaskType = null;
       var tTaskGroupId = null;
       if(tAssigneeId != '' && tAssigneeId != null && tTaskIssueDate != null){
-        var issueDateArray = tTaskIssueDate.split(" ");
-        var issueDateStr = issueDateArray[0];
-        if(issueDateStr != null){
-          var taskGroup = await getTaskGroupByDate(issueDateStr);
-          var taskGroupIdArr = []
-          if(taskGroup != null) {
-            for(var a=0; a< taskGroup.length; a++){
-              taskGroupIdArr.push(taskGroup[a].Id);
-            }
-          }
-          var autoAssignToTaskRef = await getReference('AutoAssignToTask', tTaskType);
-          if (autoAssignToTaskRef != null) {
-            if (autoAssignToTaskRef.Value != null && autoAssignToTaskRef.Value != '') {
-              var autoAssignToTaskKeyWord = autoAssignToTaskRef.Value;
-              var autoAssignToTask = await getTaskByDescriptionKeyWord(autoAssignToTaskKeyWord, taskGroupIdArr, userAssignmentList);
-              if(autoAssignToTask != null){
-                tParentTaskName = autoAssignToTask.TaskName;
-                autoAssignToTaskType = autoAssignToTask.task_type.Name;
-                tTaskGroupId = autoAssignToTask.TaskGroupId;
-              }
-            }
-          }
+        var autoAssignToTaskRef = await getReference('AutoAssignToTask', tTaskType);
+        if (autoAssignToTaskRef != null) {
+          autoAssignToTaskType = autoAssignToTaskRef.Value;
         }
       }
       //Get task type info
@@ -162,8 +143,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             BusinessArea: tBusinessArea,
             TaskLevel: 3, 
             IssueDate: tTaskIssueDate,
-            AssigneeId: tAssigneeId,
-            TaskGroupId: (tTaskGroupId != '' && tTaskGroupId != null)? tTaskGroupId: null
+            AssigneeId: tAssigneeId
         }
       })
       .spread(function(task, created) {
@@ -183,8 +163,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             BusinessArea: tBusinessArea,
             TaskLevel: 3,
             IssueDate: tTaskIssueDate,
-            AssigneeId: tAssigneeId,
-            TaskGroupId: (tTaskGroupId != '' && tTaskGroupId != null)? tTaskGroupId: null
+            AssigneeId: tAssigneeId
           });
           console.log('Task updated');
           Logger.info('Task updated');

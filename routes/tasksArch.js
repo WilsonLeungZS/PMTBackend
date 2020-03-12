@@ -1444,3 +1444,30 @@ function prefixZero(num, n) {
 
 module.exports = router;
 
+
+/* Archived Code
+Service now task auto assign code
+var issueDateArray = tTaskIssueDate.split(" ");
+        var issueDateStr = issueDateArray[0];
+        if(issueDateStr != null){
+          var taskGroup = await getTaskGroupByDate(issueDateStr);
+          var taskGroupIdArr = []
+          if(taskGroup != null) {
+            for(var a=0; a< taskGroup.length; a++){
+              taskGroupIdArr.push(taskGroup[a].Id);
+            }
+          }
+          var autoAssignToTaskRef = await getReference('AutoAssignToTask', tTaskType);
+          if (autoAssignToTaskRef != null) {
+            if (autoAssignToTaskRef.Value != null && autoAssignToTaskRef.Value != '') {
+              var autoAssignToTaskKeyWord = autoAssignToTaskRef.Value;
+              var autoAssignToTask = await getTaskByDescriptionKeyWord(autoAssignToTaskKeyWord, taskGroupIdArr, userAssignmentList);
+              if(autoAssignToTask != null){
+                tParentTaskName = autoAssignToTask.TaskName;
+                autoAssignToTaskType = autoAssignToTask.task_type.Name;
+                tTaskGroupId = autoAssignToTask.TaskGroupId;
+              }
+            }
+          }
+        }
+*/
