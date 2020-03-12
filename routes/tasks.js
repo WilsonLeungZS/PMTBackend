@@ -505,6 +505,7 @@ async function saveTask(req, res) {
         }
         if (Number(reqTask.task_level) == 3) {
           var updateResult2 = await updateSubTasksGroup(reqTask.task_name, reqTask.task_group_id);
+          var updateResult3 = await updateSubTasksReference(reqTask.task_name, reqTask.task_reference);
         }
         return res.json(responseMessage(1, task, 'Task existed'));
       }
@@ -559,6 +560,17 @@ function updateSubTasksGroup (iTaskName, iGroupId) {
   return new Promise((resolve, reject) => {
     Task.update({
         TaskGroupId: iGroupId != '' ? iGroupId : null
+      },
+      {where: {ParentTaskName: iTaskName}
+    });
+    resolve(0);
+  });
+}
+
+function updateSubTasksReference (iTaskName, iReference) {
+  return new Promise((resolve, reject) => {
+    Task.update({
+        Reference: iReference != '' ? iReference : null
       },
       {where: {ParentTaskName: iTaskName}
     });
@@ -645,6 +657,12 @@ router.post('/getTaskByNameForParentTask', function(req, res, next) {
         resJson.task_type_id = task[i].TaskTypeId;
         resJson.task_responsible_leader = task[i].RespLeaderId;
         resJson.task_group_id = task[i].TaskGroupId;
+        resJson.task_reference = task[i].Reference;
+        if(task[i].Reference != null && task[i].Reference != '') {
+          resJson.task_reference_desc = await getTaskDescription(task[i].Reference);
+        } else {
+          resJson.task_reference_desc = null;
+        }
         rtnResult.push(resJson);
       }
       return res.json(responseMessage(0, rtnResult, ''));
@@ -1215,6 +1233,11 @@ function generatePlanTaskList(iTaskObjArray) {
       resJson.task_estimation = iTaskObjArray[i].Estimation;
       resJson.task_subtasks_estimation = await getSubTaskTotalEstimation(iTaskObjArray[i].TaskName);
       resJson.task_reference = iTaskObjArray[i].Reference;
+      if(iTaskObjArray[i].Reference != null && iTaskObjArray[i].Reference != '') {
+        resJson.task_reference_desc = await getTaskDescription(iTaskObjArray[i].Reference);
+      } else {
+        resJson.task_reference_desc = null;
+      }
       resJson.task_group_id = iTaskObjArray[i].TaskGroupId;
       resJson.task_responsible_leader_id = iTaskObjArray[i].RespLeaderId;
       var assigneeId = iTaskObjArray[i].AssigneeId;
