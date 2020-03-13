@@ -187,7 +187,10 @@ router.get('/getUserList', function(req, res, next) {
     include: [{
       model: Team,
       attributes: ['Id', 'Name']
-    }]
+    }],
+    order: [
+      ['Level', 'ASC']
+    ]
   })
   .then(function(user) {
     if(user != null && user.length > 0){
