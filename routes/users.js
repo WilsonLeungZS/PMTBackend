@@ -215,6 +215,49 @@ router.get('/getUserList', function(req, res, next) {
   })
 });
 
+router.get('/getUserListOrderByLevelDesc', function(req, res, next) {
+  var reqIsActive = Number(req.query.IsActive)
+  var criteria = {}
+  if (reqIsActive === 1) {
+    criteria = {
+      IsActive: 1,
+      Role: {[Op.ne]: 'Special'}
+    }
+  }
+  var rtnResult = [];
+  User.findAll({
+    where: criteria,
+    include: [{
+      model: Team,
+      attributes: ['Id', 'Name']
+    }],
+    order: [
+      ['Level', 'DESC']
+    ]
+  })
+  .then(function(user) {
+    if(user != null && user.length > 0){
+      for(var i=0;i<user.length;i++){
+        var resJson = {};
+        resJson.user_id = user[i].Id;
+        resJson.user_eid = user[i].Name;
+        resJson.user_email = user[i].Email;
+        resJson.user_team = user[i].team.Name;
+        resJson.user_role = user[i].Role;
+        resJson.user_isactive = user[i].IsActive;
+        resJson.user_namemapping = user[i].NameMapping;
+        resJson.user_level = user[i].Level;
+        resJson.user_employee_number = user[i].EmployeeNumber;
+        resJson.user_assignment = user[i].Assignment;
+        rtnResult.push(resJson);
+      }
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No active user exist'));
+    }
+  })
+});
+
 router.post('/getUserById', function(req, res, next) {
   var rtnResult = [];
   var reqUserId = req.body.userId;
