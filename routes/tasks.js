@@ -172,6 +172,11 @@ function generateTaskList(iTaskObjArray) {
       resJson.task_level = iTaskObjArray[i].TaskLevel;
       resJson.task_desc = iTaskObjArray[i].Description;
       resJson.task_status = iTaskObjArray[i].Status;
+      if (iTaskObjArray[i].Status == 'Planning' || iTaskObjArray[i].Status == 'Running') {
+        resJson.task_plan_mode_btn_enable = true
+      } else {
+        resJson.task_plan_mode_btn_enable = false
+      }
       resJson.task_effort = iTaskObjArray[i].Effort;
       resJson.task_estimation = iTaskObjArray[i].Estimation;
       resJson.task_scope = iTaskObjArray[i].Scope;
@@ -460,7 +465,6 @@ async function saveTask(req, res) {
     Status: reqTask.task_status != ''? reqTask.task_status: null,
     Creator: reqTask.task_creator != ''? reqTask.task_creator: null,
     TaskTypeId: reqTask.task_type_id != ''? Number(reqTask.task_type_id): null,
-    Effort: reqTask.task_effort != ''? Number(reqTask.task_effort): 0,
     Estimation: reqTask.task_estimation != ''? Number(reqTask.task_estimation): 0,
     IssueDate: reqTask.task_issue_date != ''? reqTask.task_issue_date: null,
     TargetCompleteDate: reqTask.task_target_complete != ''? reqTask.task_target_complete: null,
@@ -1256,15 +1260,15 @@ function generatePlanTaskList(iTaskObjArray) {
           resJson1.sub_task_name = subTaskList[a].TaskName;
           resJson1.sub_task_status = subTaskList[a].Status;
           resJson1.sub_task_desc = subTaskList[a].Description;
-          resJson1.sub_task_effort = 'Effort: ' + subTaskList[a].Effort;
-          resJson1.sub_task_estimation = 'Est: ' + subTaskList[a].Estimation;
+          resJson1.sub_task_effort = subTaskList[a].Effort;
+          resJson1.sub_task_estimation = subTaskList[a].Estimation;
           resJson1.sub_task_responsible_leader_id = subTaskList[a].RespLeaderId;
           var assigneeId1 = subTaskList[a].AssigneeId;
           if (assigneeId1 != null && assigneeId1 != '') {
             var assigneeName1 = await getUserById(assigneeId1);
-            resJson1.sub_task_assignee = 'Assignee: ' + assigneeName1;
+            resJson1.sub_task_assignee = assigneeName1;
           } else {
-            resJson1.sub_task_assignee = 'Assignee: ';
+            resJson1.sub_task_assignee = null;
           }
           resResult.push(resJson1)
         }
