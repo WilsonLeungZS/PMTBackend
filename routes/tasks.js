@@ -55,7 +55,7 @@ router.get('/getTaskList', function(req, res, next) {
   var taskTypeCriteria = generateTaskTypeCriteria(req);
   var orderSeq = [];
   if (Number(req.query.reqTaskLevel == 1)) {
-    orderSeq = ['TopTargetStart', 'ASC']
+    orderSeq = ['TopTargetStart', 'DESC']
   } else {
     orderSeq = ['TargetCompleteDate', 'ASC']
   }
