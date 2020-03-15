@@ -15,7 +15,7 @@ const Op = Sequelize.Op;
 /* GET home page. */
 router.get('/', function(req, res, next) {
   Logger.info('Index log');
-  return res.json({message: 'Get Response index resource'});
+  return res.json({message: 'Get Response index resource: PMT Version 3.0'});
 });
 
 router.post('/', function(req, res, next) {
