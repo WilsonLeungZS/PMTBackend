@@ -53,6 +53,12 @@ router.get('/getTaskList', function(req, res, next) {
   var reqSize = Number(req.query.reqSize);
   var taskCriteria = generateTaskCriteria(req);
   var taskTypeCriteria = generateTaskTypeCriteria(req);
+  var orderSeq = [];
+  if (Number(req.query.reqTaskLevel == 1)) {
+    orderSeq = ['TopTargetStart', 'ASC']
+  } else {
+    orderSeq = ['TargetCompleteDate', 'ASC']
+  }
   Task.findAll({
     include: [{
       model: TaskType, 
@@ -61,7 +67,7 @@ router.get('/getTaskList', function(req, res, next) {
     }],
     where: taskCriteria,
     order: [
-      ['createdAt', 'DESC']
+      orderSeq
     ],
     limit: reqSize,
     offset: reqSize * (reqPage - 1),
@@ -897,7 +903,7 @@ router.post('/getLevel2TaskByParentTask', function(req, res, next) {
       Status: {[Op.ne]: 'Drafting'}
     },
     order: [
-      ['createdAt', 'DESC']
+      ['TargetCompleteDate', 'ASC']
     ]
   }).then(async function(tasks) {
     if(tasks != null && tasks.length > 0) {
@@ -1146,7 +1152,7 @@ router.post('/getPlanTaskSizeByParentTask', function(req, res, next) {
     include: [{model: TaskType, attributes: ['Id', 'Name']}],
     where: criteria,
     order: [
-      ['createdAt', 'DESC']
+      ['TargetCompleteDate', 'ASC']
     ]
   }).then(async function(tasks) {
     if(tasks != null && tasks.length > 0) {
@@ -1207,7 +1213,7 @@ router.post('/getPlanTaskListByParentTask', function(req, res, next) {
     include: [{model: TaskType, attributes: ['Id', 'Name']}],
     where: criteria,
     order: [
-      ['createdAt', 'DESC']
+      ['TargetCompleteDate', 'ASC']
     ],
     limit: reqSize,
     offset: reqSize * (reqPage - 1)
