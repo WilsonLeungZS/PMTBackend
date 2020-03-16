@@ -954,6 +954,9 @@ function generateTaskListForPlanTask(iTaskObjArray, iTaskGroupId, iTaskGroupFlag
       resJson.task_target_complete = iTaskObjArray[i].TargetCompleteDate;
       resJson.task_plan_tasks_list = [];
       resJson.task_plan_tasks_loading = false;
+      resJson.task_total_size = 0;
+      resJson.task_page_number = 1;
+      resJson.task_page_size = 20;
       rtnResult.push(resJson);  
     } 
     resolve(rtnResult);
