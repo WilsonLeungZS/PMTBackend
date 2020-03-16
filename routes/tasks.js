@@ -121,7 +121,11 @@ function generateTaskCriteria(iReq) {
     var c1 = Object.assign(criteria, searchKeywordCriteria);
   } 
   if (iReq.query.reqFilterAssignee != null && iReq.query.reqFilterAssignee != '') {
-    criteria.AssigneeId = Number(iReq.query.reqFilterAssignee)
+    if (reqTaskLevel == 1 || reqTaskLevel == 2) {
+      criteria.RespLeaderId = Number(iReq.query.reqFilterAssignee)
+    } else {
+      criteria.AssigneeId = Number(iReq.query.reqFilterAssignee)
+    }
   }
   if (iReq.query.reqFilterStatus != null && iReq.query.reqFilterStatus != '') {
     criteria.Status = iReq.query.reqFilterStatus
@@ -527,21 +531,21 @@ async function getSubTaskName(iParentTask) {
   var subTasks = await getSubTasks(iParentTask);
   var subTaskCount = 0;
   if(subTasks != null && subTasks.length > 0) {
-    var lastSubTaskName = subTasks[subTasks.length-1].TaskName;
-    var nameArr = lastSubTaskName.split('-');
-    var lastNameNum = Number(nameArr[nameArr.length-1]);
+    var taskLastNumberArray = [];
+    for (var i=0; i<subTasks.length; i++) {
+      var lastSubTaskName = subTasks[i].TaskName;
+      var nameArr = lastSubTaskName.split('-');
+      var lastNameNum = Number(nameArr[nameArr.length-1]);
+      taskLastNumberArray.push(lastNameNum);
+    }
+    let max = taskLastNumberArray[0]
+    taskLastNumberArray.forEach(item => max = item > max ? item : max)
     var subTasksLength = subTasks.length;
-    console.log('Sub Task Last Number: ' + lastNameNum);
+    console.log('Sub Task Last Number: ' + max);
     console.log('Sub Task Length: ' + subTasksLength);
-    if(lastNameNum == subTasksLength) {
-      subTaskCount = subTasksLength;
-    }
-    if(lastNameNum < subTasksLength) {
-      subTaskCount = subTasksLength;
-    }
-    if(lastNameNum > subTasksLength) {
-      subTaskCount = lastNameNum;
-    }
+    subTaskCount = max;
+  } else {
+    subTaskCount = getSubTasks.length;
   }
   subTaskCount = Number(subTaskCount) + 1;
   var taskName = iParentTask + '-' + subTaskCount;
