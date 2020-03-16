@@ -545,7 +545,7 @@ async function getSubTaskName(iParentTask) {
     console.log('Sub Task Length: ' + subTasksLength);
     subTaskCount = max;
   } else {
-    subTaskCount = getSubTasks.length;
+    subTaskCount = 0;
   }
   subTaskCount = Number(subTaskCount) + 1;
   var taskName = iParentTask + '-' + subTaskCount;
