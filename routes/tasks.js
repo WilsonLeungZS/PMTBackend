@@ -432,20 +432,34 @@ function getTaskType(iTaskname) {
 router.post('/getSubTaskByTaskName', function(req, res, next) {
   var rtnResult = [];
   Task.findAll({
-    attributes: ['Id', 'TaskName', 'Description'],
     where: {
       ParentTaskName: req.body.reqTaskName
     },
     order: [
       ['Id', 'ASC']
     ]
-  }).then(function(task) {
+  }).then(async function(task) {
       if(task.length > 0) {
         for(var i=0;i<task.length;i++){
           var resJson = {};
           resJson.task_id = task[i].Id;
           resJson.task_name = task[i].TaskName;
           resJson.task_desc = task[i].Description;
+          resJson.task_status = task[i].Status;
+          var respLeaderId = task[i].RespLeaderId;
+          if (respLeaderId != null && respLeaderId != '') {
+            var respLeaderName = await getUserById(respLeaderId);
+            resJson.task_responsible_leader = respLeaderName;
+          } else {
+            resJson.task_responsible_leader = null;
+          }
+          var assigneeId = task[i].AssigneeId;
+          if (assigneeId != null && assigneeId != '') {
+            var assigneeName = await getUserById(assigneeId);
+            resJson.task_assignee = assigneeName;
+          } else {
+            resJson.task_assignee = null;
+          }
           rtnResult.push(resJson);
         }
         return res.json(responseMessage(0, rtnResult, ''));
@@ -689,6 +703,7 @@ router.post('/getTaskByNameForParentTask', function(req, res, next) {
 router.post('/getTaskByNameForRefPool', function(req, res, next) {
   var rtnResult = [];
   var reqTaskKeyWord = req.body.reqTaskKeyword.trim();
+  console.log('Keyword: ' + reqTaskKeyWord);
   Task.findAll({
     include: [{
       model: TaskType, 
@@ -712,6 +727,7 @@ router.post('/getTaskByNameForRefPool', function(req, res, next) {
       ['createdAt', 'DESC']
     ]
   }).then(async function(task) {
+    console.log('Json: ' + JSON.stringify(task));
     if(task.length > 0) {
       for(var i=0;i<task.length;i++){
         var resJson = {};
