@@ -99,9 +99,27 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
       var autoAssignToTaskType = null;
       var tTaskGroupId = null;
       if(tAssigneeId != '' && tAssigneeId != null && tTaskIssueDate != null){
+        // Auto assign Service now task to task group
+        var issueDateArray = tTaskIssueDate.split(" ");
+        var issueDateStr = issueDateArray[0];
+        var autoAssignToTaskKeyWord = null;
         var autoAssignToTaskRef = await getReference('AutoAssignToTask', tTaskType);
         if (autoAssignToTaskRef != null) {
-          autoAssignToTaskType = autoAssignToTaskRef.Value;
+          autoAssignToTaskKeyWord = autoAssignToTaskRef.Value;
+          var autoAssignToTask = await getTaskByDescriptionKeyWord(autoAssignToTaskKeyWord, userAssignmentList);
+          if(autoAssignToTask != null){
+            var lv1TaskName = autoAssignToTask.ParentTaskName;
+            tParentTaskName = autoAssignToTask.TaskName;
+            autoAssignToTaskType = autoAssignToTask.task_type.Name;
+            if(lv1TaskName != null && lv1TaskName != '' && lv1TaskName != 'N/A') {
+              if(issueDateStr != null && issueDateStr != '') {
+                var taskGroup = await getTaskGroupByDateAndRelateTask(issueDateStr, lv1TaskName);
+                if(taskGroup != null) {
+                  tTaskGroupId = taskGroup.Id;
+                }
+              }
+            } // End to find task group
+          }
         }
       }
       //Get task type info
@@ -143,7 +161,8 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             BusinessArea: tBusinessArea,
             TaskLevel: 3, 
             IssueDate: tTaskIssueDate,
-            AssigneeId: tAssigneeId
+            AssigneeId: tAssigneeId,
+            TaskGroupId: tTaskGroupId
         }
       })
       .spread(function(task, created) {
@@ -163,7 +182,8 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             BusinessArea: tBusinessArea,
             TaskLevel: 3,
             IssueDate: tTaskIssueDate,
-            AssigneeId: tAssigneeId
+            AssigneeId: tAssigneeId,
+            TaskGroupId: tTaskGroupId
           });
           console.log('Task updated');
           Logger.info('Task updated');
@@ -492,7 +512,7 @@ function getReference(iRefName, iType) {
   });
 }
 
-function getTaskByDescriptionKeyWord(iKeyWord, iTaskGroupIdArr, iAssignmentList) {
+function getTaskByDescriptionKeyWord(iKeyWord, iAssignmentList) {
   return new Promise((resolve, reject) => {
     Task.findOne({
       include: [{
@@ -500,9 +520,8 @@ function getTaskByDescriptionKeyWord(iKeyWord, iTaskGroupIdArr, iAssignmentList)
         attributes: ['Name']
       }],
       where: {
-        Description: {[Op.like]: iKeyWord + '%'},
+        Description: {[Op.like]: '%' + iKeyWord + '%'},
         TaskLevel: 2,
-        TaskGroupId: {[Op.in]: iTaskGroupIdArr},
         RespLeaderId: {[Op.in]: iAssignmentList}
       }
     }).then(function(task) {
@@ -515,21 +534,16 @@ function getTaskByDescriptionKeyWord(iKeyWord, iTaskGroupIdArr, iAssignmentList)
   });
 }
 
-function getTaskGroupByDate(iDate) {
+function getTaskGroupByDateAndRelateTask(iDate, iRelatedTask) {
   return new Promise((resolve, reject) => {
-    TaskGroup.findAll({
+    TaskGroup.findOne({
       where: {
-        [Op.and]: [
-          { StartTime: { [Op.lte]: iDate }},
-          { EndTime: { [Op.gte]: iDate }}
-        ]
+        StartTime: { [Op.lte]: iDate },
+        EndTime: { [Op.gte]: iDate },
+        RelatedTaskName: iRelatedTask
       }
     }).then(function(taskGroup) {
-      if(taskGroup != null && taskGroup.length > 0){
-        resolve(taskGroup);
-      } else {
-        resolve(null);
-      }
+      resolve(taskGroup);
     });
   });
 }

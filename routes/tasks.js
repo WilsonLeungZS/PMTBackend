@@ -923,7 +923,7 @@ router.post('/getLevel2TaskByParentTask', function(req, res, next) {
       Status: {[Op.ne]: 'Drafting'}
     },
     order: [
-      ['TargetCompleteDate', 'ASC']
+      ['createdAt', 'DESC']
     ]
   }).then(async function(tasks) {
     if(tasks != null && tasks.length > 0) {
@@ -1175,7 +1175,7 @@ router.post('/getPlanTaskSizeByParentTask', function(req, res, next) {
     include: [{model: TaskType, attributes: ['Id', 'Name']}],
     where: criteria,
     order: [
-      ['TargetCompleteDate', 'ASC']
+      ['createdAt', 'DESC']
     ]
   }).then(async function(tasks) {
     if(tasks != null && tasks.length > 0) {
@@ -1236,7 +1236,7 @@ router.post('/getPlanTaskListByParentTask', function(req, res, next) {
     include: [{model: TaskType, attributes: ['Id', 'Name']}],
     where: criteria,
     order: [
-      ['TargetCompleteDate', 'ASC']
+      ['createdAt', 'DESC']
     ],
     limit: reqSize,
     offset: reqSize * (reqPage - 1)

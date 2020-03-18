@@ -1,5 +1,6 @@
-var createError = require('http-errors');
 var express = require('express');
+var compression = require('compression');
+var createError = require('http-errors');
 var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
@@ -11,6 +12,8 @@ var worklogRouter = require('./routes/worklogs');
 var formatRouter = require('./routes/formats');
 
 var app = express();
+
+app.use(compression());
 
 // view engine setup
 //app.set('views', path.join(__dirname, 'views'));
