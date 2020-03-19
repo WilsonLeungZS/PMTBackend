@@ -999,6 +999,63 @@ router.post('/refreshLevel2TaskSubEstimation', function(req, res, next) {
     }
   })
 });
+/**
+ * By AssignUserId Find Assign's User
+ * Celine Chen
+ * 12/2/2019
+ */
+router.post('/getTaskByAssignUserId', function(req, res, next) {
+  console.log('Debug start');
+  console.log('Debug end');
+  var ua = req.body.wmtUpdatedAt;
+  var ea = req.body.wmtEndUpdated
+  console.log(ua)
+  console.log(ea)
+  var rtnResult = [];
+  Task.findAll({
+    where: {
+      AssignUserId:Number(req.body.wUserId),
+      updatedAt:{
+        [Op.between]:[ua,ea]
+      }
+    },
+    order: [
+      ['updatedAt', 'DESC']
+    ],
+  }).then(function(task) {
+    console.log(task)
+    if(task.length > 0){
+      for(var i=0;i<task.length;i++){
+        var resJson = {};
+        console.log(task[i])
+        resJson.taskId = task[i].Id;
+        resJson.taskName = task[i].TaskName;
+        resJson.Description = task[i].Description;
+        resJson.date = task[i].updatedAt;
+        resJson.effort = task[i].Effort;
+        if(task[i].Estimation !=null && task[i].Estimation >0){
+          var percentage = "" +toPercent(task[i].Effort,task[i].Estimation);
+          resJson.progress = Number(percentage.replace("%",""));
+          console.log(resJson);
+        }
+        
+        // if(task[i].Estimation != null && task[i].Estimation > 0){
+        //   var percentage1 =  "" + toPercent(task[i].Effort, task[i].Estimation);
+          
+        //   resJson.progress = percentage1.replace("%","");
+        //   console.log(resJson);
+        // } else {
+        //   resJson.progress = "-1";
+        // }
+        rtnResult.push(resJson);
+      }
+      return res.json(responseMessage(0,rtnResult,''));
+    }else{
+          return res.json(responseMessage(1, task, 'No task exist'));      
+    }
+    
+  })
+});
 
 function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGroupFlag) {
   return new Promise((resolve, reject) => {
@@ -1518,6 +1575,41 @@ router.post('/addTaskType', function(req, res, next) {
       return res.json(responseMessage(1, null, 'Created task type failed'));
     }
   });
+});
+
+
+router.post('/getNewTaskNumberByType', function(req, res, next) {
+  var reqTaskTypeId = req.body.tTaskTypeId;
+  TaskType.findOne({
+    where: {Id: reqTaskTypeId}
+  }).then(function(taskType) {
+    if(taskType != null && taskType.Prefix != '') {
+      Reference.findOne({where: {Name: 'TaskSeq'}}).then(function(reference) {
+        if (reference != null) {
+          var newTaskNumber = Number(reference.Value) + 1;
+          var newTask = '' + taskType.Prefix + prefixZero(newTaskNumber, 6);
+          return res.json(responseMessage(0, {task_number: newTask}, 'Get new task number successfully!'));
+        } else {
+          return res.json(responseMessage(1, null, 'Get new task number failed'));
+        }
+      });
+    } else {
+      return res.json(responseMessage(1, null, 'Get new task number failed'));
+    }
+  })
+});
+
+//for new one
+router.post('/getTaskForTaskTabById', function(req, res, next) {
+  console.log('getTaskForTaskTabById')
+  var rtnResult = [];
+  Task.findAll({
+      where: {
+        Id: req.body.tId 
+      }
+  }).then(function(task) {
+    return res.json(responseMessage(1, task, 'No task exist'));
+  })
 });
 
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {

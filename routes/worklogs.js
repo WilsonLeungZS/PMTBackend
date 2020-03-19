@@ -835,6 +835,85 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
   });
 });
 
+//update by celine 12/30/2019 for cascader
+router.post('/cascaderForWeb',function(req,res,next){
+  var reqReportStartMonth = req.body.wReportStartMonth;
+  var reqReportEndMonth = req.body.wReportEndMonth;
+  var reqReportValue = req.body.wReportValue.split(',');
+  var rtnResult = [];
+  var criteria1 = [];
+  for(var i = 0 ; i < reqReportValue.length ; i ++){
+    criteria1.push({Name:reqReportValue[i]})
+  }
+  console.log(criteria1)
+  console.log('criteria1')
+  Worklog.findAll({
+    include: [
+    {
+      model: User,
+      attributes: ['Name'],
+      include:[{
+        model:Team,
+        attributes: ['Name']
+      }]
+    }, 
+    {
+      model: Task,
+      attributes: ['TaskName', 'Description', 'BusinessArea', 'BizProject'],
+      where: {
+        TaskName: {[Op.notLike]: 'Dummy - %'},
+        Id: { [Op.ne]: null }
+      },
+      include: [{
+        model: TaskType, 
+        attributes: ['Name','Category'],
+        where: {
+          [Op.or]: criteria1
+        }
+      }]
+    }],
+    where: {
+      [Op.and]: [
+        { WorklogMonth: { [Op.gte]:  reqReportStartMonth }},
+        { WorklogMonth: { [Op.lte]:  reqReportEndMonth }}
+      ],
+      Effort: { [Op.ne]: 0 },
+      Id: { [Op.ne]: null }
+    }
+  }).then(function(worklog) {
+    //console.log('worklog')
+    //console.log(worklog)
+     if(worklog != null && worklog.length >0){
+       for(var i=0; i<worklog.length;i++){
+         var resJson = {};
+         resJson.report_UserName = worklog[i].user.Name
+         resJson.report_TaskNumber = worklog[i].task.TaskName
+         resJson.report_TaskTitle = worklog[i].task.Description
+         resJson.report_ChangeBusinessArea = worklog[i].task.BusinessArea
+         resJson.report_BizProject = worklog[i].task.BizProject
+         resJson.report_TaskTypeName = worklog[i].task.task_type.Name
+         resJson.report_TeamName = worklog[i].user.team.Name
+         resJson.report_worklogremark = worklog[i].Remark
+         resJson.report_manhours = Number(worklog[i].Effort)
+         resJson.report_mandays = (Number(worklog[i].Effort) / 8).toFixed(2)
+         resJson.report_date = worklog[i].WorklogMonth + '-' + worklog[i].WorklogDay
+         resJson.report_month = worklog[i].WorklogMonth
+         if(worklog[i].task.BizProject != null && worklog[i].task.BizProject != ''){
+           resJson.report_ADTaskCategory = worklog[i].task.BizProject + ' - ' + worklog[i].task.task_type.Name
+         }else{
+          resJson.report_ADTaskCategory = worklog[i].task.task_type.Name
+         }        
+         rtnResult.push(resJson)
+       }
+       rtnResult = sortArray(rtnResult, 'report_date')
+       console.log(rtnResult)
+       return res.json(responseMessage(0, rtnResult, ''));
+     } else {
+       return res.json(responseMessage(1, null, 'Worklog not found'));
+     }
+  })  
+});
+
 //Extract report1(Only include Change and App admin) for web PMT
 router.post('/extractReport1ForWeb', function(req, res, next) {
   var reqReportStartMonth = req.body.wReportStartMonth;
