@@ -389,6 +389,99 @@ function getSubTaskTotalEstimation(iTaskName) {
   })
 }
 
+function getLv3SubTaskTotalEstimation(iTaskName) {
+  return new Promise((resolve, reject) => {
+    console.log(iTaskName)
+    Task.findAll({
+      include: [{
+        model: TaskType, 
+        attributes: ['Name'],
+        where: {
+          Name: { [Op.ne]: 'Pool' }
+        }
+      }],
+      where: {
+        ParentTaskName: iTaskName,
+        TaskLevel: 3
+      }
+    }).then(async function(task) {
+      if(task != null && task.length > 0) {
+        var rtnTotalEstimation = 0
+        for(var i=0; i< task.length; i++){
+          var subTaskCount = await getSubTaskCount(task[i].TaskName);
+          var subTaskEstimation = 0;
+          if(subTaskCount != null && subTaskCount > 0){
+            subTaskEstimation = await getLv4SubTaskTotalEstimation(task[i].TaskName);
+            rtnTotalEstimation = rtnTotalEstimation + Number(subTaskEstimation);
+          } else {
+            if(task[i].Estimation != null && task[i].Estimation != ''){
+              rtnTotalEstimation = rtnTotalEstimation + Number(task[i].Estimation);
+            }
+          }
+        }
+        resolve(rtnTotalEstimation);
+      } else {
+        resolve(0);
+      }
+    });
+  })
+}
+
+function getLv3SubTaskTotalEstimation(iTaskName) {
+  return new Promise((resolve, reject) => {
+    console.log(iTaskName)
+    Task.findAll({
+      include: [{
+        model: TaskType, 
+        attributes: ['Name'],
+        where: {
+          Name: { [Op.ne]: 'Pool' }
+        }
+      }],
+      where: {
+        ParentTaskName: iTaskName,
+        TaskLevel: 3
+      }
+    }).then(async function(task) {
+      if(task != null && task.length > 0) {
+        var rtnTotalEstimation = 0
+        for(var i=0; i< task.length; i++){
+          var lv4SubTask = await getLv4SubTaskTotalEstimation(task[i].TaskName);
+          if(lv4SubTask != null){
+            rtnTotalEstimation = rtnTotalEstimation + Number(lv4SubTask[0].AllEst);
+          } else {
+            rtnTotalEstimation = rtnTotalEstimation + Number(task[i].Estimation);
+          }
+        }
+        resolve(rtnTotalEstimation);
+      } else {
+        resolve(0);
+      }
+    });
+  })
+}
+
+function getLv4SubTaskTotalEstimation(iTaskName) {
+  return new Promise((resolve, reject) => {
+    console.log(iTaskName)
+    Task.findAll({
+      attributes: [
+        [Sequelize.fn('sum', Sequelize.col('Estimation')), 'AllEst']
+      ],
+      where: {
+        ParentTaskName: iTaskName,
+        TaskLevel: 4
+      }
+    }).then(async function(tasks) {
+      if(tasks != null && tasks.length > 0) {
+        resolve(tasks);
+      } else {
+        resolve(null);
+      }
+    });
+  })
+}
+
 function getTaskDescription(iTaskname) {
   return new Promise((resolve, reject) => {
     Task.findOne({
@@ -470,6 +563,38 @@ router.post('/getSubTaskByTaskName', function(req, res, next) {
 });
 
 //3. Save task
+router.get('/testApi', async function(req, res, next) {
+  var taskId = req.query.taskId;
+  var parentTask = req.query.parentTask;
+});
+
+router.post('/updateTaskParent', function(req, res, next) {
+  updateTaskParent(req, res);
+});
+
+async function updateTaskParent (req, res) {
+  var reqTaskId = req.body.reqTaskId;
+  var reqOldTaskName = req.body.reqTaskName;
+  var reqTaskParent = req.body.reqTaskParent;
+  var reqTaskName = await getSubTaskName(reqTaskParent);
+  var updateInfo = {
+    ParentTaskName: reqTaskParent,
+    TaskName: reqTaskName
+  }
+  Task.findOne({
+    where: {
+      Id: reqTaskId
+    }
+  }).then(async function(task) {
+    if (task != null) {
+      await Task.update(updateInfo, {where: { Id: reqTaskId }});
+      var subTasks = await getSubTasks(reqOldTaskName);
+      if (subTasks != null && subTasks.length > 0) {
+      }
+    }
+  });
+}
+
 router.post('/saveTask', function(req, res, next) {
   saveTask(req, res);
 });
