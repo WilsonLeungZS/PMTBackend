@@ -408,44 +408,6 @@ function getLv3SubTaskTotalEstimation(iTaskName) {
       if(task != null && task.length > 0) {
         var rtnTotalEstimation = 0
         for(var i=0; i< task.length; i++){
-          var subTaskCount = await getSubTaskCount(task[i].TaskName);
-          var subTaskEstimation = 0;
-          if(subTaskCount != null && subTaskCount > 0){
-            subTaskEstimation = await getLv4SubTaskTotalEstimation(task[i].TaskName);
-            rtnTotalEstimation = rtnTotalEstimation + Number(subTaskEstimation);
-          } else {
-            if(task[i].Estimation != null && task[i].Estimation != ''){
-              rtnTotalEstimation = rtnTotalEstimation + Number(task[i].Estimation);
-            }
-          }
-        }
-        resolve(rtnTotalEstimation);
-      } else {
-        resolve(0);
-      }
-    });
-  })
-}
-
-function getLv3SubTaskTotalEstimation(iTaskName) {
-  return new Promise((resolve, reject) => {
-    console.log(iTaskName)
-    Task.findAll({
-      include: [{
-        model: TaskType, 
-        attributes: ['Name'],
-        where: {
-          Name: { [Op.ne]: 'Pool' }
-        }
-      }],
-      where: {
-        ParentTaskName: iTaskName,
-        TaskLevel: 3
-      }
-    }).then(async function(task) {
-      if(task != null && task.length > 0) {
-        var rtnTotalEstimation = 0
-        for(var i=0; i< task.length; i++){
           var lv4SubTask = await getLv4SubTaskTotalEstimation(task[i].TaskName);
           if(lv4SubTask != null){
             rtnTotalEstimation = rtnTotalEstimation + Number(lv4SubTask[0].AllEst);
