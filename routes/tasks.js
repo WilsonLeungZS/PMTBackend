@@ -1520,6 +1520,125 @@ router.post('/addTaskType', function(req, res, next) {
   });
 });
 
+function reportTaskInfo(task){
+  return new Promise(async(resolve,reject)=>{
+    var rtnResult = []
+    for(var i = 0 ;i < task.length ;i++){
+        var resJson = {};
+        resJson.report_Id = task[i].Id
+        resJson.report_parentTask = task[i].ParentTaskName
+        resJson.report_tasklevel = task[i].TaskLevel
+        resJson.report_tasknumber = task[i].TaskName
+        resJson.report_customer = task[i].TopCustomer
+        resJson.report_status = task[i].Status
+        resJson.report_des = task[i].Description
+        resJson.report_refpool = task[i].Reference
+        resJson.report_resp = task[i].RespLeaderId
+        resJson.report_assignee = task[i].AssigneeId
+        resJson.report_issue = task[i].IssueDate   
+        rtnResult.push(resJson)   
+        if(resJson.report_parentTask!=null&&resJson.report_parentTask!='N/A'){
+          rtnResult.push(await findParentTask(rtnResult,resJson.report_parentTask))
+        }
+    }
+    resolve(rtnResult)
+   })
+}
+
+function findParentTask(rtnResult,iTaskName){
+  console.log("findParentTask")
+  console.log(iTaskName)
+   return new Promise((resolve,reject)=>{
+    Task.findOne({
+      where:{
+        TaskName:iTaskName
+      }      
+    }).then(async function(task){
+      //console.log(task)
+      var resJson = {}
+      resJson.report_Id = task.Id
+      resJson.report_parentTask = task.ParentTaskName
+      resJson.report_tasklevel = task.TaskLevel
+      resJson.report_tasknumber = task.TaskName
+      resJson.report_customer = task.TopCustomer
+      resJson.report_status = task.Status
+      resJson.report_des = task.Description
+      resJson.report_refpool = task.Reference
+      resJson.report_resp = task.RespLeaderId
+      resJson.report_assignee = task.AssigneeId
+      resJson.report_issue = task.IssueDate 
+      //console.log(task)
+      if(task!=null){
+        if(task.ParentTaskName!=null && task.ParentTaskName!='N/A'){
+          rtnResult.push(resJson)          
+          resJson = await findParentTask(rtnResult,task.ParentTaskName)
+        }else{
+          rtnResult.push(resJson)
+        }
+        
+        resolve(rtnResult)
+      }  
+    })
+   })
+}
+
+//2020/3/24 getreport3bytaskname
+router.post('/getreport3bytaskname',function(req,res,next){
+  console.log("getreport3bytaskname")
+  var rtnResult = [];
+  Task.findAll({
+      where:{
+        TaskName:req.body.taskName
+      }
+  }).then(async function(tasks){
+    if(tasks != null && tasks.length >0){
+      var response = await reportTaskInfo(tasks);
+      console.log(response)
+      console.log("~~~~~~~~~~~~~~~~")
+      var resResult = response.pop()
+      console.log(resResult)
+      //JSON.stringify(response)
+      //console.log(response)
+      return res.json(responseMessage(0, resResult, ''));
+    }else{
+      return res.json(responseMessage(1, null, 'Worklog not found'));
+    }
+  })
+})
+
+
+//2020/3/23 extractReport3ForWeb
+router.post('/extractReport3ForWeb',function(req,res,next){
+  console.log("extractReport3ForWeb")
+  var rtnResult = [];
+  Task.findAll({
+      where:{
+        AssigneeId:req.body.wUserId
+      }
+  }).then(function(task){
+    if(task != null && task.length>0){
+      for(var i = 0 ;i<task.length;i++){
+        var resJson = {};
+        resJson.report_Id = task[i].Id
+        resJson.report_parentTask = task[i].ParentTaskName
+        resJson.report_tasklevel = task[i].TaskLevel
+        resJson.report_tasknumber = task[i].TaskName
+        resJson.report_customer = task[i].TopCustomer
+        resJson.report_status = task[i].Status
+        resJson.report_des = task[i].Description
+        resJson.report_refpool = task[i].Reference
+        resJson.report_resp = task[i].RespLeaderId
+        resJson.report_assignee = task[i].AssigneeId
+        resJson.report_issue = task[i].IssueDate
+        rtnResult.push(resJson)
+      }
+      return res.json(responseMessage(0, rtnResult, ''));
+    }else{
+      return res.json(responseMessage(1, null, 'Worklog not found'));
+    }
+  })
+})
+
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
   var resJson = {}; 
   resJson = {status: iStatusCode, data: iDataArray, message: iErrorMessage};
