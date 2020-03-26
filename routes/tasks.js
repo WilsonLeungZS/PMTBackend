@@ -253,6 +253,7 @@ router.post('/getTaskById', function(req, res, next) {
       Id: req.body.reqTaskId 
     }
   }).then(async function(task) {
+    //console.log(task)
     if(task != null) {
       var response = await generateTaskInfo(task);
       return res.json(responseMessage(0, response, ''));  
@@ -348,6 +349,11 @@ function generateTaskInfo (iTask) {
     resJson.task_top_team_sizing = iTask.TopTeamSizing;
     resJson.task_top_skill = iTask.TopSkill;
     resJson.task_top_opps_project = iTask.TopOppsProject;
+    resJson.task_detail = iTask.Detail;
+    resJson.task_deliverableTag = iTask.DeliverableTag;
+    resJson.task_TypeTag = iTask.TypeTag;
+    console.log("~~~~~~~~~~~~~~~~~~~~~~~~~")
+    console.log(resJson)
     resolve(resJson);
   });
 }
@@ -471,6 +477,7 @@ router.post('/getSubTaskByTaskName', function(req, res, next) {
 
 //3. Save task
 router.post('/saveTask', function(req, res, next) {
+  console.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
   saveTask(req, res);
 });
 
@@ -478,6 +485,7 @@ async function saveTask(req, res) {
   var reqTask = JSON.parse(req.body.reqTask);
   var reqTaskName = reqTask.task_name;
   var reqTaskParent = reqTask.task_parent_name;
+  console.log(reqTask)
   if((reqTaskName == null || reqTaskName == '') && reqTaskParent != 'N/A'){
     reqTaskName = await getSubTaskName(reqTaskParent);
   }
@@ -514,8 +522,13 @@ async function saveTask(req, res) {
     TopTeamSizing: reqTask.task_top_team_sizing != ''? reqTask.task_top_team_sizing: null,
     TopSkill: reqTask.task_top_skill != ''? reqTask.task_top_skill: null,
     TopOppsProject: reqTask.task_top_opps_project != ''? reqTask.task_top_opps_project: null,
-    TaskGroupId: reqTask.task_group_id != ''? reqTask.task_group_id: null
+    TaskGroupId: reqTask.task_group_id != ''? reqTask.task_group_id: null,
+    TypeTag: reqTask.task_TypeTag != ''? reqTask.task_TypeTag: null,
+    DeliverableTag: reqTask.task_deliverableTag != ''? reqTask.task_deliverableTag: null,
+    Detail: reqTask.task_detail != ''? reqTask.task_detail: null,
   }
+  console.log("~!!!!!!!!!!!!!!!!!!!taskObj")
+  console.log(taskObj)
   Task.findOrCreate({
       where: { TaskName: reqTaskName }, 
       defaults: taskObj
@@ -1527,7 +1540,9 @@ function getLevelByUserId(iUserId){
           Id:iUserId
         }
       }).then(async function(user){
+        console.log(user)
         if(user!=null){
+          //console.log(user.Level)
           resolve(user.Level)
         }else{
           resolve(0)
@@ -1544,8 +1559,6 @@ function getNameByUserId(iUserId){
       }
     }).then(async function(user){
       if(user!=null){
-        console.log("~~~~getLevelByUserId~~~~")
-        console.log(user.Name)
         resolve(user.Name)
       }else{
         resolve(0)

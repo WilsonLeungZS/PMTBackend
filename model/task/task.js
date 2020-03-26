@@ -1,3 +1,10 @@
+/*
+ * @Description: 
+ * @Author: 
+ * @Date: 2020-03-20 21:10:31
+ * @LastEditTime: 2020-03-26 17:16:09
+ * @LastEditors: Wanlin Chen
+ */
 var Sequelize = require('sequelize');
 var moment = require('moment');
 var sequelize = require('../../config/db');
@@ -11,6 +18,9 @@ var Task = sequelize.define('task', {
     ParentTaskName: { type: Sequelize.STRING },
     TaskName: { type: Sequelize.STRING, allowNull: false },
     Description: { type: Sequelize.STRING },
+    Detail: { type: Sequelize.STRING },
+    TypeTag: { type: Sequelize.STRING },
+    DeliverableTag: { type: Sequelize.STRING },
     Priority: { type: Sequelize.STRING },
     Status: { type:Sequelize.STRING, allowNull: false },
     Creator: { type: Sequelize.STRING, allowNull: false },
@@ -65,6 +75,7 @@ var Task = sequelize.define('task', {
 });
 
 Task.belongsTo(TaskType, {foreignKey: 'TaskTypeId'});
+
 
 //Task.sync({force: true});
 Task.sync();
