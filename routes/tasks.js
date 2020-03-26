@@ -1521,6 +1521,22 @@ router.post('/addTaskType', function(req, res, next) {
 });
 
 function getLevelByUserId(iUserId){
+    return new Promise((resolve,reject) =>{
+      User.findOne({
+        where:{
+          Id:iUserId
+        }
+      }).then(async function(user){
+        if(user!=null){
+          resolve(user.Level)
+        }else{
+          resolve(0)
+        }
+      })
+    }) 
+}
+
+function getNameByUserId(iUserId){
   return new Promise((resolve,reject) =>{
     User.findOne({
       where:{
@@ -1551,15 +1567,17 @@ function reportTaskInfo(task){
         resJson.report_status = task[i].Status
         resJson.report_des = task[i].Description
         resJson.report_refpool = task[i].Reference
-        if(task[i].RespLeaderId!=null){
-          resJson.report_resp = await getLevelByUserId(task[i].RespLeaderId) 
+        if(task.RespLeaderId!=null){
+          resJson.report_resp = await getNameByUserId(task.RespLeaderId) 
+          resJson.report_resplevel = await getLevelByUserId(task.RespLeaderId)
         }else{
-          resJson.report_resp = task[i].RespLeaderId
+          resJson.report_resp = task.RespLeaderId
         }
-        if(task[i].AssigneeId!=null){
-          resJson.report_assignee = await getLevelByUserId(task[i].AssigneeId)
+        if(task.AssigneeId!=null){
+          resJson.report_assignee = await getNameByUserId(task.AssigneeId)
+          resJson.report_assigneelevel = await getLevelByUserId(task.AssigneeId)
         }else{
-          resJson.report_assignee = task[i].AssigneeId
+          resJson.report_assignee = task.AssigneeId
         }
         resJson.report_issue = task[i].IssueDate   
         rtnResult.push(resJson)   
@@ -1589,15 +1607,18 @@ function findParentTask(rtnResult,iTaskName){
       resJson.report_des = task.Description
       resJson.report_refpool = task.Reference
       if(task.RespLeaderId!=null){
-        resJson.report_resp = await getLevelByUserId(task.RespLeaderId) 
+        resJson.report_resp = await getNameByUserId(task.RespLeaderId) 
+        resJson.report_resplevel = await getLevelByUserId(task.RespLeaderId)
       }else{
         resJson.report_resp = task.RespLeaderId
       }
       if(task.AssigneeId!=null){
-        resJson.report_assignee = await getLevelByUserId(task.AssigneeId)
+        resJson.report_assignee = await getNameByUserId(task.AssigneeId)
+        resJson.report_assigneelevel = await getLevelByUserId(task.AssigneeId)
       }else{
         resJson.report_assignee = task.AssigneeId
       }
+      
       resJson.report_issue = task.IssueDate 
       //console.log(task)
       if(task!=null){
