@@ -835,20 +835,34 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
   });
 });
 
-//Extract report1(Only include Change and App admin) for web PMT
+
+
+//Extract report1(only AD/AM/BD for task category) for web PMT
 router.post('/extractReport1ForWeb', function(req, res, next) {
+  console.log("extractReport1ForWeb")
   var reqReportStartMonth = req.body.wReportStartMonth;
   var reqReportEndMonth = req.body.wReportEndMonth;
   var rtnResult = [];
   Worklog.findAll({
     include: [{
       model: User,
-      attributes: ['Name']
+      attributes: ['Name'],
+      where: {
+        Id: { [Op.ne]: null }
+      },
+      include:[{
+        model:Team,
+        attributes:['Project'],
+        where:{
+          Project:'MTL',
+          Id:{[Op.ne]:null}
+        }
+      }]
     }, {
       model: Task,
-      attributes: ['TaskName', 'Description', 'BusinessArea', 'BizProject'],
+      attributes: ['TaskName', 'Description', 'Reference', 'BizProject'],
       where: {
-        TaskName: {[Op.notLike]: 'Dummy - %'},
+       // TaskName: {[Op.notLike]: 'Dummy - %'},
         Id: { [Op.ne]: null }
       },
       include: [{
@@ -856,9 +870,11 @@ router.post('/extractReport1ForWeb', function(req, res, next) {
         attributes: ['Name'],
         where: {
           [Op.or]: [
-            {Name: 'Change'},
-            {Name: 'App Admin'}
-          ]
+            {Category: 'AD'},
+            {Category: 'AM'},
+            {Category: 'BD'}
+          ],
+          Id:{[Op.ne]:null}
         }
       }]
     }],
@@ -871,7 +887,8 @@ router.post('/extractReport1ForWeb', function(req, res, next) {
       Id: { [Op.ne]: null }
     }
   }).then(function(worklog) {
-    if(worklog != null && worklog.length >0){
+    console.log(worklog[1])
+     if(worklog != null && worklog.length >0){
       for(var i=0; i<worklog.length;i++){
         var resJson = {};
         resJson.report_username = worklog[i].user.Name
@@ -880,28 +897,31 @@ router.post('/extractReport1ForWeb', function(req, res, next) {
         resJson.report_task = worklog[i].task.TaskName
         resJson.report_taskdesc = worklog[i].task.Description
         resJson.report_worklogremark = worklog[i].Remark
+        resJson.report_ref = worklog[i].task.Reference
         resJson.report_manhours = Number(worklog[i].Effort)
         resJson.report_mandays = (Number(worklog[i].Effort) / 8).toFixed(2)
-        resJson.report_businessarea = worklog[i].task.BusinessArea
-        if (worklog[i].task.BizProject != null && worklog[i].task.BizProject != '') {
-          resJson.report_taskcategory = worklog[i].task.BizProject + ' - ' + worklog[i].task.task_type.Name
-        } else {
-          resJson.report_taskcategory = worklog[i].task.task_type.Name
-        }
+        resJson.report_bizproject = worklog[i].task.BizProject
+        // if (worklog[i].task.BizProject != null && worklog[i].task.BizProject != '') {
+        //   resJson.report_taskcategory = worklog[i].task.BizProject + ' - ' + worklog[i].task.task_type.Name
+        // } else {
+        //   resJson.report_taskcategory = worklog[i].task.task_type.Name
+        // }
+        resJson.report_taskcategory = worklog[i].task.task_type.Name
         rtnResult.push(resJson)
       }
       rtnResult = sortArray(rtnResult, 'report_date')
       return res.json(responseMessage(0, rtnResult, ''));
-    } else {
-      return res.json(responseMessage(1, null, 'Worklog not found'));
-    }
+     } else {
+       return res.json(responseMessage(1, null, 'Worklog not found'));
+     }
   })
 });
 
-//Extract report2(Only include SI task) for web PMT
+//Extract report2(cover all projects/members) for web PMT
 router.post('/extractReport2ForWeb', function(req, res, next) {
   var reqReportStartMonth = req.body.wReportStartMonth;
   var reqReportEndMonth = req.body.wReportEndMonth;
+  console.log("extractReport2ForWeb")
   var rtnResult = [];
   Worklog.findAll({
     include: [{
@@ -909,16 +929,15 @@ router.post('/extractReport2ForWeb', function(req, res, next) {
       attributes: ['Name']
     }, {
       model: Task,
-      attributes: ['TaskName', 'Description', 'BusinessArea', 'BizProject'],
+      attributes: ['TaskName', 'Description','Estimation', 'Reference','IssueDate','TargetCompleteDate','ActualCompleteDate', 'BizProject'],
       where: {
-        TaskName: {[Op.notLike]: 'Dummy - %'},
+        //TaskName: {[Op.notLike]: 'Dummy - %'},
         Id: { [Op.ne]: null }
-      },
-      include: [{
+      },      include: [{
         model: TaskType, 
         attributes: ['Name'],
         where: {
-          Name: {[Op.like]: 'SI%'}
+          Id:{[Op.ne]:null}
         }
       }]
     }],
@@ -938,19 +957,20 @@ router.post('/extractReport2ForWeb', function(req, res, next) {
         resJson.report_date = worklog[i].WorklogMonth + '-' + worklog[i].WorklogDay
         resJson.report_month = worklog[i].WorklogMonth
         resJson.report_task = worklog[i].task.TaskName
+        resJson.report_ref = worklog[i].task.Reference
         resJson.report_taskdesc = worklog[i].task.Description
         resJson.report_worklogremark = worklog[i].Remark
         resJson.report_manhours = Number(worklog[i].Effort)
         resJson.report_mandays = (Number(worklog[i].Effort) / 8).toFixed(2)
-        resJson.report_businessarea = worklog[i].task.BusinessArea
-        if (worklog[i].task.BizProject != null && worklog[i].task.BizProject != '') {
-          resJson.report_taskcategory = worklog[i].task.BizProject + ' - ' + worklog[i].task.task_type.Name
-        } else {
-          resJson.report_taskcategory = worklog[i].task.task_type.Name
-        }
+        resJson.report_Estimation = worklog[i].task.Estimation
+        resJson.report_issuedate = worklog[i].task.IssueDate
+        resJson.report_targetCom = worklog[i].task.TargetCompleteDate
+        resJson.report_actCom = worklog[i].task.ActualCompleteDate
+        resJson.report_bizproject = worklog[i].task.BizProject
+        resJson.report_taskcategory = worklog[i].task.task_type.Name
         rtnResult.push(resJson)
       }
-      rtnResult = sortArray(rtnResult, 'report_date')
+       rtnResult = sortArray(rtnResult, 'report_date')
       return res.json(responseMessage(0, rtnResult, ''));
     } else {
       return res.json(responseMessage(1, null, 'Worklog not found'));
