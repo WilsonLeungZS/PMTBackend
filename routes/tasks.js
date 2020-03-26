@@ -1520,6 +1520,24 @@ router.post('/addTaskType', function(req, res, next) {
   });
 });
 
+function getLevelByUserId(iUserId){
+  return new Promise((resolve,reject) =>{
+    User.findOne({
+      where:{
+        Id:iUserId
+      }
+    }).then(async function(user){
+      if(user!=null){
+        console.log("~~~~getLevelByUserId~~~~")
+        console.log(user.Name)
+        resolve(user.Name)
+      }else{
+        resolve(0)
+      }
+    })
+  })
+}
+
 function reportTaskInfo(task){
   return new Promise(async(resolve,reject)=>{
     var rtnResult = []
@@ -1533,8 +1551,16 @@ function reportTaskInfo(task){
         resJson.report_status = task[i].Status
         resJson.report_des = task[i].Description
         resJson.report_refpool = task[i].Reference
-        resJson.report_resp = task[i].RespLeaderId
-        resJson.report_assignee = task[i].AssigneeId
+        if(task[i].RespLeaderId!=null){
+          resJson.report_resp = await getLevelByUserId(task[i].RespLeaderId) 
+        }else{
+          resJson.report_resp = task[i].RespLeaderId
+        }
+        if(task[i].AssigneeId!=null){
+          resJson.report_assignee = await getLevelByUserId(task[i].AssigneeId)
+        }else{
+          resJson.report_assignee = task[i].AssigneeId
+        }
         resJson.report_issue = task[i].IssueDate   
         rtnResult.push(resJson)   
         if(resJson.report_parentTask!=null&&resJson.report_parentTask!='N/A'){
@@ -1546,8 +1572,6 @@ function reportTaskInfo(task){
 }
 
 function findParentTask(rtnResult,iTaskName){
-  console.log("findParentTask")
-  console.log(iTaskName)
    return new Promise((resolve,reject)=>{
     Task.findOne({
       where:{
@@ -1564,8 +1588,16 @@ function findParentTask(rtnResult,iTaskName){
       resJson.report_status = task.Status
       resJson.report_des = task.Description
       resJson.report_refpool = task.Reference
-      resJson.report_resp = task.RespLeaderId
-      resJson.report_assignee = task.AssigneeId
+      if(task.RespLeaderId!=null){
+        resJson.report_resp = await getLevelByUserId(task.RespLeaderId) 
+      }else{
+        resJson.report_resp = task.RespLeaderId
+      }
+      if(task.AssigneeId!=null){
+        resJson.report_assignee = await getLevelByUserId(task.AssigneeId)
+      }else{
+        resJson.report_assignee = task.AssigneeId
+      }
       resJson.report_issue = task.IssueDate 
       //console.log(task)
       if(task!=null){
@@ -1593,12 +1625,7 @@ router.post('/getreport3bytaskname',function(req,res,next){
   }).then(async function(tasks){
     if(tasks != null && tasks.length >0){
       var response = await reportTaskInfo(tasks);
-      console.log(response)
-      console.log("~~~~~~~~~~~~~~~~")
       var resResult = response.pop()
-      console.log(resResult)
-      //JSON.stringify(response)
-      //console.log(response)
       return res.json(responseMessage(0, resResult, ''));
     }else{
       return res.json(responseMessage(1, null, 'Worklog not found'));
@@ -1632,6 +1659,7 @@ router.post('/extractReport3ForWeb',function(req,res,next){
         resJson.report_issue = task[i].IssueDate
         rtnResult.push(resJson)
       }
+      rtnResult = sortArray(rtnResult, 'report_Id')
       return res.json(responseMessage(0, rtnResult, ''));
     }else{
       return res.json(responseMessage(1, null, 'Worklog not found'));
@@ -1653,6 +1681,23 @@ function toPercent(numerator, denominator){
   var str=Number(point*100).toFixed(0);
   str+="%";
   return str;
+}
+
+function sortArray(iArray, iKey)
+{
+  var len = iArray.length;
+  for (var i = 0; i < len; i++) {
+    for (var j = 0; j < len - 1 - i; j++) {
+      var itemI = iArray[j]
+      var itemJ = iArray[j+1]
+      if (itemI[iKey] < itemJ[iKey]) {      
+        var temp = iArray[j+1];       
+        iArray[j+1] = iArray[j];
+        iArray[j] = temp;
+      }
+    }
+  }
+  return iArray;
 }
 
 function prefixZero(num, n) {
