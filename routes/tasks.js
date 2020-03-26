@@ -530,33 +530,6 @@ router.get('/testApi', async function(req, res, next) {
   var parentTask = req.query.parentTask;
 });
 
-router.post('/updateTaskParent', function(req, res, next) {
-  updateTaskParent(req, res);
-});
-
-async function updateTaskParent (req, res) {
-  var reqTaskId = req.body.reqTaskId;
-  var reqOldTaskName = req.body.reqTaskName;
-  var reqTaskParent = req.body.reqTaskParent;
-  var reqTaskName = await getSubTaskName(reqTaskParent);
-  var updateInfo = {
-    ParentTaskName: reqTaskParent,
-    TaskName: reqTaskName
-  }
-  Task.findOne({
-    where: {
-      Id: reqTaskId
-    }
-  }).then(async function(task) {
-    if (task != null) {
-      await Task.update(updateInfo, {where: { Id: reqTaskId }});
-      var subTasks = await getSubTasks(reqOldTaskName);
-      if (subTasks != null && subTasks.length > 0) {
-      }
-    }
-  });
-}
-
 router.post('/saveTask', function(req, res, next) {
   saveTask(req, res);
 });
@@ -613,6 +586,14 @@ async function saveTask(req, res) {
         return res.json(responseMessage(0, task, 'Task Created'));
       } else {
         console.log("Task existed");
+        // Change parent task
+        if (Number(reqTask.task_level) == 3 || Number(reqTask.task_level) == 4) {
+          if (!reqTaskName.startsWith(reqTaskParent)) {
+            console.log('Task name not starts with parent task name, will change parent task')
+            taskObj.ParentTaskName = reqTaskParent;
+            taskObj.TaskName = await getSubTaskName(reqTaskParent);
+          }
+        }
         await Task.update(taskObj, {where: { TaskName: reqTaskName }});
         //Update sub-tasks responsilbe leader
         if (Number(reqTask.task_level) == 2) {
@@ -621,9 +602,33 @@ async function saveTask(req, res) {
         if (Number(reqTask.task_level) == 3) {
           var updateResult2 = await updateSubTasksGroup(reqTask.task_name, reqTask.task_group_id);
           var updateResult3 = await updateSubTasksReference(reqTask.task_name, reqTask.task_reference);
+          var updateResult4 = await updateSubTasksWhenChangeParent(reqTask.task_name, taskObj.TaskName);
         }
         return res.json(responseMessage(1, task, 'Task existed'));
       }
+  });
+}
+
+function updateSubTasksWhenChangeParent (iTaskName, iNewTaskName) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      where: {ParentTaskName: iTaskName}
+    }).then(async function(subtasks) {
+      if (subtasks != null && subtasks.length > 0) {
+        for (var i=0; i<subtasks.length; i++) {
+          var newTaskName = iNewTaskName + '-' + (i+1);
+          await Task.update({
+            ParentTaskName: iNewTaskName,
+            TaskName: newTaskName
+          },
+            {where: {Id: subtasks[i].Id}
+          });
+        }
+        resolve(0);
+      } else {
+        resolve(1);
+      }
+    })
   });
 }
 
