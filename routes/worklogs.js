@@ -869,11 +869,11 @@ router.post('/extractReport1ForWeb', function(req, res, next) {
         model: TaskType, 
         attributes: ['Name'],
         where: {
-          [Op.or]: [
-            {Category: 'AD'},
-            {Category: 'AM'},
-            {Category: 'BD'}
-          ],
+          // [Op.or]: [
+          //   {Category: 'AD'},
+          //   {Category: 'AM'},
+          //   {Category: 'BD'}
+          Name: 'Business-AD',
           Id:{[Op.ne]:null}
         }
       }]
@@ -936,6 +936,7 @@ router.post('/extractReport2ForWeb', function(req, res, next) {
         model: TaskType, 
         attributes: ['Name'],
         where: {
+          
           Id:{[Op.ne]:null}
         }
       }]
