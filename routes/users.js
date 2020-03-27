@@ -12,8 +12,8 @@ router.get('/', function(req, res, next) {
   return res.json({message: 'Response user resource'});
 });
 
-router.post('/getUserLevelById', function(req, res, next) {
-  var reqUserId = req.body.userId;
+router.get('/getUserLevelById', function(req, res, next) {
+  var reqUserId = req.query.userId;
   User.findOne({
     attributes: ['Name', 'Level'],
     where: {
@@ -85,7 +85,6 @@ router.get('/login', function(req, res, next) {
     }
   })
 });
-
 
 router.post('/loginAdmin', function(req, res, next) {
   var reqAdminPassword = req.body.adminpassword;
@@ -260,8 +259,8 @@ router.get('/getUserListOrderByLevelDesc', function(req, res, next) {
 });
 
 router.post('/getUserById', function(req, res, next) {
-  var reqUserId = req.body.userId;
   var rtnResult = [];
+  var reqUserId = req.body.userId;
   User.findOne({
     where: {
       Id: reqUserId
@@ -272,7 +271,6 @@ router.post('/getUserById', function(req, res, next) {
     }]
   })
   .then(function(user) {
-    console.log(user)
     Team.findAll({where: {IsActive: true}}).then(function(team){
       if(user != null){
         var resJson = {};
@@ -438,7 +436,6 @@ router.post('/inactiveTeam', function(req, res, next) {
     }
   })
 });
-
 
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
   var resJson = {}; 

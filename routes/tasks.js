@@ -1,4 +1,5 @@
 var Sequelize = require('sequelize');
+var db = require('../config/db')
 var express = require('express');
 var router = express.Router();
 var TaskType = require('../model/task/task_type');
@@ -253,7 +254,6 @@ router.post('/getTaskById', function(req, res, next) {
       Id: req.body.reqTaskId 
     }
   }).then(async function(task) {
-    //console.log(task)
     if(task != null) {
       var response = await generateTaskInfo(task);
       return res.json(responseMessage(0, response, ''));  
@@ -393,6 +393,61 @@ function getSubTaskTotalEstimation(iTaskName) {
   })
 }
 
+function getLv3SubTaskTotalEstimation(iTaskName) {
+  return new Promise((resolve, reject) => {
+    console.log(iTaskName)
+    Task.findAll({
+      include: [{
+        model: TaskType, 
+        attributes: ['Name'],
+        where: {
+          Name: { [Op.ne]: 'Pool' }
+        }
+      }],
+      where: {
+        ParentTaskName: iTaskName,
+        TaskLevel: 3
+      }
+    }).then(async function(task) {
+      if(task != null && task.length > 0) {
+        var rtnTotalEstimation = 0
+        for(var i=0; i< task.length; i++){
+          var lv4SubTask = await getLv4SubTaskTotalEstimation(task[i].TaskName);
+          if(lv4SubTask != null){
+            rtnTotalEstimation = rtnTotalEstimation + Number(lv4SubTask[0].AllEst);
+          } else {
+            rtnTotalEstimation = rtnTotalEstimation + Number(task[i].Estimation);
+          }
+        }
+        resolve(rtnTotalEstimation);
+      } else {
+        resolve(0);
+      }
+    });
+  })
+}
+
+function getLv4SubTaskTotalEstimation(iTaskName) {
+  return new Promise((resolve, reject) => {
+    console.log(iTaskName)
+    Task.findAll({
+      attributes: [
+        [Sequelize.fn('sum', Sequelize.col('Estimation')), 'AllEst']
+      ],
+      where: {
+        ParentTaskName: iTaskName,
+        TaskLevel: 4
+      }
+    }).then(async function(tasks) {
+      if(tasks != null && tasks.length > 0) {
+        resolve(tasks);
+      } else {
+        resolve(null);
+      }
+    });
+  })
+}
+
 function getTaskDescription(iTaskname) {
   return new Promise((resolve, reject) => {
     Task.findOne({
@@ -474,6 +529,16 @@ router.post('/getSubTaskByTaskName', function(req, res, next) {
 });
 
 //3. Save task
+router.get('/testApi', async function(req, res, next) {
+  var taskName = req.query.taskName;
+  var sql1 = 'SELECT t1.TaskName AS lev1, t1.Estimation AS lev1_est, t2.TaskName as lev2, t2.Estimation AS lev2_est, t3.TaskName as lev3, t3.Estimation AS lev3_est, t4.TaskName as lev4, t4.Estimation AS lev4_est FROM tasks AS t1 LEFT JOIN tasks AS t2 ON t2.ParentTaskName = t1.TaskName LEFT JOIN tasks AS t3 ON t3.ParentTaskName = t2.TaskName LEFT JOIN tasks AS t4 ON t4.ParentTaskName = t3.TaskName WHERE t1.TaskName = "' + taskName + '"'; 
+  var sql2 = 'select id, ParentTaskName, TaskName, Estimation, TaskLevel from (select * from tasks order by ParentTaskName, id) data_sorted, (select @pv := "' + taskName + '") initialisation where   find_in_set(ParentTaskName, @pv) and length(@pv := concat(@pv, ",", TaskName))'
+  db.query(sql2).then(task => {
+    console.log(task)
+    return res.json(responseMessage(0, task, ''));
+  })
+});
+
 router.post('/saveTask', function(req, res, next) {
   saveTask(req, res);
 });
@@ -482,7 +547,6 @@ async function saveTask(req, res) {
   var reqTask = JSON.parse(req.body.reqTask);
   var reqTaskName = reqTask.task_name;
   var reqTaskParent = reqTask.task_parent_name;
-  console.log(reqTask)
   if((reqTaskName == null || reqTaskName == '') && reqTaskParent != 'N/A'){
     reqTaskName = await getSubTaskName(reqTaskParent);
   }
@@ -519,10 +583,7 @@ async function saveTask(req, res) {
     TopTeamSizing: reqTask.task_top_team_sizing != ''? reqTask.task_top_team_sizing: null,
     TopSkill: reqTask.task_top_skill != ''? reqTask.task_top_skill: null,
     TopOppsProject: reqTask.task_top_opps_project != ''? reqTask.task_top_opps_project: null,
-    TaskGroupId: reqTask.task_group_id != ''? reqTask.task_group_id: null,
-    TypeTag: reqTask.task_TypeTag != ''? reqTask.task_TypeTag: null,
-    DeliverableTag: reqTask.task_deliverableTag != ''? reqTask.task_deliverableTag: null,
-    Detail: reqTask.task_detail != ''? reqTask.task_detail: null,
+    TaskGroupId: reqTask.task_group_id != ''? reqTask.task_group_id: null
   }
   Task.findOrCreate({
       where: { TaskName: reqTaskName }, 
@@ -534,6 +595,14 @@ async function saveTask(req, res) {
         return res.json(responseMessage(0, task, 'Task Created'));
       } else {
         console.log("Task existed");
+        // Change parent task
+        if (Number(reqTask.task_level) == 3 || Number(reqTask.task_level) == 4) {
+          if (!reqTaskName.startsWith(reqTaskParent)) {
+            console.log('Task name not starts with parent task name, will change parent task')
+            taskObj.ParentTaskName = reqTaskParent;
+            taskObj.TaskName = await getSubTaskName(reqTaskParent);
+          }
+        }
         await Task.update(taskObj, {where: { TaskName: reqTaskName }});
         //Update sub-tasks responsilbe leader
         if (Number(reqTask.task_level) == 2) {
@@ -542,9 +611,33 @@ async function saveTask(req, res) {
         if (Number(reqTask.task_level) == 3) {
           var updateResult2 = await updateSubTasksGroup(reqTask.task_name, reqTask.task_group_id);
           var updateResult3 = await updateSubTasksReference(reqTask.task_name, reqTask.task_reference);
+          var updateResult4 = await updateSubTasksWhenChangeParent(reqTask.task_name, taskObj.TaskName);
         }
         return res.json(responseMessage(1, task, 'Task existed'));
       }
+  });
+}
+
+function updateSubTasksWhenChangeParent (iTaskName, iNewTaskName) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      where: {ParentTaskName: iTaskName}
+    }).then(async function(subtasks) {
+      if (subtasks != null && subtasks.length > 0) {
+        for (var i=0; i<subtasks.length; i++) {
+          var newTaskName = iNewTaskName + '-' + (i+1);
+          await Task.update({
+            ParentTaskName: iNewTaskName,
+            TaskName: newTaskName
+          },
+            {where: {Id: subtasks[i].Id}
+          });
+        }
+        resolve(0);
+      } else {
+        resolve(1);
+      }
+    })
   });
 }
 
@@ -1706,23 +1799,6 @@ function toPercent(numerator, denominator){
   var str=Number(point*100).toFixed(0);
   str+="%";
   return str;
-}
-
-function sortArray(iArray, iKey)
-{
-  var len = iArray.length;
-  for (var i = 0; i < len; i++) {
-    for (var j = 0; j < len - 1 - i; j++) {
-      var itemI = iArray[j]
-      var itemJ = iArray[j+1]
-      if (itemI[iKey] < itemJ[iKey]) {      
-        var temp = iArray[j+1];       
-        iArray[j+1] = iArray[j];
-        iArray[j] = temp;
-      }
-    }
-  }
-  return iArray;
 }
 
 function prefixZero(num, n) {
