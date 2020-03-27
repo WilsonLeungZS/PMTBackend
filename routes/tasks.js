@@ -352,8 +352,6 @@ function generateTaskInfo (iTask) {
     resJson.task_detail = iTask.Detail;
     resJson.task_deliverableTag = iTask.DeliverableTag;
     resJson.task_TypeTag = iTask.TypeTag;
-    console.log("~~~~~~~~~~~~~~~~~~~~~~~~~")
-    console.log(resJson)
     resolve(resJson);
   });
 }
@@ -477,7 +475,6 @@ router.post('/getSubTaskByTaskName', function(req, res, next) {
 
 //3. Save task
 router.post('/saveTask', function(req, res, next) {
-  console.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
   saveTask(req, res);
 });
 
@@ -527,8 +524,6 @@ async function saveTask(req, res) {
     DeliverableTag: reqTask.task_deliverableTag != ''? reqTask.task_deliverableTag: null,
     Detail: reqTask.task_detail != ''? reqTask.task_detail: null,
   }
-  console.log("~!!!!!!!!!!!!!!!!!!!taskObj")
-  console.log(taskObj)
   Task.findOrCreate({
       where: { TaskName: reqTaskName }, 
       defaults: taskObj
@@ -1609,39 +1604,35 @@ function findParentTask(rtnResult,iTaskName){
         TaskName:iTaskName
       }      
     }).then(async function(task){
-      //console.log(task)
-      var resJson = {}
-      resJson.report_Id = task.Id
-      resJson.report_parentTask = task.ParentTaskName
-      resJson.report_tasklevel = task.TaskLevel
-      resJson.report_tasknumber = task.TaskName
-      resJson.report_customer = task.TopCustomer
-      resJson.report_status = task.Status
-      resJson.report_des = task.Description
-      resJson.report_refpool = task.Reference
-      if(task.RespLeaderId!=null){
-        resJson.report_resp = await getNameByUserId(task.RespLeaderId) 
-        resJson.report_resplevel = await getLevelByUserId(task.RespLeaderId)
-      }else{
-        resJson.report_resp = task.RespLeaderId
-      }
-      if(task.AssigneeId!=null){
-        resJson.report_assignee = await getNameByUserId(task.AssigneeId)
-        resJson.report_assigneelevel = await getLevelByUserId(task.AssigneeId)
-      }else{
-        resJson.report_assignee = task.AssigneeId
-      }
-      
-      resJson.report_issue = task.IssueDate 
-      //console.log(task)
-      if(task!=null){
+      if(task!=null){      
+        var resJson = {}
+        resJson.report_Id = task.Id
+        resJson.report_parentTask = task.ParentTaskName
+        resJson.report_tasklevel = task.TaskLevel
+        resJson.report_tasknumber = task.TaskName
+        resJson.report_customer = task.TopCustomer
+        resJson.report_status = task.Status
+        resJson.report_des = task.Description
+        resJson.report_refpool = task.Reference
+        if(task.RespLeaderId!=null){
+          resJson.report_resp = await getNameByUserId(task.RespLeaderId) 
+          resJson.report_resplevel = await getLevelByUserId(task.RespLeaderId)
+        }else{
+          resJson.report_resp = task.RespLeaderId
+        }
+        if(task.AssigneeId!=null){
+          resJson.report_assignee = await getNameByUserId(task.AssigneeId)
+          resJson.report_assigneelevel = await getLevelByUserId(task.AssigneeId)
+        }else{
+          resJson.report_assignee = task.AssigneeId
+        }
+        resJson.report_issue = task.IssueDate 
         if(task.ParentTaskName!=null && task.ParentTaskName!='N/A'){
           rtnResult.push(resJson)          
           resJson = await findParentTask(rtnResult,task.ParentTaskName)
         }else{
           rtnResult.push(resJson)
         }
-        
         resolve(rtnResult)
       }  
     })
