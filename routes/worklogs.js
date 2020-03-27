@@ -855,12 +855,10 @@ router.post('/extractReport1ForWeb', function(req, res, next) {
         model: TaskType, 
         attributes: ['Name'],
         where: {
-          // [Op.or]: [
-          //   {Category: 'AD'},
-          //   {Category: 'AM'},
-          //   {Category: 'BD'}
-          Name: 'Business-AD',
-          Id:{[Op.ne]:null}
+          [Op.or]: [
+            {Name: 'Change'},
+            {Name: 'App Admin'}
+          ]
         }
       }]
     }],
@@ -873,7 +871,7 @@ router.post('/extractReport1ForWeb', function(req, res, next) {
       Id: { [Op.ne]: null }
     }
   }).then(function(worklog) {
-     if(worklog != null && worklog.length >0){
+    if(worklog != null && worklog.length >0){
       for(var i=0; i<worklog.length;i++){
         var resJson = {};
         resJson.report_username = worklog[i].user.Name
@@ -911,7 +909,7 @@ router.post('/extractReport2ForWeb', function(req, res, next) {
       attributes: ['Name']
     }, {
       model: Task,
-      attributes: ['TaskLevel','ParentTaskName','TaskName', 'Description','Estimation', 'Reference','IssueDate','TargetCompleteDate','ActualCompleteDate', 'BizProject'],
+      attributes: ['TaskName', 'Description', 'BusinessArea', 'BizProject'],
       where: {
         TaskName: {[Op.notLike]: 'Dummy - %'},
         Id: { [Op.ne]: null }
@@ -919,8 +917,8 @@ router.post('/extractReport2ForWeb', function(req, res, next) {
       include: [{
         model: TaskType, 
         attributes: ['Name'],
-        where: { 
-          Id:{[Op.ne]:null}
+        where: {
+          Name: {[Op.like]: 'SI%'}
         }
       }]
     }],
@@ -932,70 +930,33 @@ router.post('/extractReport2ForWeb', function(req, res, next) {
       Effort: { [Op.ne]: 0 },
       Id: { [Op.ne]: null }
     }
-  }).then(async function(worklog) {
-    if(worklog!=null&&worklog.length>0){
-        var response = await reportTaskInfo(worklog);
-        //console.log(response)      
-        return res.json(responseMessage(0, response, ''));
-    }else{
+  }).then(function(worklog) {
+    if(worklog != null && worklog.length >0){
+      for(var i=0; i<worklog.length;i++){
+        var resJson = {};
+        resJson.report_username = worklog[i].user.Name
+        resJson.report_date = worklog[i].WorklogMonth + '-' + worklog[i].WorklogDay
+        resJson.report_month = worklog[i].WorklogMonth
+        resJson.report_task = worklog[i].task.TaskName
+        resJson.report_taskdesc = worklog[i].task.Description
+        resJson.report_worklogremark = worklog[i].Remark
+        resJson.report_manhours = Number(worklog[i].Effort)
+        resJson.report_mandays = (Number(worklog[i].Effort) / 8).toFixed(2)
+        resJson.report_businessarea = worklog[i].task.BusinessArea
+        if (worklog[i].task.BizProject != null && worklog[i].task.BizProject != '') {
+          resJson.report_taskcategory = worklog[i].task.BizProject + ' - ' + worklog[i].task.task_type.Name
+        } else {
+          resJson.report_taskcategory = worklog[i].task.task_type.Name
+        }
+        rtnResult.push(resJson)
+      }
+      rtnResult = sortArray(rtnResult, 'report_date')
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
       return res.json(responseMessage(1, null, 'Worklog not found'));
     }
   })
 });
-
-function reportTaskInfo(worklog){
-  return new Promise(async(resolve,reject)=>{
-    var rtnResult = []
-    //console.log(worklog)
-    for(var i=0; i<worklog.length;i++){
-      var resJson = {};
-      resJson.report_username = worklog[i].user.Name
-      resJson.report_date = worklog[i].WorklogMonth + '-' + worklog[i].WorklogDay
-      resJson.report_month = worklog[i].WorklogMonth
-      resJson.report_task = worklog[i].task.TaskName
-      resJson.report_ref = worklog[i].task.Reference
-      resJson.report_taskdesc = worklog[i].task.Description
-      resJson.report_worklogremark = worklog[i].Remark
-      resJson.report_manhours = Number(worklog[i].Effort)
-      resJson.report_mandays = (Number(worklog[i].Effort) / 8).toFixed(2)
-      resJson.report_Estimation = worklog[i].task.Estimation
-      resJson.report_issuedate = worklog[i].task.IssueDate
-      resJson.report_targetCom = worklog[i].task.TargetCompleteDate
-      resJson.report_actCom = worklog[i].task.ActualCompleteDate
-      resJson.report_bizproject = worklog[i].task.BizProject
-      resJson.report_taskcategory = worklog[i].task.task_type.Name
-      if(worklog[i].task.ParentTaskName!=null&&worklog[i].task.ParentTaskName!='N/A'){
-          resJson = await findParentTask(resJson,worklog[i].task.ParentTaskName)
-      }
-      rtnResult.push(resJson)
-      //resJson.report_l1TaskNumber = worklog[i].task
-    }
-      rtnResult = sortArray(rtnResult, 'report_date')
-      resolve(rtnResult)
-   })
-}
-
-function findParentTask(resJson,iTaskName){
-  return new Promise((resolve,reject)=>{
-   Task.findOne({
-     where:{
-       TaskName:iTaskName
-     }      
-   }).then(async function(task){
-     if(task!=null){
-        if(task.TaskLevel===1){
-          resJson.report_l1TaskNumber = task.TaskName
-        }else if(task.TaskLevel===2){
-          resJson.report_l2TaskNumber = task.TaskName
-        }
-        if(task.ParentTaskName!=null && task.ParentTaskName!='N/A'){        
-          resJson = await findParentTask(resJson,task.ParentTaskName)
-        }
-        resolve(resJson)          
-   }})  
-   })
-}
-
 
 function sortArray(iArray, iKey)
 {
