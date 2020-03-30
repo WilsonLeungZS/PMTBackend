@@ -548,8 +548,16 @@ async function saveTask(req, res) {
         if (Number(reqTask.task_level) == 3 || Number(reqTask.task_level) == 4) {
           if (!reqTaskName.startsWith(reqTaskParent)) {
             console.log('Task name not starts with parent task name, will change parent task')
-            taskObj.ParentTaskName = reqTaskParent;
-            taskObj.TaskName = await getSubTaskName(reqTaskParent);
+            //Change parent task effort
+            var oldParent = task.ParentTaskName;
+            var newParent = reqTaskParent;
+            var existingTaskEffort = Number(task.Effort);
+            if(Number(existingTaskEffort) > 0) {
+              var effortUpResult1 = await updateParentTaskEffort(oldParent, -(existingTaskEffort));
+              var effortUpResult2 = await updateParentTaskEffort(newParent, existingTaskEffort);
+            }
+            taskObj.ParentTaskName = newParent;
+            taskObj.TaskName = await getSubTaskName(newParent);
           }
         }
         await Task.update(taskObj, {where: { TaskName: reqTaskName }});
@@ -564,6 +572,23 @@ async function saveTask(req, res) {
         }
         return res.json(responseMessage(1, task, 'Task existed'));
       }
+  });
+}
+
+function updateParentTaskEffort (iTaskName, iEffort) {
+  return new Promise((resolve, reject) => {
+    Task.findOne({
+      where: {TaskName: iTaskName}
+    }).then(async function(task) {
+      if (task != null) {
+        var currentEffort = task.Effort;
+        var effort = Number(currentEffort) + Number(iEffort);
+        await task.update({Effort: effort});
+        resolve(0);
+      } else {
+        resolve(1);
+      }
+    });
   });
 }
 
