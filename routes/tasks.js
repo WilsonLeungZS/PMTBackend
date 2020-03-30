@@ -1,4 +1,5 @@
 var Sequelize = require('sequelize');
+var db = require('../config/db');
 var express = require('express');
 var router = express.Router();
 var TaskType = require('../model/task/task_type');
@@ -356,7 +357,7 @@ function generateTaskInfo (iTask) {
   });
 }
 
-function getSubTaskTotalEstimation(iTaskName) {
+function getSubTaskTotalEstimation1(iTaskName) {
   return new Promise((resolve, reject) => {
     console.log(iTaskName)
     Task.findAll({
@@ -389,6 +390,27 @@ function getSubTaskTotalEstimation(iTaskName) {
       } else {
         resolve(0);
       }
+    });
+  })
+}
+
+function getSubTaskTotalEstimation(iTaskName) {
+  return new Promise((resolve, reject) => {
+    var sql = 'select id, ParentTaskName, TaskName, Estimation, TaskLevel from (select * from tasks order by ParentTaskName, id) data_sorted, (select @pv := "' + iTaskName + '") initialisation where   find_in_set(ParentTaskName, @pv) and length(@pv := concat(@pv, ",", TaskName))'
+    db.query(sql).then(totalTask => {
+      var tasks = totalTask[0];
+      var rtnTotalEstimation = 0;
+      if (tasks != null && tasks.length > 0) {
+        for (var i=0; i<tasks.length; i++) {
+          var taskName = tasks[i].TaskName;
+          if (getIndexOfValueInArr(tasks, 'ParentTaskName', taskName) == -1){
+            rtnTotalEstimation = rtnTotalEstimation + Number(tasks[i].Estimation);
+          } else {
+            continue;
+          }
+        }
+      }
+      resolve(rtnTotalEstimation);
     });
   })
 }
@@ -478,10 +500,12 @@ router.get('/testApi', async function(req, res, next) {
   var taskName = req.query.taskName;
   var sql1 = 'SELECT t1.TaskName AS lev1, t1.Estimation AS lev1_est, t2.TaskName as lev2, t2.Estimation AS lev2_est, t3.TaskName as lev3, t3.Estimation AS lev3_est, t4.TaskName as lev4, t4.Estimation AS lev4_est FROM tasks AS t1 LEFT JOIN tasks AS t2 ON t2.ParentTaskName = t1.TaskName LEFT JOIN tasks AS t3 ON t3.ParentTaskName = t2.TaskName LEFT JOIN tasks AS t4 ON t4.ParentTaskName = t3.TaskName WHERE t1.TaskName = "' + taskName + '"'; 
   var sql2 = 'select id, ParentTaskName, TaskName, Estimation, TaskLevel from (select * from tasks order by ParentTaskName, id) data_sorted, (select @pv := "' + taskName + '") initialisation where   find_in_set(ParentTaskName, @pv) and length(@pv := concat(@pv, ",", TaskName))'
-  db.query(sql2).then(task => {
+  /* db.query(sql2).then(task => {
     console.log(task)
     return res.json(responseMessage(0, task, ''));
-  })
+  }) */
+  var est = await getSubTaskTotalEstimation(taskName);
+  return res.json(responseMessage(0, est, ''));
 });
 
 router.post('/saveTask', function(req, res, next) {
@@ -504,6 +528,7 @@ async function saveTask(req, res) {
     Status: reqTask.task_status != ''? reqTask.task_status: null,
     Creator: reqTask.task_creator != ''? reqTask.task_creator: null,
     TaskTypeId: reqTask.task_type_id != ''? Number(reqTask.task_type_id): null,
+    Effort: 0,
     Estimation: reqTask.task_estimation != ''? Number(reqTask.task_estimation): 0,
     IssueDate: reqTask.task_issue_date != ''? reqTask.task_issue_date: null,
     TargetCompleteDate: reqTask.task_target_complete != ''? reqTask.task_target_complete: null,
@@ -544,6 +569,7 @@ async function saveTask(req, res) {
         return res.json(responseMessage(0, task, 'Task Created'));
       } else {
         console.log("Task existed");
+        taskObj.Effort = task.Effort;
         // Change parent task
         if (Number(reqTask.task_level) == 3 || Number(reqTask.task_level) == 4) {
           if (!reqTaskName.startsWith(reqTaskParent)) {
@@ -1278,7 +1304,7 @@ router.post('/getPlanTaskListByParentTask', function(req, res, next) {
     var groupCriteria = {}
     if(reqTaskGroupId == 0) {
       groupCriteria = {} 
-    } 
+    }
     else if (reqTaskGroupId == -1) {
       groupCriteria = {
         TaskGroupId: null
@@ -1794,6 +1820,23 @@ function sortArray(iArray, iKey)
 
 function prefixZero(num, n) {
   return (Array(n).join(0) + num).slice(-n);
+}
+
+function getIndexOfValueInArr(iArray, iKey, iValue) {
+  for(var i=0; i<iArray.length;i++) {
+    var item = iArray[i];
+    if(iKey != null){
+      if(item[iKey] == iValue){
+        return i;
+      }
+    } 
+    if(iKey == null){
+      if(item == iValue){
+        return i;
+      }
+    }
+  }
+  return -1;
 }
 
 /*function dateToString(date) {  
