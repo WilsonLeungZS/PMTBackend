@@ -862,8 +862,9 @@ router.post('/extractReport1ForWeb', function(req, res, next) {
       model: Task,
       attributes: ['TaskName', 'Description', 'Reference', 'BizProject'],
       where: {
-       // TaskName: {[Op.notLike]: 'Dummy - %'},
-        Id: { [Op.ne]: null }
+        // TaskName: {[Op.Or]:[ { [Op.like]: 'MTL19.1%'}, { [Op.like]: 'MTL19.2%'}]},
+        Id: { [Op.ne]: null },
+        [Op.or]: [ { TaskName:{ [Op.like]: 'MTL19.1%'}},{ TaskName:{[Op.like]: 'MTL19.2%'}}]
       },
       include: [{
         model: TaskType, 
@@ -887,6 +888,7 @@ router.post('/extractReport1ForWeb', function(req, res, next) {
       Id: { [Op.ne]: null }
     }
   }).then(function(worklog) {
+     console.log(worklog)
      if(worklog != null && worklog.length >0){
       for(var i=0; i<worklog.length;i++){
         var resJson = {};
@@ -932,11 +934,11 @@ router.post('/extractReport2ForWeb', function(req, res, next) {
       where: {
         //TaskName: {[Op.notLike]: 'Dummy - %'},
         Id: { [Op.ne]: null }
-      },      include: [{
+      },      
+      include: [{
         model: TaskType, 
         attributes: ['Name'],
         where: {
-          
           Id:{[Op.ne]:null}
         }
       }]
@@ -985,7 +987,6 @@ function reportTaskInfo(worklog){
           resJson = await findParentTask(resJson,worklog[i].task.ParentTaskName)
       }
       rtnResult.push(resJson)
-      //resJson.report_l1TaskNumber = worklog[i].task
     }
       rtnResult = sortArray(rtnResult, 'report_date')
       resolve(rtnResult)
