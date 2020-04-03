@@ -839,7 +839,7 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
 
 //Extract report1(only AD/AM/BD for task category) for web PMT
 router.post('/extractReport1ForWeb', function(req, res, next) {
-  console.log("extractReport1ForWeb")
+  console.log("Start to extractReport1ForWeb")
   var reqReportStartMonth = req.body.wReportStartMonth;
   var reqReportEndMonth = req.body.wReportEndMonth;
   var rtnResult = [];
@@ -849,33 +849,23 @@ router.post('/extractReport1ForWeb', function(req, res, next) {
       attributes: ['Name'],
       where: {
         Id: { [Op.ne]: null }
-      },
-      include:[{
-        model:Team,
-        attributes:['Project'],
-        where:{
-          Project:'MTL',
-          Id:{[Op.ne]:null}
-        }
-      }]
+      }
     }, {
       model: Task,
       attributes: ['TaskName', 'Description', 'Reference', 'BizProject'],
       where: {
-        // TaskName: {[Op.Or]:[ { [Op.like]: 'MTL19.1%'}, { [Op.like]: 'MTL19.2%'}]},
         Id: { [Op.ne]: null },
-        [Op.or]: [ { TaskName:{ [Op.like]: 'MTL19.1%'}},{ TaskName:{[Op.like]: 'MTL19.2%'}}]
+        [Op.or]: [
+          { TaskName: { [Op.like]: 'MTL19.1%'} },
+          { TaskName: { [Op.like]: 'MTL19.2%'} }
+        ]
       },
       include: [{
         model: TaskType, 
         attributes: ['Name'],
         where: {
-          // [Op.or]: [
-          //   {Category: 'AD'},
-          //   {Category: 'AM'},
-          //   {Category: 'BD'}
           Name: 'Business-AD',
-          Id:{[Op.ne]:null}
+          Id: { [Op.ne]: null }
         }
       }]
     }],
@@ -902,11 +892,6 @@ router.post('/extractReport1ForWeb', function(req, res, next) {
         resJson.report_manhours = Number(worklog[i].Effort)
         resJson.report_mandays = (Number(worklog[i].Effort) / 8).toFixed(2)
         resJson.report_bizproject = worklog[i].task.BizProject
-        // if (worklog[i].task.BizProject != null && worklog[i].task.BizProject != '') {
-        //   resJson.report_taskcategory = worklog[i].task.BizProject + ' - ' + worklog[i].task.task_type.Name
-        // } else {
-        //   resJson.report_taskcategory = worklog[i].task.task_type.Name
-        // }
         resJson.report_taskcategory = worklog[i].task.task_type.Name
         rtnResult.push(resJson)
       }
@@ -920,9 +905,9 @@ router.post('/extractReport1ForWeb', function(req, res, next) {
 
 //Extract report2(cover all projects/members) for web PMT
 router.post('/extractReport2ForWeb', function(req, res, next) {
+  console.log("Start to extractReport2ForWeb")
   var reqReportStartMonth = req.body.wReportStartMonth;
   var reqReportEndMonth = req.body.wReportEndMonth;
-  console.log("extractReport2ForWeb")
   var rtnResult = [];
   Worklog.findAll({
     include: [{
@@ -930,7 +915,7 @@ router.post('/extractReport2ForWeb', function(req, res, next) {
       attributes: ['Name']
     }, {
       model: Task,
-      attributes: ['TaskLevel','ParentTaskName','TaskName', 'Description','Estimation', 'Reference','IssueDate','TargetCompleteDate','ActualCompleteDate', 'BizProject'],
+      attributes: ['TaskLevel', 'ParentTaskName', 'TaskName', 'Description', 'Estimation', 'Reference', 'IssueDate', 'TargetCompleteDate', 'ActualCompleteDate', 'BizProject'],
       where: {
         //TaskName: {[Op.notLike]: 'Dummy - %'},
         Id: { [Op.ne]: null }
@@ -939,7 +924,7 @@ router.post('/extractReport2ForWeb', function(req, res, next) {
         model: TaskType, 
         attributes: ['Name'],
         where: {
-          Id:{[Op.ne]:null}
+          Id: { [Op.ne]: null }
         }
       }]
     }],
@@ -952,10 +937,9 @@ router.post('/extractReport2ForWeb', function(req, res, next) {
       Id: { [Op.ne]: null }
     }
   }).then(async function(worklog) {
-    if(worklog!=null&&worklog.length>0){
-        var response = await reportTaskInfo(worklog);
-        //console.log(response)      
-        return res.json(responseMessage(0, response, ''));
+    if(worklog!=null && worklog.length>0){
+      var response = await reportTaskInfo(worklog);     
+      return res.json(responseMessage(0, response, ''));
     }else{
       return res.json(responseMessage(1, null, 'Worklog not found'));
     }
@@ -965,7 +949,6 @@ router.post('/extractReport2ForWeb', function(req, res, next) {
 function reportTaskInfo(worklog){
   return new Promise(async(resolve,reject)=>{
     var rtnResult = []
-    //console.log(worklog)
     for(var i=0; i<worklog.length;i++){
       var resJson = {};
       resJson.report_username = worklog[i].user.Name
@@ -983,8 +966,19 @@ function reportTaskInfo(worklog){
       resJson.report_actCom = worklog[i].task.ActualCompleteDate
       resJson.report_bizproject = worklog[i].task.BizProject
       resJson.report_taskcategory = worklog[i].task.task_type.Name
-      if(worklog[i].task.ParentTaskName!=null&&worklog[i].task.ParentTaskName!='N/A'){
-          resJson = await findParentTask(resJson,worklog[i].task.ParentTaskName)
+      var taskLevel = worklog[i].task.TaskLevel
+      if(worklog[i].task.ParentTaskName!=null && worklog[i].task.ParentTaskName!='N/A'){
+        if (taskLevel == 3) {
+          resJson.report_l2TaskNumber = worklog[i].task.ParentTaskName
+          var lv2Task = await findTask(worklog[i].task.ParentTaskName)
+          resJson.report_l1TaskNumber = lv2Task.ParentTaskName
+        }
+        if (taskLevel == 4) {
+          var lv3Task = await findTask(worklog[i].task.ParentTaskName)
+          resJson.report_l2TaskNumber = lv3Task.ParentTaskName
+          var lv2Task = await findTask(lv3Task.ParentTaskName)
+          resJson.report_l1TaskNumber = lv2Task.ParentTaskName
+        }
       }
       rtnResult.push(resJson)
     }
@@ -993,25 +987,19 @@ function reportTaskInfo(worklog){
    })
 }
 
-function findParentTask(resJson,iTaskName){
+function findTask(iTaskName){
   return new Promise((resolve,reject)=>{
    Task.findOne({
-     where:{
-       TaskName:iTaskName
-     }      
+      attributes: ['ParentTaskName', 'TaskName'],
+      where:{
+        TaskName: iTaskName
+      }      
    }).then(async function(task){
-     if(task!=null){
-        if(task.TaskLevel===1){
-          resJson.report_l1TaskNumber = task.TaskName
-        }else if(task.TaskLevel===2){
-          resJson.report_l2TaskNumber = task.TaskName
-        }
-        if(task.ParentTaskName!=null && task.ParentTaskName!='N/A'){        
-          resJson = await findParentTask(resJson,task.ParentTaskName)
-        }
-        resolve(resJson)          
-   }})  
-   })
+      if(task!=null){
+        resolve(task)          
+      }
+    });  
+  });
 }
 
 
