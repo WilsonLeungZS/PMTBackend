@@ -357,7 +357,7 @@ function generateTaskInfo (iTask) {
   });
 }
 
-function getSubTaskTotalEstimation1(iTaskName) {
+/*function getSubTaskTotalEstimation1(iTaskName) {
   return new Promise((resolve, reject) => {
     console.log(iTaskName)
     Task.findAll({
@@ -392,7 +392,7 @@ function getSubTaskTotalEstimation1(iTaskName) {
       }
     });
   })
-}
+}*/
 
 function getSubTaskTotalEstimation(iTaskName) {
   return new Promise((resolve, reject) => {
@@ -1101,7 +1101,7 @@ router.post('/refreshLevel2TaskSubEstimation', function(req, res, next) {
   })
 });
 
-function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGroupFlag) {
+/*function getSubTaskTotalEstimationForPlanTask1(iTaskName, iTaskGroupId, iTaskGroupFlag) {
   return new Promise((resolve, reject) => {
     var criteria = {}
     if (iTaskGroupId > 0 ) {
@@ -1164,6 +1164,43 @@ function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGrou
       } else {
         resolve(0);
       }
+    });
+  })
+} */
+
+function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGroupFlag) {
+  return new Promise((resolve, reject) => {
+    var criteria = '';
+    if (iTaskGroupId > 0 ) {
+      if (iTaskGroupFlag == 0) {
+        criteria = ' where raw_data.TaskGroupId = ' + iTaskGroupId
+      }
+      if (iTaskGroupFlag == 1) {
+        criteria = ' where (raw_data.TaskGroupId = ' + iTaskGroupId + ' or raw_data.TaskGroupId is null)'
+      }
+    } 
+    else if (iTaskGroupId == -1 ) {
+      criteria = ' where raw_data.TaskGroupId is null'
+    } 
+    else {
+      criteria = ''
+    }
+    var sql = 'select * from (select id, ParentTaskName, TaskName, Estimation, TaskLevel, TaskGroupId from (select * from tasks order by ParentTaskName, id) data_sorted, (select @pv := "' + iTaskName + '") initialisation where   find_in_set(ParentTaskName, @pv) and length(@pv := concat(@pv, ",", TaskName))) raw_data'
+    sql = sql + criteria
+    db.query(sql).then(totalTask => {
+      var tasks = totalTask[0];
+      var rtnTotalEstimation = 0;
+      if (tasks != null && tasks.length > 0) {
+        for (var i=0; i<tasks.length; i++) {
+          var taskName = tasks[i].TaskName;
+          if (getIndexOfValueInArr(tasks, 'ParentTaskName', taskName) == -1){
+            rtnTotalEstimation = rtnTotalEstimation + Number(tasks[i].Estimation);
+          } else {
+            continue;
+          }
+        }
+      }
+      resolve(rtnTotalEstimation);
     });
   })
 }
@@ -1713,6 +1750,12 @@ router.post('/extractReport3ForWeb',function(req,res,next){
         } else {
           resJson.report_estimation = task[i].Estimation
           resJson.report_effort = task[i].Effort
+        }
+        if(Number(task[i].TaskLevel) === 3) {
+          resJson.report_subtasks_estimation = await getSubTaskTotalEstimation(task[i].TaskName)
+        }
+        else {
+          resJson.report_subtasks_estimation = ''
         }
         rtnResult.push(resJson)
       }
