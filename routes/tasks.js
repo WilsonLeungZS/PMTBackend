@@ -559,6 +559,9 @@ async function saveTask(req, res) {
     DeliverableTag: reqTask.task_deliverableTag != ''? reqTask.task_deliverableTag: null,
     Detail: reqTask.task_detail != ''? reqTask.task_detail: null,
   }
+  console.log('TaskObject Start: ------------->');
+  console.log(taskObj);
+  console.log('TaskObject End: ------------->');
   Task.findOrCreate({
       where: { TaskName: reqTaskName }, 
       defaults: taskObj
@@ -572,7 +575,7 @@ async function saveTask(req, res) {
         taskObj.Effort = task.Effort;
         // Change parent task
         if (Number(reqTask.task_level) == 3 || Number(reqTask.task_level) == 4) {
-          if (!reqTaskName.startsWith(reqTaskParent)) {
+          if (!reqTaskName.startsWith(reqTaskParent) && checkIfChangeParent(reqTaskName)) {
             console.log('Task name not starts with parent task name, will change parent task')
             //Change parent task effort
             var oldParent = task.ParentTaskName;
@@ -599,6 +602,18 @@ async function saveTask(req, res) {
         return res.json(responseMessage(1, task, 'Task existed'));
       }
   });
+}
+
+function checkIfChangeParent(iTaskName) {
+  if(iTaskName != null && iTaskName != ''){
+    if(!iTaskName.startsWith('INC') && !iTaskName.startsWith('INCTASK') && !iTaskName.startsWith('PRB')) {
+      return true;
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
 }
 
 function updateParentTaskEffort (iTaskName, iEffort) {
@@ -1719,6 +1734,7 @@ router.post('/extractReport3ForWeb',function(req,res,next){
       ]
     }
   }).then(async function(task){
+    var userList = await getUserList()
     if(task != null && task.length>0){
       for(var i = 0 ;i<task.length;i++){
         var resJson = {};
@@ -1731,16 +1747,24 @@ router.post('/extractReport3ForWeb',function(req,res,next){
         resJson.report_des = task[i].Description
         resJson.report_refpool = task[i].Reference
         if(task[i].RespLeaderId != null ){
-          resJson.report_resp = await getNameByUserId(task[i].RespLeaderId) 
-          resJson.report_resplevel = await getLevelByUserId(task[i].RespLeaderId)
+          if(userList != null){
+            var userIndex = getIndexOfValueInArr(userList, 'Id', task[i].RespLeaderId)
+            resJson.report_resp = userIndex != -1? userList[userIndex].Name: ''
+            resJson.report_resplevel = userIndex != -1? userList[userIndex].Level: ''
+          }
         }else{
-          resJson.report_resp = task[i].RespLeaderId
+          resJson.report_resp = ''
+          resJson.report_resplevel = ''
         }
         if(task[i].AssigneeId != null ){
-          resJson.report_assignee = await getNameByUserId(task[i].AssigneeId)
-          resJson.report_assigneelevel = await getLevelByUserId(task[i].AssigneeId)
+          if(userList != null){
+            var userIndex = getIndexOfValueInArr(userList, 'Id', task[i].AssigneeId)
+            resJson.report_assignee = userIndex != -1? userList[userIndex].Name: ''
+            resJson.report_assigneelevel = userIndex != -1? userList[userIndex].Level: ''
+          }
         }else{
-          resJson.report_assignee = task[i].AssigneeId
+          resJson.report_assignee = ''
+          resJson.report_assigneelevel = ''
         }
         resJson.report_issue = task[i].IssueDate
         resJson.report_oppn = task[i].TopOppName
@@ -1751,12 +1775,7 @@ router.post('/extractReport3ForWeb',function(req,res,next){
           resJson.report_estimation = task[i].Estimation
           resJson.report_effort = task[i].Effort
         }
-        if(Number(task[i].TaskLevel) === 3) {
-          resJson.report_subtasks_estimation = await getSubTaskTotalEstimation(task[i].TaskName)
-        }
-        else {
-          resJson.report_subtasks_estimation = ''
-        }
+        resJson.report_subtasks_estimation = ''
         rtnResult.push(resJson)
       }
       rtnResult = sortArray(rtnResult, 'report_Id')
@@ -1766,6 +1785,23 @@ router.post('/extractReport3ForWeb',function(req,res,next){
     }
   })
 })
+
+function getUserList() {
+  return new Promise((resolve,reject) =>{
+    User.findAll({
+      attributes: ['Id', 'Name', 'Level'],
+      where: {
+        IsActive: 1
+      }
+    }).then(async function(users){
+      if (users != null && users.length > 0) {
+        resolve(users);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+} 
 
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
   var resJson = {}; 
