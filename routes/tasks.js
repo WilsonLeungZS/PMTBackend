@@ -357,7 +357,7 @@ function generateTaskInfo (iTask) {
   });
 }
 
-function getSubTaskTotalEstimation1(iTaskName) {
+/*function getSubTaskTotalEstimation1(iTaskName) {
   return new Promise((resolve, reject) => {
     console.log(iTaskName)
     Task.findAll({
@@ -392,7 +392,7 @@ function getSubTaskTotalEstimation1(iTaskName) {
       }
     });
   })
-}
+}*/
 
 function getSubTaskTotalEstimation(iTaskName) {
   return new Promise((resolve, reject) => {
@@ -559,6 +559,9 @@ async function saveTask(req, res) {
     DeliverableTag: reqTask.task_deliverableTag != ''? reqTask.task_deliverableTag: null,
     Detail: reqTask.task_detail != ''? reqTask.task_detail: null,
   }
+  console.log('TaskObject Start: ------------->');
+  console.log(taskObj);
+  console.log('TaskObject End: ------------->');
   Task.findOrCreate({
       where: { TaskName: reqTaskName }, 
       defaults: taskObj
@@ -572,7 +575,7 @@ async function saveTask(req, res) {
         taskObj.Effort = task.Effort;
         // Change parent task
         if (Number(reqTask.task_level) == 3 || Number(reqTask.task_level) == 4) {
-          if (!reqTaskName.startsWith(reqTaskParent)) {
+          if (!reqTaskName.startsWith(reqTaskParent) && checkIfChangeParent(reqTaskName)) {
             console.log('Task name not starts with parent task name, will change parent task')
             //Change parent task effort
             var oldParent = task.ParentTaskName;
@@ -599,6 +602,18 @@ async function saveTask(req, res) {
         return res.json(responseMessage(1, task, 'Task existed'));
       }
   });
+}
+
+function checkIfChangeParent(iTaskName) {
+  if(iTaskName != null && iTaskName != ''){
+    if(!iTaskName.startsWith('INC') && !iTaskName.startsWith('INCTASK') && !iTaskName.startsWith('PRB')) {
+      return true;
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
 }
 
 function updateParentTaskEffort (iTaskName, iEffort) {
@@ -1101,7 +1116,7 @@ router.post('/refreshLevel2TaskSubEstimation', function(req, res, next) {
   })
 });
 
-function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGroupFlag) {
+/*function getSubTaskTotalEstimationForPlanTask1(iTaskName, iTaskGroupId, iTaskGroupFlag) {
   return new Promise((resolve, reject) => {
     var criteria = {}
     if (iTaskGroupId > 0 ) {
@@ -1164,6 +1179,43 @@ function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGrou
       } else {
         resolve(0);
       }
+    });
+  })
+} */
+
+function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGroupFlag) {
+  return new Promise((resolve, reject) => {
+    var criteria = '';
+    if (iTaskGroupId > 0 ) {
+      if (iTaskGroupFlag == 0) {
+        criteria = ' where raw_data.TaskGroupId = ' + iTaskGroupId
+      }
+      if (iTaskGroupFlag == 1) {
+        criteria = ' where (raw_data.TaskGroupId = ' + iTaskGroupId + ' or raw_data.TaskGroupId is null)'
+      }
+    } 
+    else if (iTaskGroupId == -1 ) {
+      criteria = ' where raw_data.TaskGroupId is null'
+    } 
+    else {
+      criteria = ''
+    }
+    var sql = 'select * from (select id, ParentTaskName, TaskName, Estimation, TaskLevel, TaskGroupId from (select * from tasks order by ParentTaskName, id) data_sorted, (select @pv := "' + iTaskName + '") initialisation where   find_in_set(ParentTaskName, @pv) and length(@pv := concat(@pv, ",", TaskName))) raw_data'
+    sql = sql + criteria
+    db.query(sql).then(totalTask => {
+      var tasks = totalTask[0];
+      var rtnTotalEstimation = 0;
+      if (tasks != null && tasks.length > 0) {
+        for (var i=0; i<tasks.length; i++) {
+          var taskName = tasks[i].TaskName;
+          if (getIndexOfValueInArr(tasks, 'ParentTaskName', taskName) == -1){
+            rtnTotalEstimation = rtnTotalEstimation + Number(tasks[i].Estimation);
+          } else {
+            continue;
+          }
+        }
+      }
+      resolve(rtnTotalEstimation);
     });
   })
 }
@@ -1657,12 +1709,32 @@ function getNameByUserId(iUserId){
 //2020/3/23 extractReport3ForWeb
 router.post('/extractReport3ForWeb',function(req,res,next){
   console.log("extractReport3ForWeb")
+  var reqReportStartMonth = req.body.wReportStartMonth;
+  var reqReportStartDatetime = reqReportStartMonth + '-01 00:00:00'
+  var reqReportEndMonth = req.body.wReportEndMonth;
+  var reqReportEndDatetime = reqReportEndMonth + '-31 23:59:59'
   var rtnResult = [];
   Task.findAll({
-      where:{
-        Id: { [Op.ne]: null }
+    include: [{
+      model: TaskType, 
+      attributes: ['Name'],
+      where: {
+        Name: { [Op.ne]: 'Pool' }
       }
+    }],
+    where:{
+      Id: { [Op.ne]: null },
+      [Op.or] : [
+        {[Op.and]: [
+          { Creator:   { [Op.notLike]: 'PMT:%' }},
+          { IssueDate: { [Op.gte]:  reqReportStartDatetime }},
+          { IssueDate: { [Op.lte]:  reqReportEndDatetime }}
+        ]},
+        { Creator:   { [Op.like]: 'PMT:%' } }
+      ]
+    }
   }).then(async function(task){
+    var userList = await getUserList()
     if(task != null && task.length>0){
       for(var i = 0 ;i<task.length;i++){
         var resJson = {};
@@ -1674,20 +1746,36 @@ router.post('/extractReport3ForWeb',function(req,res,next){
         resJson.report_status = task[i].Status
         resJson.report_des = task[i].Description
         resJson.report_refpool = task[i].Reference
-        if(task[i].RespLeaderId!=null){
-          resJson.report_resp = await getNameByUserId(task[i].RespLeaderId) 
-          resJson.report_resplevel = await getLevelByUserId(task[i].RespLeaderId)
+        if(task[i].RespLeaderId != null ){
+          if(userList != null){
+            var userIndex = getIndexOfValueInArr(userList, 'Id', task[i].RespLeaderId)
+            resJson.report_resp = userIndex != -1? userList[userIndex].Name: ''
+            resJson.report_resplevel = userIndex != -1? userList[userIndex].Level: ''
+          }
         }else{
-          resJson.report_resp = task[i].RespLeaderId
+          resJson.report_resp = ''
+          resJson.report_resplevel = ''
         }
-        if(task[i].AssigneeId!=null){
-          resJson.report_assignee = await getNameByUserId(task[i].AssigneeId)
-          resJson.report_assigneelevel = await getLevelByUserId(task[i].AssigneeId)
+        if(task[i].AssigneeId != null ){
+          if(userList != null){
+            var userIndex = getIndexOfValueInArr(userList, 'Id', task[i].AssigneeId)
+            resJson.report_assignee = userIndex != -1? userList[userIndex].Name: ''
+            resJson.report_assigneelevel = userIndex != -1? userList[userIndex].Level: ''
+          }
         }else{
-          resJson.report_assignee = task[i].AssigneeId
+          resJson.report_assignee = ''
+          resJson.report_assigneelevel = ''
         }
         resJson.report_issue = task[i].IssueDate
         resJson.report_oppn = task[i].TopOppName
+        if(resJson.report_tasklevel == '1' || resJson.report_tasklevel == '2') {
+          resJson.report_estimation = ''
+          resJson.report_effort = ''
+        } else {
+          resJson.report_estimation = task[i].Estimation
+          resJson.report_effort = task[i].Effort
+        }
+        resJson.report_subtasks_estimation = ''
         rtnResult.push(resJson)
       }
       rtnResult = sortArray(rtnResult, 'report_Id')
@@ -1697,6 +1785,23 @@ router.post('/extractReport3ForWeb',function(req,res,next){
     }
   })
 })
+
+function getUserList() {
+  return new Promise((resolve,reject) =>{
+    User.findAll({
+      attributes: ['Id', 'Name', 'Level'],
+      where: {
+        IsActive: 1
+      }
+    }).then(async function(users){
+      if (users != null && users.length > 0) {
+        resolve(users);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+} 
 
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
   var resJson = {}; 
