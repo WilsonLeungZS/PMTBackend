@@ -13,10 +13,6 @@ var User = sequelize.define('user', {
         type: Sequelize.STRING,
         allowNull: false
     },
-    Nickname: {
-        type: Sequelize.STRING,
-        allowNull: false
-    },
     EmployeeNumber: {
         type: Sequelize.STRING,
     },
