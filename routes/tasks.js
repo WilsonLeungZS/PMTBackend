@@ -58,7 +58,7 @@ router.get('/getTaskList', function(req, res, next) {
   if (Number(req.query.reqTaskLevel == 1)) {
     orderSeq = ['TopTargetStart', 'DESC']
   } else {
-    orderSeq = ['TargetCompleteDate', 'ASC']
+    orderSeq = ['createdAt', 'DESC']
   }
   Task.findAll({
     include: [{
@@ -302,6 +302,16 @@ function generateTaskInfo (iTask) {
     resJson.task_type_id = iTask.TaskTypeId;
     resJson.task_type = iTask.task_type.Name;
     resJson.task_creator = iTask.Creator;
+    resJson.task_creator_name = ''
+    if (iTask.Creator != null && iTask.Creator != '' && iTask.Creator.startsWith('PMT:')) {
+      var creatorNumber = iTask.Creator.replace('PMT:', '');
+      var creatorName = await getUserNameByEmployeeNumber(creatorNumber);
+      if (creatorName != null) {
+        resJson.task_creator_name = creatorName;
+      } else {
+        resJson.task_creator_name = '';
+      }
+    }
     resJson.task_status = iTask.Status;
     resJson.task_effort = iTask.Effort;
     if(iTask.Estimation != null && iTask.Estimation >0){
@@ -355,6 +365,22 @@ function generateTaskInfo (iTask) {
     resJson.task_TypeTag = iTask.TypeTag;
     resolve(resJson);
   });
+}
+
+function getUserNameByEmployeeNumber(iEmployeeNumber) {
+  return new Promise((resolve,reject) =>{
+    User.findOne({
+      where:{
+        EmployeeNumber: iEmployeeNumber
+      }
+    }).then(async function(user){
+      if(user!=null){
+        resolve(user.Name)
+      }else{
+        resolve(null)
+      }
+    })
+  }) 
 }
 
 /*function getSubTaskTotalEstimation1(iTaskName) {
@@ -506,6 +532,19 @@ router.get('/testApi', async function(req, res, next) {
   }) */
   var est = await getSubTaskTotalEstimation(taskName);
   return res.json(responseMessage(0, est, ''));
+});
+
+router.get('/checkSubTaskDone', async function(req, res, next) {
+  var reqTaskName = req.query.reqTaskName;
+  var sql = 'select * from (select id, ParentTaskName, TaskName, Status from (select * from tasks order by ParentTaskName, id) data_sorted, (select @pv := "' + reqTaskName + '") initialisation where   find_in_set(ParentTaskName, @pv) and length(@pv := concat(@pv, ",", TaskName))) raw_data where raw_data.Status <> "Done" ';
+  db.query(sql).then(totalTask => {
+    var tasks = totalTask[0];
+    if (tasks != null && tasks.length > 0) {
+      return res.json(responseMessage(1, null, 'Exist sub tasks status not "Done"'));
+    } else {
+      return res.json(responseMessage(0, null, 'All sub tasks status "Done"'));
+    }
+  })
 });
 
 router.post('/saveTask', function(req, res, next) {
@@ -962,6 +1001,8 @@ function removeTask(iTaskId) {
 router.post('/getTaskByNameForWorklogTask', function(req, res, next) {
   var rtnResult = [];
   var taskKeyWord = req.body.tTaskName.trim();
+  console.log('Search task by keyword: ' + taskKeyWord);
+  var taskAssigneeId = Number(req.body.tTaskAssigneeId);
   Task.findAll({
     include: [{
       model: TaskType, 
@@ -971,18 +1012,21 @@ router.post('/getTaskByNameForWorklogTask', function(req, res, next) {
       }
     }],
     where: {
+      TaskName: {[Op.notLike]: 'Dummy - %'},
       [Op.or]: [
         {TaskName: {[Op.like]:'%' + taskKeyWord + '%'}},
-        {Description: {[Op.like]:'%' + taskKeyWord + '%'}}
-      ],
-      TaskName: {[Op.notLike]: 'Dummy - %'},
-      [Op.and]: [
-        { TaskLevel: {[Op.ne]: 1}},
-        { TaskLevel: {[Op.ne]: 2}}
+        {Description: {[Op.like]:'%' + taskKeyWord + '%'}},
+        {Reference: {[Op.like]:'%' + taskKeyWord + '%'}}
       ],
       [Op.and]: [
         { Status: {[Op.ne]: 'Drafting'}},
-        { Status: {[Op.ne]: 'Planning'}}
+        { Status: {[Op.ne]: 'Planning'}},
+        { TaskLevel: {[Op.ne]: 1}},
+        { TaskLevel: {[Op.ne]: 2}},
+        {[Op.or]: [
+          { AssigneeId: taskAssigneeId },
+          { TypeTag: 'Public Task' }
+        ]}
       ],
       Id: { [Op.ne]: null }
     },
