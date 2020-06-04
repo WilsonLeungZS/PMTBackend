@@ -131,7 +131,8 @@ router.post('/addOrUpdateUser', function(req, res, next) {
         IsActive: reqUserIsActive,
         Level: req.body.reqUserLevel,
         EmployeeNumber: req.body.reqUserEmployeeNumber,
-        Assignment: req.body.reqUserAssignment
+        Assignment: req.body.reqUserAssignment,
+        Nickname : req.body.reqUserNickname
       }})
     .spread(function(user, created) {
       if(created) {
@@ -147,7 +148,8 @@ router.post('/addOrUpdateUser', function(req, res, next) {
           IsActive: reqUserIsActive,
           Level: req.body.reqUserLevel,
           EmployeeNumber: req.body.reqUserEmployeeNumber,
-          Assignment: req.body.reqUserAssignment
+          Assignment: req.body.reqUserAssignment,
+          Nickname : req.body.reqUserNickname
         });
         return res.json(responseMessage(0, user, 'Update user successfully!'));
       }
@@ -199,6 +201,7 @@ router.get('/getUserList', function(req, res, next) {
         var resJson = {};
         resJson.user_id = user[i].Id;
         resJson.user_eid = user[i].Name;
+        resJson.user_nickname = user[i].Nickname
         resJson.user_email = user[i].Email;
         resJson.user_team = user[i].team.Name;
         resJson.user_role = user[i].Role;
@@ -242,6 +245,7 @@ router.get('/getUserListOrderByLevelDesc', function(req, res, next) {
         var resJson = {};
         resJson.user_id = user[i].Id;
         resJson.user_eid = user[i].Name;
+        resJson.user_nickname = user[i].Nickname
         resJson.user_email = user[i].Email;
         resJson.user_team = user[i].team.Name;
         resJson.user_role = user[i].Role;
@@ -278,6 +282,7 @@ router.post('/getUserById', function(req, res, next) {
         var resJson = {};
         resJson.user_id = user.Id;
         resJson.user_eid = user.Name;
+        resJson.user_nickname = user.Nickname
         resJson.user_email = user.Email;
         resJson.user_team = user.team.Name;
         resJson.user_teamproject = user.team.Project;
@@ -286,7 +291,7 @@ router.post('/getUserById', function(req, res, next) {
         resJson.user_namemapping = user.NameMapping;
         resJson.user_level = user.Level;
         resJson.user_employee_number = user.EmployeeNumber;
-        resJson.user_assignment = user[i].Assignment;
+        resJson.user_assignment = user.Assignment;
         if(team != null){
           var teamArray = [];
           for(var i=0; i< team.length; i++){
@@ -325,6 +330,7 @@ router.post('/getUserListByName', function(req, res, next) {
         var resJson = {};
         resJson.user_id = user[i].Id;
         resJson.user_eid = user[i].Name;
+        resJson.user_nickname = user[i].Nickname
         resJson.user_team = user[i].team.Name;
         resJson.user_role = user[i].Role;
         resJson.user_namemapping = user[i].NameMapping;
