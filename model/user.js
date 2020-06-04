@@ -14,8 +14,7 @@ var User = sequelize.define('user', {
         allowNull: false
     },
     Nickname: {
-        type: Sequelize.STRING,
-        allowNull: false
+        type: Sequelize.STRING
     },
     EmployeeNumber: {
         type: Sequelize.STRING,
