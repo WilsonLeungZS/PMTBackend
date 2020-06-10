@@ -81,6 +81,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
       var tTaskType = taskObj.TaskType;
       var tTaskTypeId = 0;
       var taskPoolRef = await getReference('TaskPool', tTaskType);
+      var taskTypeTag = 'One-Off Task';
       if (taskPoolRef != null) {
         if (taskPoolRef.Value != null && taskPoolRef.Value != '') {
           tParentTaskName = taskPoolRef.Value;
@@ -162,7 +163,8 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             TaskLevel: 3, 
             IssueDate: tTaskIssueDate,
             AssigneeId: tAssigneeId,
-            TaskGroupId: tTaskGroupId
+            TaskGroupId: tTaskGroupId,
+            TypeTag: taskTypeTag
         }
       })
       .spread(function(task, created) {
@@ -238,6 +240,7 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
       var tTaskType = taskObj.TaskType;
       var tTaskTypeId = 0;
       var taskPoolRef = await getReference('TaskPool', tTaskType);
+      var taskTypeTag = 'One-Off Task';
       Logger.info('Debug 1');
       if (taskPoolRef != null) {
         if (taskPoolRef.Value != null && taskPoolRef.Value != '') {
@@ -282,7 +285,8 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
             BizProject: tTaskBizProject,
             BusinessArea: tBusinessArea,
             TaskLevel: 3,
-            IssueDate: tTaskIssueDate
+            IssueDate: tTaskIssueDate,
+            TypeTag: taskTypeTag
         }
       })
       .spread(function(task, created) {
