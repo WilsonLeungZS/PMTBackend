@@ -241,6 +241,7 @@ router.post('/receiveTaskListForTRLS', function(req, res, next) {
       var tTaskTypeId = 0;
       var taskPoolRef = await getReference('TaskPool', tTaskType);
       var taskTypeTag = 'One-Off Task';
+      
       Logger.info('Debug 1');
       if (taskPoolRef != null) {
         if (taskPoolRef.Value != null && taskPoolRef.Value != '') {
