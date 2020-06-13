@@ -4,8 +4,6 @@ var express = require('express');
 var router = express.Router();
 var TaskType = require('../model/task/task_type');
 var Task = require('../model/task/task');
-var Team = require('../model/team/team');
-var Reference = require('../model/reference');
 var User = require('../model/user');
 var TaskGroup = require('../model/task/task_group');
 var Worklog = require('../model/worklog');
@@ -480,12 +478,53 @@ function getTaskType(iTaskname) {
     });
   });
 }
+router.post('/getRegularaskByTaskName', function(req, res, next) {
+  var rtnResult = [];
+  Task.findAll({
+    where: {
+      ParentTaskName: req.body.reqTaskName,
+      TypeTag:{ [Op.eq] :'Regular Task'}
+    },
+    order: [
+      ['Id', 'ASC']
+    ]
+  }).then(async function(task) {
+      if(task.length > 0) {
+        for(var i=0;i<task.length;i++){
+          var resJson = {};
+          resJson.task_id = task[i].Id;
+          resJson.task_name = task[i].TaskName;
+          resJson.task_desc = task[i].Description;
+          resJson.task_status = task[i].Status;
+          var respLeaderId = task[i].RespLeaderId;
+          if (respLeaderId != null && respLeaderId != '') {
+            var respLeaderName = await getUserById(respLeaderId);
+            resJson.task_responsible_leader = respLeaderName;
+          } else {
+            resJson.task_responsible_leader = null;
+          }
+          var assigneeId = task[i].AssigneeId;
+          if (assigneeId != null && assigneeId != '') {
+            var assigneeName = await getUserById(assigneeId);
+            resJson.task_assignee = assigneeName;
+          } else {
+            resJson.task_assignee = null;
+          }
+          rtnResult.push(resJson);
+        }
+        return res.json(responseMessage(0, rtnResult, ''));
+      } else {
+        return res.json(responseMessage(1, null, 'No sub task exist'));
+      }
+  })
+});
 
 router.post('/getSubTaskByTaskName', function(req, res, next) {
   var rtnResult = [];
   Task.findAll({
     where: {
-      ParentTaskName: req.body.reqTaskName
+      ParentTaskName: req.body.reqTaskName,
+      TypeTag:{ [Op.ne] :'Regular Task'}
     },
     order: [
       ['Id', 'ASC']
@@ -555,7 +594,6 @@ async function saveTask(req, res) {
   var reqTask = JSON.parse(req.body.reqTask);
   var reqTaskName = reqTask.task_name;
   var reqTaskParent = reqTask.task_parent_name;
-  console.log(reqTask)
   if((reqTaskName == null || reqTaskName == '') && reqTaskParent != 'N/A'){
     reqTaskName = await getSubTaskName(reqTaskParent);
   }
