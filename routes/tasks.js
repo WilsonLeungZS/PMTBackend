@@ -1423,6 +1423,69 @@ router.post('/getPlanTaskSizeByParentTask', function(req, res, next) {
   })
 });
 
+router.post('/getPlanRegularTaskListByParentTask', function(req, res, next) {
+  console.log('Start to get plan Regular task list by parent task name: ' + req.body.reqParentTaskName)
+  var reqParentTaskName = req.body.reqParentTaskName;
+  var reqTaskGroupId = Number(req.body.reqTaskGroupId);
+  var reqTaskGroupFlag = Number(req.body.reqTaskGroupFlag);
+  var reqPage = Number(req.body.reqPage);
+  var reqSize = Number(req.body.reqSize);
+  var criteria = {
+    ParentTaskName: reqParentTaskName,
+    TaskLevel: 3,
+    TypeTag:{ [Op.eq]: 'Regular Task' }
+  }
+  if(reqTaskGroupId != null && reqTaskGroupId != '') {
+    var groupCriteria = {}
+    if(reqTaskGroupId == 0) {
+      groupCriteria = {} 
+    }
+    else if (reqTaskGroupId == -1) {
+      groupCriteria = {
+        TaskGroupId: null
+      } 
+    }
+    else {
+      if (reqTaskGroupFlag == 0) {
+        groupCriteria = {
+          TaskGroupId: reqTaskGroupId
+        } 
+      }
+      if (reqTaskGroupFlag == 1) {
+        groupCriteria = {
+          [Op.or]: [
+            {TaskGroupId: reqTaskGroupId},
+            {TaskGroupId: null}
+          ],
+        } 
+      }
+    }
+    var c = Object.assign(criteria, groupCriteria);
+  }
+  if (req.body.reqFilterAssignee != null && req.body.reqFilterAssignee != '') {
+    criteria.AssigneeId = Number(req.body.reqFilterAssignee)
+  }
+  if (req.body.reqFilterStatus != null && req.body.reqFilterStatus != '') {
+    criteria.Status = req.body.reqFilterStatus
+  }
+  Task.findAll({
+    include: [{model: TaskType, attributes: ['Id', 'Name']}],
+    where: criteria,
+    order: [
+      ['createdAt', 'DESC']
+    ],
+    limit: reqSize,
+    offset: reqSize * (reqPage - 1)
+  }).then(async function(tasks) {
+    if(tasks != null && tasks.length > 0) {
+      var response = await generatePlanTaskList(tasks);
+      return res.json(responseMessage(0, response, ''));  
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
 router.post('/getPlanTaskListByParentTask', function(req, res, next) {
   console.log('Start to get plan task list by parent task name: ' + req.body.reqParentTaskName)
   var reqParentTaskName = req.body.reqParentTaskName;
@@ -1432,7 +1495,8 @@ router.post('/getPlanTaskListByParentTask', function(req, res, next) {
   var reqSize = Number(req.body.reqSize);
   var criteria = {
     ParentTaskName: reqParentTaskName,
-    TaskLevel: 3
+    TaskLevel: 3,
+    TypeTag:{ [Op.ne]: 'Regular Task' }
   }
   if(reqTaskGroupId != null && reqTaskGroupId != '') {
     var groupCriteria = {}

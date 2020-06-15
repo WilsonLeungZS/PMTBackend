@@ -2,7 +2,7 @@
  * @Description: 
  * @Author: 
  * @Date: 2020-06-13 12:59:52
- * @LastEditTime: 2020-06-13 13:18:31
+ * @LastEditTime: 2020-06-15 16:38:03
  * @LastEditors: Wanlin Chen
  */ 
 var Sequelize = require('sequelize');
@@ -16,6 +16,7 @@ var Schedule = sequelize.define('schedule',{
     Schedule : { type:Sequelize.STRING},
     RegularTime : { type:Sequelize.STRING},
     StartTime : { type:Sequelize.STRING},
+    EndTime : { type:Sequelize.STRING},
     PreviousTime : { type:Sequelize.STRING},
     LastTime : { type:Sequelize.STRING},
     createdAt: {

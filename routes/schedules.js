@@ -2,7 +2,7 @@
  * @Description: 
  * @Author: 
  * @Date: 2020-06-13 13:13:52
- * @LastEditTime: 2020-06-13 15:20:47
+ * @LastEditTime: 2020-06-15 16:31:45
  * @LastEditors: Wanlin Chen
  */ 
 var Sequelize = require('sequelize');
@@ -24,7 +24,8 @@ router.post('/saveRegularTask',function(req,res,next){
           Schedule: req.body.reqSchedule,
           RegularTime: req.body.reqRegularTaskTime,
           StartTime: req.body.reqStartTime,
-          TaskId : req.body.reqTaskId
+          TaskId : req.body.reqTaskId,
+          EndTime: req.body.reqEndTime
         }})
       .spread(function(schedule, created) {
         console.log(schedule)
@@ -36,6 +37,7 @@ router.post('/saveRegularTask',function(req,res,next){
                 Schedule: req.body.reqSchedule,
                 RegularTime: req.body.reqRegularTaskTime,
                 StartTime: req.body.reqStartTime,
+                EndTime: req.body.reqEndTime
           });
           return res.json(responseMessage(0, schedule, 'Update schedule successfully!'));
         }
@@ -55,6 +57,7 @@ router.post('/getSchedulesByTaskName',function(req,res,next){
           var rtnResult = {}
           rtnResult.task_startTime = schedule.StartTime
           rtnResult.task_RegularTaskTime = schedule.RegularTime
+          rtnResult.task_endTime = schedule.EndTime
           rtnResult.task_scheduletime = schedule.Schedule
           return res.json(responseMessage(0, rtnResult, ''));
         } else {
