@@ -198,7 +198,6 @@ router.get('/getEmailGroupsAndSkillType',function(req,res,next) {
       if(user.SkillType!=null){
         resJson.user_skill_type = user.SkillType.split(',')
       }
-      console.log(resJson)
       return res.json(responseMessage(0, resJson, ''));
     }else{
       return res.json(responseMessage(1, null, 'No User exist'));      
