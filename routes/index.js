@@ -16,7 +16,15 @@ const Op = Sequelize.Op;
 /* GET home page. */
 router.get('/', function(req, res, next) {
   Logger.info('Index log');
-  return res.json({message: 'Get Response index resource: PMT Version 3.1'});
+  Reference.findOne({where: {Name: 'Environment'}}).then(function(reference){
+    if (reference != null) {
+      var env = reference.Value;
+      return res.json({message: 'Get Response index resource: PMT Version 3.1 ' + env});
+    } else {
+      return res.json({message: 'Get Response index resource: PMT Version 3.1'});
+    }
+  })
+  
 });
 
 router.post('/', function(req, res, next) {
