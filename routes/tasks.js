@@ -478,7 +478,7 @@ function getTaskType(iTaskname) {
     });
   });
 }
-router.post('/getRegularaskByTaskName', function(req, res, next) {
+router.post('/getRegularTaskByTaskName', function(req, res, next) {
   var rtnResult = [];
   Task.findAll({
     where: {
