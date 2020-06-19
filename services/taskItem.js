@@ -1,7 +1,16 @@
 var Task = require('../model/task/task');
 
-async function saveTask(req) {
-    var reqTask = JSON.parse(req);
+async function saveTask(req, res, remark) {
+  var reqTask = null;
+  if(String(remark) == String('createByUser')){
+    reqTask = JSON.parse(req.body.reqTask);
+  }else if(String(remark) == String('regularCreate')){
+    reqTask = JSON.parse(req);
+  }else{
+    console.log('The task not create by user or regular job.');
+  }
+  console.log('George' + reqTask);
+  console.log('George1' + reqTask.task_parent_name);
     var reqTaskName = reqTask.task_name;
     var reqTaskParent = reqTask.task_parent_name;
     if((reqTaskName == null || reqTaskName == '') && reqTaskParent != 'N/A'){
@@ -86,7 +95,13 @@ async function saveTask(req) {
             var updateResult3 = await updateSubTasksReference(reqTask.task_name, reqTask.task_reference);
             var updateResult4 = await updateSubTasksWhenChangeParent(reqTask.task_name, taskObj.TaskName);
           }
-          //return res.json(responseMessage(1, task, 'Task existed'));
+          if(String(remark) == String('createByUser')){
+            return res.json(responseMessage(1, task, 'Task existed'));
+          }else if(String(remark) == String('regularCreate')){
+            console.log('Regular task create task: ' + reqTaskName);
+          }else{
+            console.log('The task not create by user or regular job.');
+          }
         }
     });
   }
@@ -170,6 +185,25 @@ async function saveTask(req) {
     return taskName;
   }
   
+  function getSubTasks (iTaskName) {
+    return new Promise((resolve, reject) => {
+      Task.findAll({
+        where: {
+          ParentTaskName: iTaskName
+        },
+        order: [
+          ['createdAt', 'DESC']
+        ]
+      }).then(function(task) {
+        if(task != null && task.length > 0){
+          resolve(task);
+        } else {
+          resolve(null)
+        }
+      })
+    });
+  }
+
   function getSubTaskCount(iParentTask) {
     return new Promise((resolve, reject) => {
       Task.findAll({
@@ -229,7 +263,7 @@ async function saveTask(req) {
     });
   }
 
-  function getSubTaskCount(iParentTask) {
+  function getSubTaskLengh(iParentTask) {
     Task.findAll({
       where: {
         ParentTaskName: iParentTask
@@ -244,5 +278,5 @@ async function saveTask(req) {
 
 module.exports = {
   saveTask,
-  getSubTaskCount
+  getSubTaskLengh
 }

@@ -1,10 +1,3 @@
-/*
- * @Description: 
- * @Author: 
- * @Date: 2020-06-13 13:13:52
- * @LastEditTime: 2020-06-15 16:31:45
- * @LastEditors: Wanlin Chen
- */ 
 var Sequelize = require('sequelize');
 var db = require('../config/db');
 var express = require('express');
@@ -13,7 +6,7 @@ var Schedule = require('../model/schedule');
 var nodeSchedule = require('node-schedule');
 var dateFormat = require('dateformat');
 var Task = require('../model/task/task');
-var taskItem = require('../routes/taskItem');
+var taskItem = require('../services/taskItem');
 const Op = Sequelize.Op;
 
 router.get('/', function(req, res, next) {
@@ -21,62 +14,64 @@ router.get('/', function(req, res, next) {
 });
 
 router.post('/saveRegularTask',function(req,res,next){
-    console.log('saveRegularTask')
-    var tTaskId = req.body.reqTaskId;
-    var jobId = 'PMT' + tTaskId;
-    Schedule.findOrCreate({
-        where: { TaskId : req.body.reqTaskId}, 
-        defaults: {
-          Schedule: req.body.reqSchedule,
-          RegularTime: req.body.reqRegularTaskTime,
-          StartTime: req.body.reqStartTime,
-          JobId: jobId,
-          TaskId : tTaskId,
-          EndTime: req.body.reqEndTime
-        }})
-      .spread(function(schedule, created) {
-        console.log(schedule)
-        if(created) {
-          return res.json(responseMessage(0, schedule, 'Create schedule successfully!'));
-        } 
-        else if(schedule != null && !created) {
-            schedule.update({
-                Schedule: req.body.reqSchedule,
-                RegularTime: req.body.reqRegularTaskTime,
-                StartTime: req.body.reqStartTime,
-                EndTime: req.body.reqEndTime
-          });
-          return res.json(responseMessage(0, schedule, 'Update schedule successfully!'));
-        }
-        else {
-          return res.json(responseMessage(1, null, 'Created or updated schedule fail!'));
-        }
-      })
+  console.log('saveRegularTask')
+  var tTaskId = req.body.reqTaskId;
+  var jobId = 'PMT' + tTaskId;
+  Schedule.findOrCreate({
+    where: { TaskId : req.body.reqTaskId}, 
+    defaults: {
+    Schedule: req.body.reqSchedule,
+    RegularTime: req.body.reqRegularTaskTime,
+    StartTime: req.body.reqStartTime,
+    JobId: jobId,
+    TaskId : tTaskId,
+    Status: 'Planning',
+    EndTime: req.body.reqEndTime
+  }})
+  .spread(function(schedule, created) {
+    console.log(schedule)
+    if(created) {
+      return res.json(responseMessage(0, schedule, 'Create schedule successfully!'));
+    }
+      else if(schedule != null && !created) {
+      schedule.update({
+      Schedule: req.body.reqSchedule,
+      RegularTime: req.body.reqRegularTaskTime,
+      StartTime: req.body.reqStartTime,
+      EndTime: req.body.reqEndTime
+      });
+      return res.json(responseMessage(0, schedule, 'Update schedule successfully!'));
+    }
+    else {
+      return res.json(responseMessage(1, null, 'Created or updated schedule fail!'));
+    }
+  })
 });
 
 router.post('/getSchedulesByTaskName',function(req,res,next){
-    console.log('getSchedulesByTaskName')
-    Schedule.findOne({
-      where: {TaskId: req.body.reqTaskName}
-    }).then(async function(schedule) {
-        if(schedule!=null) {
-          console.log(schedule)
-          var rtnResult = {}
-          rtnResult.task_startTime = schedule.StartTime
-          rtnResult.task_RegularTaskTime = schedule.RegularTime
-          rtnResult.task_endTime = schedule.EndTime
-          rtnResult.task_scheduletime = schedule.Schedule
-          return res.json(responseMessage(0, rtnResult, ''));
-        } else {
-          return res.json(responseMessage(1, null, 'No sub task exist'));
-        }
-    })
+  console.log('getSchedulesByTaskName')
+  Schedule.findOne({
+    where: {TaskId: req.body.reqTaskName}
+  }).then(async function(schedule) {
+    if(schedule!=null) {
+      console.log(schedule)
+      var rtnResult = {}
+      rtnResult.task_startTime = schedule.StartTime
+      rtnResult.task_RegularTaskTime = schedule.RegularTime
+      rtnResult.task_endTime = schedule.EndTime
+      rtnResult.task_scheduletime = schedule.Schedule
+      return res.json(responseMessage(0, rtnResult, ''));
+    } 
+    else {
+      return res.json(responseMessage(1, null, 'No sub task exist'));
+    }
+  })
 });
 
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
-    var resJson = {}; 
-    resJson = {status: iStatusCode, data: iDataArray, message: iErrorMessage};
-    return resJson;
+  var resJson = {}; 
+  resJson = {status: iStatusCode, data: iDataArray, message: iErrorMessage};
+  return resJson;
 }
 
 router.get('/startBackgroundJob', function(req, res, next) {
@@ -88,6 +83,7 @@ router.get('/startBackgroundJob', function(req, res, next) {
   }
   var iJobConfiguration = '1 * * * * *';
   nodeSchedule.scheduleJob(reqJobId, iJobConfiguration, function(){
+    ReActiveRegularJob();
     AutoCreateRegularTask();
     cancelScheduleJob();
   }); 
@@ -110,6 +106,38 @@ router.get('/getSchedulejobList', function(req, res, next) {
   console.log(allJobList);
   return res.json({message: 'Start to get Schedule Job List' + allJobList});
 });
+
+function ReActiveRegularJob(){
+  console.log('Start to Re-Schedule Regular Job');
+  var day = dateFormat(new Date(), "yyyy-mm-dd");
+  console.log('Current day: ' + day);
+  Schedule.findAll({
+    attributes: ['JobId','TaskId','Schedule','RegularTime'],
+    where: { 
+      EndTime: { [Op.gt]: day},
+      Status: 'Running'
+    },
+  }).then(function(sch) {
+    if(sch.length === 0){
+      console.log('No regular Job End time is: ' + day + ', list size: ' + sch.length);
+      return false;
+    } 
+    for(var i = 0; i < sch.length; i++){
+      var tempJobId = sch[i].JobId;
+      var tTaskId = sch[i].TaskId;
+      var tSchedule = sch[i].Schedule;
+      var tRegularTime = sch[i].RegularTime;
+      console.log('JobId: ' + tempJobId);
+      if(createScheduleJob(tempJobId,tTaskId,tSchedule,tRegularTime)){
+        Schedule.update({
+          Status: 'Running'
+        },
+          {where: {JobId: tempJobId}
+        });
+      }
+    }
+  });
+}
 
 function AutoCreateRegularTask() {
   console.log('Create Or Update schedule Job Start: ------------->');
@@ -151,7 +179,7 @@ function createScheduleJob(jId,tTaskId,tSchedule,tRegularTime) {
           case 'Daily':
            switch(tSchedule){
              case 'Every weekday':
-              cronJonTime = '* * * * * *';
+              cronJonTime = '* * * * * 1-5';
               break;
             case 'Everyday':
               cronJonTime = '* * * 1 * *';
@@ -185,7 +213,7 @@ function createScheduleJob(jId,tTaskId,tSchedule,tRegularTime) {
 };
 
 function scheduleCronstyle(iJobId, TaskId, iJobConfiguration){
-  var job = nodeSchedule.scheduleJob(iJobId, iJobConfiguration, function(){
+  var job = nodeSchedule.scheduleJob(String(iJobId), iJobConfiguration, function(){
       console.log('scheduleCronstyle:' + new Date());
       var day = dateFormat(new Date(), "yyyy-mm-dd hh:MM:ss");
       var iParentTask = null;
@@ -208,7 +236,7 @@ function scheduleCronstyle(iJobId, TaskId, iJobConfiguration){
           for(var i = 0; i < sch.length; i++){
               iParentTask = sch[i].ParentTaskName;
               iTaskName = sch[i].TaskName;
-              var newSubTaskName = taskItem.getSubTaskCount(iParentTask);
+              var newSubTaskName = taskItem.getSubTaskLengh(iParentTask);
               var subName = newSubTaskName + 1;
               var TaskName = iParentTask + '-' + subName;
               var taskObj = {
@@ -247,7 +275,7 @@ function scheduleCronstyle(iJobId, TaskId, iJobConfiguration){
                   task_deliverableTag: null,
                   task_detail: null
               };
-              taskItem.saveTask(JSON.stringify(taskObj));
+              taskItem.saveTask(JSON.stringify(taskObj),null,'regularCreate');
            /*Task.findOrCreate({
               where: { TaskName: tTaskId}, 
               defaults: taskObj
@@ -270,7 +298,8 @@ function cancelScheduleJob () {
   Schedule.findAll({
     attributes: ['JobId'],
     where: { 
-      EndTime: day
+      EndTime: day,
+      Status: { [Op.ne]: 'Done' }
     },
   }).then(function(sch) {
     if(sch.length === 0){
@@ -279,17 +308,20 @@ function cancelScheduleJob () {
     } 
     for(var i = 0; i < sch.length; i++){
       var tempJobId = sch[i].JobId;
-      var runningJob = nodeSchedule.scheduledJobs[tempJobId];
+      console.log('Start to cancel job ' + tempJobId);
+      var runningJob = nodeSchedule.scheduledJobs[String(tempJobId)];
       console.log('Start To Cancel Schedule Job ----------------------------->');
-      if(runningJob.cancel()){
-        Schedule.update({
-          Status: 'Cancelled'
-        },
-          {where: {JobId: tempJobId}
-        });
+      if(runningJob != null){
+        if(runningJob.cancel()){
+          Schedule.update({
+            Status: 'Done'
+          },
+            {where: {JobId: tempJobId}
+          });
+          console.log('JobId: ' + tempJobId + ' was done.');
+        }
       }
-      console.log('JobId: ' + tempJobId + ' was cancelled.');
-      console.log('Start To Cancel Schedule Job ----------------------------->');
+      console.log('Cancel Schedule Job End----------------------------->');
     }
   });
   return true;
