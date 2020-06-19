@@ -19,6 +19,7 @@ var Schedule = sequelize.define('schedule',{
     EndTime : { type:Sequelize.STRING},
     PreviousTime : { type:Sequelize.STRING},
     LastTime : { type:Sequelize.STRING},
+    Status : { type:Sequelize.STRING},
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
@@ -40,5 +41,5 @@ var Schedule = sequelize.define('schedule',{
 });
 
 
-Schedule.sync();
+Schedule.sync({alter: true});
 module.exports = Schedule; 
