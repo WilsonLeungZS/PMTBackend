@@ -300,8 +300,8 @@ function generateTaskInfo (iTask) {
     resJson.task_type_id = iTask.TaskTypeId;
     resJson.task_type = iTask.task_type.Name;
     resJson.task_creator = iTask.Creator;
-    resJson.task_creator_name = ''
     if (iTask.Creator != null && iTask.Creator != '' && iTask.Creator.startsWith('PMT:')) {
+      resJson.task_creator_name = ''
       var creatorNumber = iTask.Creator.replace('PMT:', '');
       var creatorName = await getUserNameByEmployeeNumber(creatorNumber);
       if (creatorName != null) {
