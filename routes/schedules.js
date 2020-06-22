@@ -109,26 +109,25 @@ router.get('/getSchedulejobList', function(req, res, next) {
 
 function ReActiveRegularJob(){
   console.log('Start to Re-Schedule Regular Job');
-  var day = dateFormat(new Date(), "yyyy-mm-dd");
-  console.log('Current day: ' + day);
+  var today = dateFormat(new Date(), "yyyy-mm-dd");
+  console.log('Current day: ' + today);
   Schedule.findAll({
-    attributes: ['JobId','TaskId','Schedule','RegularTime'],
+    attributes: ['JobId','TaskId','cronJonTime'],
     where: { 
-      EndTime: { [Op.gt]: day},
+      EndTime: { [Op.gt]: today},
       Status: 'Running'
     },
   }).then(function(sch) {
     if(sch.length === 0){
-      console.log('No regular Job End time is: ' + day + ', list size: ' + sch.length);
+      console.log('No regular Job End time is: ' + today + ', list size: ' + sch.length);
       return false;
-    } 
+    }
     for(var i = 0; i < sch.length; i++){
       var tempJobId = sch[i].JobId;
       var tTaskId = sch[i].TaskId;
-      var tSchedule = sch[i].Schedule;
-      var tRegularTime = sch[i].RegularTime;
+      var cronJonTime = sch[i].cronJonTime;
       console.log('JobId: ' + tempJobId);
-      if(createScheduleJob(tempJobId,tTaskId,tSchedule,tRegularTime)){
+      if(createScheduleJob(tempJobId,tTaskId,null,null,null,cronJonTime)){
         Schedule.update({
           Status: 'Running'
         },
@@ -141,17 +140,20 @@ function ReActiveRegularJob(){
 
 function AutoCreateRegularTask() {
   console.log('Create Or Update schedule Job Start: ------------->');
-  var day = dateFormat(new Date(), "yyyy-mm-dd");
-  console.log('Current day: ' + day);
+  var today = new Date();
+  var tDay = dateFormat(today, "yyyy-mm-dd");
+  var day = today.getDate();
+  
+  console.log('Current day: ' + tDay);
   Schedule.findAll({
     attributes: ['JobId','TaskId','Schedule','RegularTime'],
     where: { 
-      StartTime: day,
+      StartTime: tDay,
       Status: 'Planning'
     },
   }).then(function(sch) {
     if(sch.length === 0){
-      console.log('No regular Start time is: ' + day + ', list size: ' + sch.length);
+      console.log('No regular Start time is: ' + tDay + ', list size: ' + sch.length);
       return false;
     } 
     for(var i = 0; i < sch.length; i++){
@@ -160,136 +162,64 @@ function AutoCreateRegularTask() {
       var tSchedule = sch[i].Schedule;
       var tRegularTime = sch[i].RegularTime;
       console.log('JobId: ' + tempJobId);
-      if(createScheduleJob(tempJobId,tTaskId,tSchedule,tRegularTime)){
-        Schedule.update({
-          Status: 'Running'
-        },
-          {where: {JobId: tempJobId}
-        });
-      }
+      createScheduleJob(tempJobId,tTaskId,tSchedule,tRegularTime,day,null)
+      //taskItem.createTaskByScheduleJob(tempJobId);
     }
   });
   return true;
 }
 
-function createScheduleJob(jId,tTaskId,tSchedule,tRegularTime) {
-  var cronJonTime = '* * * * * *';
+function createScheduleJob(jId,tTaskId,tSchedule,tRegularTime,day,tCronJonTime) {
+  var previousTime = dateFormat(new Date(), "yyyy-mm-dd hh:MM:ss");
   try{
+    var cronJonTime = '* * * * * *';
+    if(tCronJonTime == null){
       switch(tRegularTime){
-          case 'Daily':
-           switch(tSchedule){
-             case 'Every weekday':
-              cronJonTime = '* * * * * 1-5';
-              break;
-            case 'Everyday':
-              cronJonTime = '* * * 1 * *';
-              break;
-            }
-            cronJonTime = '* * * 1 * *'
+        case 'Daily':
+         switch(tSchedule){
+           case 'Every weekday':
+            cronJonTime = '* * * * * 1-5';
             break;
-          case 'Weekly':
-              cronJonTime = '* * * 7 * *'
-              break;
-          case 'Monthly':
-              //cronJonTime = '* * * * 1 *'
-              cronJonTime = '10 * * * * *';
-              break;
-         default:
-              break;
-        }
-      console.log('Start Schedule Job');
-      var runningJob = nodeSchedule.scheduledJobs[jId];
-        if (runningJob != null) {
-          runningJob.cancel();
+          case 'Everyday':
+            cronJonTime = '* * * 1-31 * *';
+            break;
+          }
+        break;
+        case 'Weekly':
+            cronJonTime = '* * * ' + day + '/7 * *'
+            break;
+        case 'Monthly':
+            //cronJonTime = '* * * ' + day + ' 1-12 *'
+            cronJonTime = '*/5 * * * * *';
+            break;
+       default:
+            break;
       }
+    }else{
+      cronJonTime = tCronJonTime;
+    }
       
-      scheduleCronstyle(jId, tTaskId, cronJonTime);
-      console.log('Finish Schedule Job');
-      return true;
+    console.log('Start Schedule Job');
+    var runningJob = nodeSchedule.scheduledJobs[jId];
+    if (runningJob != null) {
+      runningJob.cancel();
+    }
+    nodeSchedule.scheduleJob(jId, cronJonTime, function(){
+      taskItem.createTaskByScheduleJob(tTaskId);
+    }); 
+    console.log('Finish Schedule Job');
+
+    Schedule.update({
+      Status: 'Running',
+      PreviousTime: previousTime,
+      cronJonTime: cronJonTime
+    },
+      {where: {JobId: jId}
+    });
   }catch(Exception){
       console.log('Exception occurred: ' + exception);
-      return false;
   }
 };
-
-function scheduleCronstyle(iJobId, TaskId, iJobConfiguration){
-  var job = nodeSchedule.scheduleJob(String(iJobId), iJobConfiguration, function(){
-      console.log('scheduleCronstyle:' + new Date());
-      var day = dateFormat(new Date(), "yyyy-mm-dd hh:MM:ss");
-      var iParentTask = null;
-      var iTaskName = null;
-      Task.findAll({
-          attributes: ['ParentTaskName','TaskName','Description','Status','Creator',
-          'TaskTypeId','Effort','Estimation','IssueDate','TargetCompleteDate','ActualCompleteDate',
-          'BusinessArea','BizProject','TaskLevel','RespLeaderId','AssigneeId','Reference','Scope',
-          'TopConstraint','TopOppName','TopCustomer','TopFacingClient','TopTypeOfWork','TopChanceWinning',
-          'TopSowConfirmation','TopBusinessValue','TopTargetStart','TopTargetEnd','TopPaintPoints',
-          'TopTeamSizing','TopSkill','TopOppsProject','TaskGroupId','TypeTag','DeliverableTag','Detail'],
-          where: { 
-              TaskName: TaskId
-          },
-        }).then(function(sch) {
-          if(sch.length === 0){
-            console.log('No Regular task was found, ' + 'list size: ' + sch.length);
-            return false;
-          }
-          for(var i = 0; i < sch.length; i++){
-              iParentTask = sch[i].ParentTaskName;
-              iTaskName = sch[i].TaskName;
-              var newSubTaskName = taskItem.getSubTaskLengh(iParentTask);
-              var subName = newSubTaskName + 1;
-              var TaskName = iParentTask + '-' + subName;
-              var taskObj = {
-                  task_parent_name: iParentTask,
-                  task_name: TaskName,
-                  task_desc: sch[i].Description,
-                  task_status: 'Planning',
-                  task_creator: sch[i].Creator,
-                  task_type_id: sch[i].TaskTypeId,
-                  task_effort: sch[i].Effort,
-                  task_estimation: sch[i].Estimation,
-                  task_issue_date: day,
-                  task_target_complete: null,
-                  task_actual_complete: null,
-                  task_level: sch[i].TaskLevel,
-                  task_responsible_leader: sch[i].RespLeaderId,
-                  task_assignee: null,
-                  task_reference: sch[i].Reference,
-                  task_scope: sch[i].Scope,
-                  task_top_constraint: null,
-                  task_top_opp_name: null,
-                  task_top_customer: null,
-                  task_top_facing_client: null,
-                  task_top_type_of_work: null,
-                  task_top_chance_winning: null,
-                  task_top_sow_confirmation: null,
-                  task_top_business_value: null,
-                  task_top_target_start: null,
-                  task_top_target_end: null,
-                  task_top_paint_points: null,
-                  task_top_team_sizing: null,
-                  task_top_skill: null,
-                  task_top_opps_project: null,
-                  task_group_id: sch[i].TaskGroupId,
-                  task_TypeTag: null,
-                  task_deliverableTag: null,
-                  task_detail: null
-              };
-              taskItem.saveTask(JSON.stringify(taskObj),null,'regularCreate');
-           /*Task.findOrCreate({
-              where: { TaskName: tTaskId}, 
-              defaults: taskObj
-            }).spread(async function(task, created) {
-              if(created) {
-                  console.log("Task created");
-                } else {
-                  console.log("Task failure");
-                }
-            });*/
-          }
-        });
-  }); 
-}
 
 function cancelScheduleJob () {
   console.log('Start to cancel Schedule Job by job id');
