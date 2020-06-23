@@ -255,6 +255,7 @@ router.post('/getTaskById', function(req, res, next) {
     //console.log(task)
     if(task != null) {
       var response = await generateTaskInfo(task);
+      console.log(response)
       return res.json(responseMessage(0, response, ''));  
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
