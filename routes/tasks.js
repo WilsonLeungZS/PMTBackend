@@ -7,7 +7,9 @@ var Task = require('../model/task/task');
 var User = require('../model/user');
 var TaskGroup = require('../model/task/task_group');
 var Worklog = require('../model/worklog');
-
+var taskItems = require('../services/taskItem');
+var Schedule = require('../model/schedule');
+var nodeSchedule = require('node-schedule');
 const Op = Sequelize.Op;
 
 router.get('/', function(req, res, next) {
@@ -587,6 +589,7 @@ router.get('/checkSubTaskDone', async function(req, res, next) {
 });
 
 router.post('/saveTask', function(req, res, next) {
+  //taskItems.saveTask(req, res,'createByUser');
   saveTask(req, res);
 });
 
@@ -649,6 +652,36 @@ async function saveTask(req, res) {
         return res.json(responseMessage(0, task, 'Task Created'));
       } else {
         console.log("Task existed");
+        console.log('george: ' + reqTask.task_status);
+        if(reqTask.task_status == 'Running' && reqTask.task_TypeTag == 'Regular Task'){
+          Schedule.update({
+            Status: 'Running'
+          },
+            {where: {TaskId: reqTaskName}
+          });
+          console.log("Task Schedule status update to running"); 
+        }else if(reqTask.task_status == 'Done' && reqTask.task_TypeTag == 'Regular Task'){
+          Schedule.findAll({
+            attributes: ['JobId'],
+            where: { 
+              TaskId: reqTaskName
+            },
+          }).then(function(sch) {
+            var tempJobId = sch[0].JobId;
+            var runningJob = nodeSchedule.scheduledJobs[String(tempJobId)];
+            console.log('Start To Cancel Schedule Job ----------------------------->');
+            if(runningJob != null){
+              if(runningJob.cancel()){
+                console.log('JobId: ' + tempJobId + ' was done.');
+              }
+            }
+            Schedule.update({
+              Status: 'Done'
+            },
+              {where: {JobId: tempJobId}
+            });
+          });
+        }
         taskObj.Effort = task.Effort;
         // Change parent task
         if (Number(reqTask.task_level) == 3 || Number(reqTask.task_level) == 4) {

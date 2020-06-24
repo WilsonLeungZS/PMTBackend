@@ -20,7 +20,7 @@ var Schedule = sequelize.define('schedule',{
     PreviousTime : { type:Sequelize.STRING},
     LastTime : { type:Sequelize.STRING},
     Status : { type:Sequelize.STRING},
-    cronJonTime: { type:Sequelize.STRING},
+    cronJonTime: {type:Sequelize.STRING},
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
