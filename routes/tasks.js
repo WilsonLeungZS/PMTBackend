@@ -252,7 +252,7 @@ router.post('/getTaskById', function(req, res, next) {
       Id: req.body.reqTaskId 
     }
   }).then(async function(task) {
-    //console.log(task)
+    console.log(task)
     if(task != null) {
       var response = await generateTaskInfo(task);
       console.log(response)
@@ -1180,8 +1180,9 @@ function getSubTaskExist (iParentTaskName) {
   });
 }
 
+
 // Plan Task API
-router.post('/getLevel2TaskByParentTask', function(req, res, next) {
+router.post('/getLevel2TaskListByParentTask', function(req, res, next) {
   console.log('Start to get level 2 task by parent task name: ' + req.body.reqParentTaskName)
   var reqTaskGroupId = Number(req.body.reqTaskGroupId);
   var reqTaskGroupFlag = Number(req.body.reqTaskGroupFlag);
@@ -1565,10 +1566,11 @@ router.post('/getPlanTaskListByParentTask', function(req, res, next) {
   var reqTaskGroupFlag = Number(req.body.reqTaskGroupFlag);
   var reqPage = Number(req.body.reqPage);
   var reqSize = Number(req.body.reqSize);
+  console.log(reqParentTaskName)
   var criteria = {
     ParentTaskName: reqParentTaskName,
     TaskLevel: 3,
-    TypeTag:{ [Op.ne]: 'Regular Task' }
+    // TypeTag:{ [Op.ne]: 'Regular Task' }
   }
   if(reqTaskGroupId != null && reqTaskGroupId != '') {
     var groupCriteria = {}
