@@ -7,6 +7,7 @@ var nodeSchedule = require('node-schedule');
 var dateFormat = require('dateformat');
 var Task = require('../model/task/task');
 var taskItem = require('../services/taskItem');
+var dateConversion = require('../util/dataConversion');
 const Op = Sequelize.Op;
 
 router.get('/', function(req, res, next) {
@@ -33,13 +34,13 @@ router.post('/saveRegularTask',function(req,res,next){
     if(created) {
       return res.json(responseMessage(0, schedule, 'Create schedule successfully!'));
     }
-      else if(schedule != null && !created) {
+    else if(schedule != null && !created) {
       schedule.update({
       Schedule: req.body.reqSchedule,
       RegularTime: req.body.reqRegularTaskTime,
       StartTime: req.body.reqStartTime,
       EndTime: req.body.reqEndTime
-      });
+    });
       return res.json(responseMessage(0, schedule, 'Update schedule successfully!'));
     }
     else {
@@ -143,8 +144,7 @@ function AutoCreateRegularTask() {
   var today = new Date();
   var tDay = dateFormat(today, "yyyy-mm-dd");
   var day = today.getDate();
-  
-  console.log('Current day: ' + tDay);
+  console.log('Current day: ' + tDay + ', and today is ' + day);
   Schedule.findAll({
     attributes: ['JobId','TaskId','Schedule','RegularTime'],
     where: { 
@@ -172,28 +172,55 @@ function AutoCreateRegularTask() {
 function createScheduleJob(jId,tTaskId,tSchedule,tRegularTime,day,tCronJonTime) {
   var previousTime = dateFormat(new Date(), "yyyy-mm-dd hh:MM:ss");
   try{
-    var cronJonTime = '* * * * * *';
+    var cronJonTime;
+    var arr = [];
     if(tCronJonTime == null){
+      arr = tSchedule.split(" ");
       switch(tRegularTime){
         case 'Daily':
-         switch(tSchedule){
-           case 'Every weekday':
-            cronJonTime = '* * * * * 1-5';
-            break;
-          case 'Everyday':
-            cronJonTime = '* * * 1-31 * *';
-            break;
-          }
+         if(tSchedule == 'Every weekday'){
+          cronJonTime = '* * * * * 1-5';
+          console.log('final cronJonTime: ' + cronJonTime);
+         }else{
+          var days = arr[1];
+          cronJonTime = "* * * */" + days + " * *"
+          console.log('final cronJonTime: ' + cronJonTime);
+         }
         break;
         case 'Weekly':
-            cronJonTime = '* * * ' + day + '/7 * *'
-            break;
+          var week = arr[2];
+          var dayOfWeek = arr[5];
+          var dayOfWeek1 = dateConversion.weekConversionToNumber(dayOfWeek);
+          var interval = Number(week) * Number(dayOfWeek1);
+          console.log('george: ' + week + ',' + dayOfWeek + ',' + interval);
+          
+          cronJonTime = '* * * */' + interval + ' * ' + dayOfWeek1;
+          console.log('final cronJonTime: ' + cronJonTime);
+          break;
         case 'Monthly':
-            //cronJonTime = '* * * ' + day + ' 1-12 *'
-            cronJonTime = '*/5 * * * * *';
-            break;
-       default:
-            break;
+          var checkDay = null;
+          var dayOfWeek = null;
+          var checkWeek = null;
+          var checkMonth = null;
+          if(Number(arr.length == 7)){
+            checkWeek = arr[1];
+            dayOfWeek = arr[2];
+            checkMonth = arr[5];
+            console.log('george: ' + checkWeek + ',' + dayOfWeek + ',' + checkMonth);
+            var dayOfWeek1 = dateConversion.weekConversionToNumber(dayOfWeek);
+            var rank = dateConversion.rankConversionToNumber(checkWeek);
+            cronJonTime = "* * * * */" + checkMonth + " " + rank + "#" + dayOfWeek1;
+            console.log('final cronJonTime: ' + cronJonTime);
+          }else if(Number(arr.length == 6)){
+            checkDay = arr[1];
+            checkMonth = arr[4];
+            cronJonTime = '* * * * ' + checkDay + "/" + checkMonth +' *';
+            console.log('final cronJonTime: ' + cronJonTime);
+            console.log('george: ' + checkDay + ',' + checkMonth);
+          }
+          //cronJonTime = '* * * ' + day + ' 1-12 *'
+          //cronJonTime = '*/5 * * * * *';
+          break;
       }
     }else{
       cronJonTime = tCronJonTime;
@@ -206,7 +233,7 @@ function createScheduleJob(jId,tTaskId,tSchedule,tRegularTime,day,tCronJonTime) 
     }
     nodeSchedule.scheduleJob(jId, cronJonTime, function(){
       taskItem.createTaskByScheduleJob(tTaskId);
-    }); 
+    });
     console.log('Finish Schedule Job');
 
     Schedule.update({
@@ -217,7 +244,7 @@ function createScheduleJob(jId,tTaskId,tSchedule,tRegularTime,day,tCronJonTime) 
       {where: {JobId: jId}
     });
   }catch(Exception){
-      console.log('Exception occurred: ' + exception);
+      console.log('Exception occurred: ' + Exception);
   }
 };
 
