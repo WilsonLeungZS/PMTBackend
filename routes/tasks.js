@@ -263,6 +263,77 @@ router.post('/getTaskById', function(req, res, next) {
   })
 });
 
+router.post('/getTasksByParentName', function(req, res, next) {
+  console.log('Start to get tasks by ParentName: ' + req.body.reqParentTaskName)
+  var rtnResult =  []
+  Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name']
+    }],
+    where: {
+      ParentTaskName: req.body.reqParentTaskName
+    }
+  }).then(async function(iTaskObjArray) {
+    if(iTaskObjArray != null && iTaskObjArray.length>0) {
+      for(var i = 0 ; i < iTaskObjArray.length ; i ++){
+        var resJson = {}
+        resJson.task_id = iTaskObjArray[i].Id;
+        resJson.task_name = iTaskObjArray[i].TaskName;
+        // Level 2 ~ 4
+        resJson.task_parent_name = iTaskObjArray[i].ParentTaskName;
+        resJson.task_level = iTaskObjArray[i].TaskLevel;
+        resJson.task_desc = iTaskObjArray[i].Description;
+        resJson.task_status = iTaskObjArray[i].Status;
+        if (iTaskObjArray[i].Status == 'Planning' || iTaskObjArray[i].Status == 'Running') {
+          resJson.task_plan_mode_btn_enable = true
+        } else {
+          resJson.task_plan_mode_btn_enable = false
+        }
+        resJson.task_effort = iTaskObjArray[i].Effort;
+        resJson.task_estimation = iTaskObjArray[i].Estimation;
+        resJson.task_scope = iTaskObjArray[i].Scope;
+        resJson.task_reference = iTaskObjArray[i].Reference;
+        var assigneeId = iTaskObjArray[i].AssigneeId;
+        if (assigneeId != null && assigneeId != '') {
+          var assigneeName = await getUserById(assigneeId);
+          resJson.task_assignee = assigneeName;
+        } else {
+          resJson.task_assignee = null;
+        }
+        resJson.task_issue_date = iTaskObjArray[i].IssueDate;
+        resJson.task_target_complete = iTaskObjArray[i].TargetCompleteDate;
+        //Level 1
+        resJson.task_top_opp_name = iTaskObjArray[i].TopOppName;
+        resJson.task_top_customer = iTaskObjArray[i].TopCustomer;
+        resJson.task_top_type_of_work = iTaskObjArray[i].TopTypeOfWork;
+        resJson.task_top_team_sizing = iTaskObjArray[i].TopTeamSizing;
+        var respLeaderId = iTaskObjArray[i].RespLeaderId;
+        if (respLeaderId != null && respLeaderId != '') {
+          var respLeaderName = await getUserById(respLeaderId);
+          resJson.task_top_resp_leader = respLeaderName;
+        } else {
+          resJson.task_top_resp_leader = null;
+        }
+        var trgtStartTime = iTaskObjArray[i].TopTargetStart;
+        if( trgtStartTime != null && trgtStartTime != ''){
+          var startTime = new Date(trgtStartTime);
+          resJson.task_top_target_start = startTime.getFullYear() + '-' + ((startTime.getMonth() + 1) < 10 ? '0' + (startTime.getMonth() + 1) : (startTime.getMonth() + 1));
+        } else {
+          resJson.task_top_target_start = null
+        }
+        rtnResult.push(resJson);  
+      }
+      console.log(rtnResult)
+      return res.json(responseMessage(0, rtnResult, '')); 
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
+
+
 router.post('/getTaskByName', function(req, res, next) {
   console.log('Start to get task by name: ' + req.body.reqTaskName)
   Task.findOne({
