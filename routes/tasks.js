@@ -648,40 +648,10 @@ async function saveTask(req, res) {
     })
     .spread(async function(task, created) {
       if(created) {
-        console.log("Task created"); 
+        console.log("Task created");
         return res.json(responseMessage(0, task, 'Task Created'));
       } else {
         console.log("Task existed");
-        console.log('george: ' + reqTask.task_status);
-        if(reqTask.task_status == 'Running' && reqTask.task_TypeTag == 'Regular Task'){
-          Schedule.update({
-            Status: 'Running'
-          },
-            {where: {TaskId: reqTaskName}
-          });
-          console.log("Task Schedule status update to running"); 
-        }else if(reqTask.task_status == 'Done' && reqTask.task_TypeTag == 'Regular Task'){
-          Schedule.findAll({
-            attributes: ['JobId'],
-            where: { 
-              TaskId: reqTaskName
-            },
-          }).then(function(sch) {
-            var tempJobId = sch[0].JobId;
-            var runningJob = nodeSchedule.scheduledJobs[String(tempJobId)];
-            console.log('Start To Cancel Schedule Job ----------------------------->');
-            if(runningJob != null){
-              if(runningJob.cancel()){
-                console.log('JobId: ' + tempJobId + ' was done.');
-              }
-            }
-            Schedule.update({
-              Status: 'Done'
-            },
-              {where: {JobId: tempJobId}
-            });
-          });
-        }
         taskObj.Effort = task.Effort;
         // Change parent task
         if (Number(reqTask.task_level) == 3 || Number(reqTask.task_level) == 4) {
@@ -708,6 +678,37 @@ async function saveTask(req, res) {
           var updateResult2 = await updateSubTasksGroup(reqTask.task_name, reqTask.task_group_id);
           var updateResult3 = await updateSubTasksReference(reqTask.task_name, reqTask.task_reference);
           var updateResult4 = await updateSubTasksWhenChangeParent(reqTask.task_name, taskObj.TaskName);
+        }
+        console.log('Task ' + reqTaskName + ' status is ' + reqTask.task_status);
+        if(reqTask.task_TypeTag == 'Regular Task'){
+          Schedule.update({
+            Status: reqTask.task_status
+          },
+            {where: {TaskName: reqTaskName}
+          });
+          
+          if(reqTask.task_status == 'Done'){
+            Schedule.findAll({
+              attributes: ['JobId'],
+              where: { 
+                TaskName: reqTaskName
+              },
+            }).then(function(sch) {
+              var tempJobId = sch[0].JobId;
+              var runningJob = nodeSchedule.scheduledJobs[String(tempJobId)];
+              console.log('Start To Cancel Schedule Job ----------------------------->');
+              if(runningJob != null){
+                if(runningJob.cancel()){
+                  console.log('JobId: ' + tempJobId + ' was done.');
+                }
+              }
+              Schedule.update({
+                Status: 'Done'
+              },
+                {where: {JobId: tempJobId}
+              });
+            });
+          }
         }
         return res.json(responseMessage(1, task, 'Task existed'));
       }
