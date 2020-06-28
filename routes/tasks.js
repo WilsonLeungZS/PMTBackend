@@ -7,7 +7,6 @@ var Task = require('../model/task/task');
 var User = require('../model/user');
 var TaskGroup = require('../model/task/task_group');
 var Worklog = require('../model/worklog');
-const { Json } = require('sequelize/types/lib/utils');
 
 const Op = Sequelize.Op;
 
@@ -58,7 +57,10 @@ router.get('/getTaskList', function(req, res, next) {
   var orderSeq = [];
   if (Number(req.query.reqTaskLevel == 1)) {
     orderSeq = ['TopTargetStart', 'DESC']
-  } else {
+  } else if (Number(req.query.reqTaskLevel == 3)){
+    orderSeq = ['ParentTaskName']
+  }
+  else {
     orderSeq = ['createdAt', 'DESC']
   }
   Task.findAll({
@@ -149,15 +151,21 @@ function generateTaskCriteria(iReq) {
     }
     var c2 = Object.assign(criteria, issueDateCriteria);
   }
-  // if (iReq.query.reqCurrentTimeGroup != null && iReq.query.reqCurrentTimeGroup != ''){
-  //   console.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-  //   //var reqCurrentTimeGroup = JSON.stringify(iReq.query.reqCurrentTimeGroup)
-  //   //console.log(reqCurrentTimeGroup)
-  //   var CurrentTimeGroupCriteria = {
-  //     [Op.in]: [reqCurrentTimeGroup.group_id]
-  //   }
-  //   var c3 = Object.assign(criteria, CurrentTimeGroupCriteria);
-  // }
+  if (iReq.query.reqCurrentTimeGroup != null && iReq.query.reqCurrentTimeGroup != ''){
+    var reqCurrentTimeGroup = []
+    for(var i = 0 ; i < iReq.query.reqCurrentTimeGroup.length ; i ++){
+      var resJson = {}
+      resJson = JSON.parse(iReq.query.reqCurrentTimeGroup[i])
+      reqCurrentTimeGroup.push(resJson)
+    }
+    var reqGroupId = []
+    for(var i = 0 ; i < reqCurrentTimeGroup.length ; i ++){
+      var resJson = {}
+      resJson = reqCurrentTimeGroup[i].group_id
+      reqGroupId.push(resJson)
+    }
+    criteria.TaskGroupId = {[Op.in]: reqGroupId}
+  }
   return criteria;
 }
 
