@@ -77,13 +77,65 @@ router.get('/getTaskList', function(req, res, next) {
     offset: reqSize * (reqPage - 1),
   }).then(async function(tasks) {
     if(tasks != null && tasks.length > 0) {
-      var response = await generateTaskList(tasks);
+      if(Number(req.query.reqTaskLevel == 3)){
+        console.log("---Number(req.query.reqTaskLevel == 3)--")
+        var response = await generateTaskListByPath(tasks);
+      }else{
+        var response = await generateTaskList(tasks);
+      }
       return res.json(responseMessage(0, response, ''));
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
     } 
   })
 });
+
+function getTaskByName(itaskName){
+  return new Promise(async (resolve,reject) => {
+    Task.findOne({
+      where: {
+        TaskName: itaskName
+      }
+    }).then(function(tasks) {
+      if(tasks != null) {
+        resolve(tasks);
+      } else {
+        resolve(null);
+      }
+    });      
+  })
+}
+
+function generateTaskListByPath(iTaskObjArray) {
+  return new Promise(async (resolve, reject) => {
+    var lv2TaskList = []
+    var lv2TaskListInfo = []
+    var rtnResult = []
+    iTaskObjArray = await generateTaskList(iTaskObjArray);
+    console.log(iTaskObjArray)
+    for(var i = 0 ; i <iTaskObjArray.length ; i++){
+      if(!lv2TaskList.includes(iTaskObjArray[i].task_parent_name)){
+        lv2TaskList.push(iTaskObjArray[i].task_parent_name)
+      }
+    }
+    for(var i = 0 ; i< lv2TaskList.length; i ++){
+      lv2TaskListInfo.push(await getTaskByName(lv2TaskList[i]));   
+    }
+    lv2TaskListInfo = await generateTaskList(lv2TaskListInfo);
+    for(var j = 0 ; j < lv2TaskListInfo.length ; j ++){
+      var resArr = []
+      resArr.push(lv2TaskListInfo[j])
+      for(var i = 0 ; i < iTaskObjArray.length ; i ++){
+        if(iTaskObjArray[i].task_parent_name === lv2TaskListInfo[j].task_name){
+          resArr.push(iTaskObjArray[i])
+        }
+      }
+      rtnResult.push(resArr)
+    }
+      resolve(rtnResult)
+  });
+}
+
 
 router.get('/getTaskListTotalSize', function(req, res, next) {
   var taskCriteria = generateTaskCriteria(req);
