@@ -46,11 +46,8 @@ router.get('/searchTaskByKeywordAndLevel', function(req, res, next) {
   })
 });
 
-//1getTaskList. Get Task list for web PMT
-router.get('/getTaskList', function(req, res, next) {
+router.get('/getLv3TaskList', function(req, res, next) {
   console.log('/getTaskList')
-  var reqPage = Number(req.query.reqPage);
-  var reqSize = Number(req.query.reqSize);
   var taskCriteria = generateTaskCriteria(req);
   console.log(taskCriteria)
   var taskTypeCriteria = generateTaskTypeCriteria(req);
@@ -59,6 +56,51 @@ router.get('/getTaskList', function(req, res, next) {
     orderSeq = ['TopTargetStart', 'DESC']
   } else if (Number(req.query.reqTaskLevel == 3)){
     orderSeq = ['ParentTaskName']
+    reqSize = 10000000
+  }
+  else {
+    orderSeq = ['createdAt', 'DESC']
+  }
+  Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name'],
+      where: taskTypeCriteria
+    }],
+    where: taskCriteria,
+    order: [
+      orderSeq
+    ]
+  }).then(async function(tasks) {
+    if(tasks != null && tasks.length > 0) {
+      console.log("---Number(req.query.reqTaskLevel == 3)--")
+      for(var i = 0 ; i <tasks.length ; i++){
+        console.log(tasks[i].TaskGroupId)
+      } 
+      var response = await generateTaskListByPath(tasks);
+      return res.json(responseMessage(0, response, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    } 
+  })
+});
+
+//1getTaskList. Get Task list for web PMT
+router.get('/getTaskList', function(req, res, next) {
+  console.log('/getTaskList')
+  var reqPage = Number(req.query.reqPage);
+  var reqSize = Number(req.query.reqSize);
+  console.log(reqPage)
+  console.log(reqSize)
+  var taskCriteria = generateTaskCriteria(req);
+  console.log(taskCriteria)
+  var taskTypeCriteria = generateTaskTypeCriteria(req);
+  var orderSeq = [];
+  if (Number(req.query.reqTaskLevel == 1)) {
+    orderSeq = ['TopTargetStart', 'DESC']
+  } else if (Number(req.query.reqTaskLevel == 3)){
+    orderSeq = ['ParentTaskName']
+    reqSize = 10000000
   }
   else {
     orderSeq = ['createdAt', 'DESC']
@@ -77,12 +119,7 @@ router.get('/getTaskList', function(req, res, next) {
     offset: reqSize * (reqPage - 1),
   }).then(async function(tasks) {
     if(tasks != null && tasks.length > 0) {
-      if(Number(req.query.reqTaskLevel == 3)){
-        console.log("---Number(req.query.reqTaskLevel == 3)--")
-        var response = await generateTaskListByPath(tasks);
-      }else{
-        var response = await generateTaskList(tasks);
-      }
+      var response = await generateTaskList(tasks);
       return res.json(responseMessage(0, response, ''));
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
@@ -110,14 +147,14 @@ function generateTaskListByPath(iTaskObjArray) {
   return new Promise(async (resolve, reject) => {
     var lv2TaskList = []
     var lv2TaskListInfo = []
-    var rtnResult = []
-    iTaskObjArray = await generateTaskList(iTaskObjArray);
-    console.log(iTaskObjArray)
+    var rtnResult = []  
+    iTaskObjArray = await generatePlanTaskList(iTaskObjArray);
     for(var i = 0 ; i <iTaskObjArray.length ; i++){
       if(!lv2TaskList.includes(iTaskObjArray[i].task_parent_name)){
         lv2TaskList.push(iTaskObjArray[i].task_parent_name)
       }
     }
+    console.log(lv2TaskList)
     for(var i = 0 ; i< lv2TaskList.length; i ++){
       lv2TaskListInfo.push(await getTaskByName(lv2TaskList[i]));   
     }
@@ -1737,7 +1774,11 @@ function generatePlanTaskList(iTaskObjArray) {
       } else {
         resJson.task_reference_desc = null;
       }
-      resJson.task_group_id = iTaskObjArray[i].TaskGroupId;
+      var timegroupId = iTaskObjArray[i].TaskGroupId;
+      if (timegroupId != null && timegroupId!= ''){
+        var timegroupName = await getTimeGroupById(timegroupId);
+        resJson.task_group_id = timegroupName
+      }
       resJson.task_responsible_leader_id = iTaskObjArray[i].RespLeaderId;
       var assigneeId = iTaskObjArray[i].AssigneeId;
       if (assigneeId != null && assigneeId != '') {
