@@ -910,6 +910,7 @@ router.post('/getTaskByNameForParentTask', function(req, res, next) {
         }
         resJson.task_type = task[i].task_type.Name;
         resJson.task_type_id = task[i].TaskTypeId;
+        resJson.task_type_tag = task[i].TypeTag;
         resJson.task_responsible_leader = task[i].RespLeaderId;
         resJson.task_group_id = task[i].TaskGroupId;
         resJson.task_reference = task[i].Reference;
