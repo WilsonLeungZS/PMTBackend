@@ -687,6 +687,10 @@ async function saveTask(req, res) {
             {where: {TaskName: reqTaskName}
           });
           
+          if(reqTask.task_status == 'Running'){
+            taskItems.createTaskByScheduleJob(reqTaskName);
+          }
+
           if(reqTask.task_status == 'Done'){
             Schedule.findAll({
               attributes: ['JobId'],

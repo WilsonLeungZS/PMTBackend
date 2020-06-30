@@ -185,11 +185,11 @@ function createScheduleJob(jId,tTaskName,tSchedule,tRegularTime,day) {
     switch(tRegularTime){
       case 'Daily':
        if(tSchedule == 'Every Weekday'){
-        cronJonTime = "0 1 1 * * 1,2,3,4,5";
+        cronJonTime = "0 0 2 * * 1,2,3,4,5";
         console.log('final cronJonTime: ' + cronJonTime);
        }else{
         var days = arr[1];
-        cronJonTime = "0 1 1 " + day + "/" + days + " * *"
+        cronJonTime = "0 0 2 " + day + "/" + days + " * *"
         console.log('final cronJonTime: ' + cronJonTime);
        }
       break;
@@ -197,10 +197,10 @@ function createScheduleJob(jId,tTaskName,tSchedule,tRegularTime,day) {
         var week = arr[2];
         var dayOfWeek = arr[5];
         var dayOfWeek1 = dateConversion.weekConversionToNumber(dayOfWeek);
-        var interval = Number(week) * Number(dayOfWeek1);
+        var interval = Number(week) * Number(7);
         console.log('convert time: ' + week + ',' + dayOfWeek + ',' + interval);
         
-        cronJonTime = "0 1 1 " + day + "/" + interval + " * " + dayOfWeek1;
+        cronJonTime = "0 0 2 " + "*/" + interval + " * */" + dayOfWeek1;
         console.log('final cronJonTime: ' + cronJonTime);
         break;
       case 'Monthly':
@@ -215,26 +215,26 @@ function createScheduleJob(jId,tTaskName,tSchedule,tRegularTime,day) {
           console.log('convert time: ' + checkWeek + ',' + dayOfWeek + ',' + checkMonth);
           var dayOfWeek1 = dateConversion.weekConversionToNumber(dayOfWeek);
           var rank = dateConversion.rankConversionToNumber(checkWeek);
-          cronJonTime = "0 1 1 * " + day + "/" + checkMonth + " " + rank + "#" + dayOfWeek1;
+          cronJonTime = "0 0 2 * " + "*/" + checkMonth + " " + rank + "#" + dayOfWeek1;
           console.log('final cronJonTime: ' + cronJonTime);
         }else if(Number(arr.length == 6)){
           checkDay = arr[1];
           checkMonth = arr[4];
-          cronJonTime = "0 1 1 " +  day + " " + checkDay + "/" + checkMonth +" *";
+          cronJonTime = "0 0 2 * " + checkDay + "/" + checkMonth +" *";
           console.log('final cronJonTime: ' + cronJonTime);
           console.log('convert time: ' + checkDay + ',' + checkMonth);
         }
         break;
     }
     console.log('Start Schedule Job');
-    /*var runningJob = nodeSchedule.scheduledJobs[jId];
+    var runningJob = nodeSchedule.scheduledJobs[jId];
     if (runningJob != null) {
       runningJob.cancel();
     }
     nodeSchedule.scheduleJob(jId, cronJonTime, function(){
       taskItem.createTaskByScheduleJob(tTaskName);
       taskItem.regularTaskSubTask(tTaskName);
-    });*/
+    });
     console.log('Finish Schedule Job');
 
     Schedule.update({
@@ -243,6 +243,12 @@ function createScheduleJob(jId,tTaskName,tSchedule,tRegularTime,day) {
       cronJonTime: cronJonTime
     },
       {where: {JobId: jId}
+    });
+
+    Task.update({
+      Status: 'Running'
+    },
+      {where: {TaskName: tTaskName}
     });
   }catch(Exception){
       console.log('Exception occurred: ' + Exception);
@@ -254,7 +260,7 @@ function cancelScheduleJob () {
   var day = dateFormat(new Date(), "yyyy-mm-dd");
   console.log('Current day: ' + day);
   Schedule.findAll({
-    attributes: ['JobId'],
+    attributes: ['JobId','TaskName'],
     where: { 
       EndTime: day,
       Status: { [Op.ne]: 'Done' }
@@ -275,6 +281,11 @@ function cancelScheduleJob () {
             Status: 'Done'
           },
             {where: {JobId: tempJobId}
+          });
+          Task.update({
+            Status: 'Done'
+          },
+            {where: {TaskName: sch[i].TaskName}
           });
           console.log('JobId: ' + tempJobId + ' was done.');
         }

@@ -3,7 +3,7 @@ function weekConversionToNumber(dayOfWeek){
     return 0;
   }else if(dayOfWeek == 'Monday'){
     return 1;
-  }else if(dayOfWeek == 'Tuesday'){
+  }else if(dayOfWeek == 'Thuesday'){
     return 2;
   }else if(dayOfWeek == 'Wednesday'){
     return 3;
