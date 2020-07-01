@@ -88,7 +88,8 @@ router.get('/startBackgroundJob', function(req, res, next) {
   if (runningJob != null) {
       runningJob.cancel();
   }
-  var iJobConfiguration = '0,10,20,30,40,50 * * * * *';
+  //var iJobConfiguration = '0,10,20,30,40,50 * * * * *';
+  var iJobConfiguration = '0 0 1 * * *';
   nodeSchedule.scheduleJob(reqJobId, iJobConfiguration, function(){
     console.log("The Schedule background Job start to run. time: " + new Date());
     ReActiveRegularJob();
