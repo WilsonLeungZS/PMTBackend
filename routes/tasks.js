@@ -678,34 +678,36 @@ async function saveTask(req, res) {
           var updateResult2 = await updateSubTasksGroup(reqTask.task_name, reqTask.task_group_id);
           var updateResult3 = await updateSubTasksReference(reqTask.task_name, reqTask.task_reference);
           var updateResult4 = await updateSubTasksWhenChangeParent(reqTask.task_name, taskObj.TaskName);
-        }
-        console.log('Task ' + reqTaskName + ' status is ' + reqTask.task_status);
-        if(reqTask.task_TypeTag == 'Regular Task'){
-          await Task.update( {Status: reqTask.task_status }, { where: { ParentTaskName: reqTaskName } });
 
-          Schedule.update({ Status: reqTask.task_status }, { where: { TaskName: reqTaskName } });
-          
-          if(reqTask.task_status == 'Running') taskItems.createTaskByScheduleJob(reqTaskName);
-
-          if(reqTask.task_status == 'Done'){
-            Schedule.findAll({
-              attributes: ['JobId'],
-              where: { 
-                TaskName: reqTaskName
-              },
-            }).then(function(sch) {
-              var tempJobId = sch[0].JobId;
-              var runningJob = nodeSchedule.scheduledJobs[String(tempJobId)];
-              console.log('Start To Cancel Schedule Job ----------------------------->');
-              if(runningJob != null){
-                if(runningJob.cancel()){
-                  console.log('JobId: ' + tempJobId + ' was done.');
+          if(reqTask.task_TypeTag == 'Regular Task'){
+            await Task.update( {Status: reqTask.task_status }, { where: { ParentTaskName: reqTaskName } });
+  
+            Schedule.update({ Status: reqTask.task_status }, { where: { TaskName: reqTaskName } });
+            
+            if(reqTask.task_status == 'Running') taskItems.createTaskByScheduleJob(reqTaskName);
+  
+            if(reqTask.task_status == 'Done'){
+              Schedule.findAll({
+                attributes: ['JobId'],
+                where: { 
+                  TaskName: reqTaskName
+                },
+              }).then(function(sch) {
+                var tempJobId = sch[0].JobId;
+                var runningJob = nodeSchedule.scheduledJobs[String(tempJobId)];
+                console.log('Start To Cancel Schedule Job ----------------------------->');
+                if(runningJob != null){
+                  if(runningJob.cancel()){
+                    console.log('JobId: ' + tempJobId + ' was done.');
+                  }
                 }
-              }
-              Schedule.update( {Status: 'Done'}, {where: {JobId: tempJobId} });
-            });
+                Schedule.update( {Status: 'Done'}, {where: {JobId: tempJobId} });
+              });
+            }
           }
         }
+        console.log('Task ' + reqTaskName + ' status is ' + reqTask.task_status);
+        
         return res.json(responseMessage(1, task, 'Task existed'));
       }
   });

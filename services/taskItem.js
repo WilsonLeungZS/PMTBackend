@@ -408,7 +408,8 @@ async function saveTask(req, res, remark) {
 function regularTaskSubTask(tTaskName){
   Task.findAll({
     where: {
-      ParentTaskName: tTaskName
+      ParentTaskName: tTaskName,
+      Status: { [Op.ne]: 'Done' }
     },
     order: [
       ['Id', 'ASC']
