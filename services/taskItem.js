@@ -417,7 +417,6 @@ function regularTaskSubTask(tTaskName){
       if(task.length > 0) {
         for(var i=0;i<task.length;i++){
           createTaskByScheduleJob(task[i].TaskName);
-          console.log('george: ' + task[i].TaskName);
         }
       }
   })

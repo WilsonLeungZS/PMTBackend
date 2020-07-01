@@ -681,12 +681,12 @@ async function saveTask(req, res) {
         }
         console.log('Task ' + reqTaskName + ' status is ' + reqTask.task_status);
         if(reqTask.task_TypeTag == 'Regular Task'){
-          Schedule.update({
-            Status: reqTask.task_status
-          },
-            {where: {TaskName: reqTaskName}
-          });
+          await Task.update( {Status: reqTask.task_status }, { where: { ParentTaskName: reqTaskName } });
+
+          Schedule.update({ Status: reqTask.task_status }, { where: { TaskName: reqTaskName } });
           
+          if(reqTask.task_status == 'Running') taskItems.createTaskByScheduleJob(reqTaskName);
+
           if(reqTask.task_status == 'Done'){
             Schedule.findAll({
               attributes: ['JobId'],
@@ -702,11 +702,7 @@ async function saveTask(req, res) {
                   console.log('JobId: ' + tempJobId + ' was done.');
                 }
               }
-              Schedule.update({
-                Status: 'Done'
-              },
-                {where: {JobId: tempJobId}
-              });
+              Schedule.update( {Status: 'Done'}, {where: {JobId: tempJobId} });
             });
           }
         }
