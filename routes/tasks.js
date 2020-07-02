@@ -47,16 +47,16 @@ router.get('/searchTaskByKeywordAndLevel', function(req, res, next) {
 });
 
 router.get('/getLv3TaskList', function(req, res, next) {
-  console.log('/getTaskList')
+  console.log('/getLv3TaskList')
+  var reqPage = Number(req.query.reqPage);
+  var reqSize = Number(req.query.reqSize);
   var taskCriteria = generateTaskCriteria(req);
-  console.log(taskCriteria)
   var taskTypeCriteria = generateTaskTypeCriteria(req);
   var orderSeq = [];
   if (Number(req.query.reqTaskLevel == 1)) {
     orderSeq = ['TopTargetStart', 'DESC']
   } else if (Number(req.query.reqTaskLevel == 3)){
     orderSeq = ['ParentTaskName']
-    reqSize = 10000000
   }
   else {
     orderSeq = ['createdAt', 'DESC']
@@ -70,14 +70,25 @@ router.get('/getLv3TaskList', function(req, res, next) {
     where: taskCriteria,
     order: [
       orderSeq
-    ]
+    ],
+    // limit: reqSize,
+    // offset: reqSize * (reqPage - 1),    
   }).then(async function(tasks) {
     if(tasks != null && tasks.length > 0) {
       console.log("---Number(req.query.reqTaskLevel == 3)--")
-      for(var i = 0 ; i <tasks.length ; i++){
-        console.log(tasks[i].TaskGroupId)
-      } 
+
       var response = await generateTaskListByPath(tasks);
+      console.log(req.query.reqOpportunity)
+      if(req.query.reqOpportunity!=null&&req.query.reqOpportunity!=''){
+        var response2 = []
+        for(var i = 0 ; i <response.length ; i ++){
+          if(response[i][0].task_parent_name ===req.query.reqOpportunity){
+            response2.push(response[i])
+          }
+        }
+        response = response2
+        console.log(response)
+      }
       return res.json(responseMessage(0, response, ''));
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
@@ -90,10 +101,7 @@ router.get('/getTaskList', function(req, res, next) {
   console.log('/getTaskList')
   var reqPage = Number(req.query.reqPage);
   var reqSize = Number(req.query.reqSize);
-  console.log(reqPage)
-  console.log(reqSize)
   var taskCriteria = generateTaskCriteria(req);
-  console.log(taskCriteria)
   var taskTypeCriteria = generateTaskTypeCriteria(req);
   var orderSeq = [];
   if (Number(req.query.reqTaskLevel == 1)) {
@@ -118,6 +126,7 @@ router.get('/getTaskList', function(req, res, next) {
     limit: reqSize,
     offset: reqSize * (reqPage - 1),
   }).then(async function(tasks) {
+    console.log(tasks)
     if(tasks != null && tasks.length > 0) {
       var response = await generateTaskList(tasks);
       return res.json(responseMessage(0, response, ''));
@@ -154,11 +163,10 @@ function generateTaskListByPath(iTaskObjArray) {
         lv2TaskList.push(iTaskObjArray[i].task_parent_name)
       }
     }
-    console.log(lv2TaskList)
     for(var i = 0 ; i< lv2TaskList.length; i ++){
       lv2TaskListInfo.push(await getTaskByName(lv2TaskList[i]));   
     }
-    lv2TaskListInfo = await generateTaskList(lv2TaskListInfo);
+    lv2TaskListInfo = await generatePlanTaskList(lv2TaskListInfo);
     for(var j = 0 ; j < lv2TaskListInfo.length ; j ++){
       var resArr = []
       resArr.push(lv2TaskListInfo[j])
@@ -185,6 +193,7 @@ router.get('/getTaskListTotalSize', function(req, res, next) {
     }],
     where: taskCriteria
   }).then(async function(tasks) {
+    console.log(tasks)
     if(tasks != null && tasks.length > 0) {
       var resJson = {};
       resJson.task_list_total_size = tasks.length;
@@ -197,6 +206,7 @@ router.get('/getTaskListTotalSize', function(req, res, next) {
 
 function generateTaskCriteria(iReq) {
   var reqTaskLevel = Number(iReq.query.reqTaskLevel);
+  console.log(iReq.query)
   var criteria = {
     TaskName: {[Op.notLike]: 'Dummy - %'},
     TaskLevel: reqTaskLevel,
@@ -240,21 +250,31 @@ function generateTaskCriteria(iReq) {
     }
     var c2 = Object.assign(criteria, issueDateCriteria);
   }
-  if (iReq.query.reqCurrentTimeGroup != null && iReq.query.reqCurrentTimeGroup != ''){
-    var reqCurrentTimeGroup = []
-    for(var i = 0 ; i < iReq.query.reqCurrentTimeGroup.length ; i ++){
-      var resJson = {}
-      resJson = JSON.parse(iReq.query.reqCurrentTimeGroup[i])
-      reqCurrentTimeGroup.push(resJson)
-    }
-    var reqGroupId = []
-    for(var i = 0 ; i < reqCurrentTimeGroup.length ; i ++){
-      var resJson = {}
-      resJson = reqCurrentTimeGroup[i].group_id
-      reqGroupId.push(resJson)
-    }
-    criteria.TaskGroupId = {[Op.in]: reqGroupId}
+  if(iReq.query.reqTaskGroup!=null&&iReq.query.reqTaskGroup!=0){
+    criteria.TaskGroupId = iReq.query.reqTaskGroup
+    criteria.TaskLevel = 3
+    criteria.ParentTaskName = iReq.query.reqParentTaskName
+  }else{
+    if (iReq.query.reqCurrentTimeGroup != null && iReq.query.reqCurrentTimeGroup != ''){
+      var reqCurrentTimeGroup = []
+      for(var i = 0 ; i < iReq.query.reqCurrentTimeGroup.length ; i ++){
+        var resJson = {}
+        resJson = JSON.parse(iReq.query.reqCurrentTimeGroup[i])
+        reqCurrentTimeGroup.push(resJson)
+      }
+      var reqGroupId = []
+      for(var i = 0 ; i < reqCurrentTimeGroup.length ; i ++){
+        var resJson = {}
+        resJson = reqCurrentTimeGroup[i].group_id
+        reqGroupId.push(resJson)
+      }
+      criteria.TaskGroupId = {[Op.in]: reqGroupId}
+    }     
   }
+  if (iReq.query.reqLeadingBy != null&&iReq.query.reqLeadingBy!='') {
+    criteria.RespLeaderId = iReq.query.reqLeadingBy
+  }
+  console.log(criteria)
   return criteria;
 }
 
@@ -286,7 +306,7 @@ function getTimeGroupById(TimeGroupId) {
       }
     }).then(function(taskgroup) {
       if(taskgroup != null) {
-        resolve(taskgroup.Name)
+        resolve(taskgroup)
       } else {
         resolve(null);
       }
@@ -326,9 +346,9 @@ function generateTaskList(iTaskObjArray) {
       resJson.task_target_complete = iTaskObjArray[i].TargetCompleteDate;
       var timegroupId = iTaskObjArray[i].TaskGroupId;
       if (timegroupId != null && timegroupId!= ''){
-        var timegroupName = await getTimeGroupById(timegroupId);
-        resJson.task_group_id = timegroupName
+        timegroupId= await getTimeGroupById(timegroupId);
       }
+      resJson.task_group_id = timegroupId
       //Level 1
       resJson.task_top_opp_name = iTaskObjArray[i].TopOppName;
       resJson.task_top_customer = iTaskObjArray[i].TopCustomer;
@@ -382,10 +402,8 @@ router.post('/getTaskById', function(req, res, next) {
       Id: req.body.reqTaskId 
     }
   }).then(async function(task) {
-    console.log(task)
     if(task != null) {
       var response = await generateTaskInfo(task);
-      console.log(response)
       return res.json(responseMessage(0, response, ''));  
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
@@ -454,7 +472,6 @@ router.post('/getTasksByParentName', function(req, res, next) {
         }
         rtnResult.push(resJson);  
       }
-      console.log(rtnResult)
       return res.json(responseMessage(0, rtnResult, '')); 
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
@@ -1139,7 +1156,6 @@ router.post('/getTaskByNameForRefPool', function(req, res, next) {
 });
 
 router.post('/removeTaskIfNoSubTaskAndWorklog', async function(req, res, next) {
-  console.log(JSON.stringify(req.body))
   var reqTaskId = req.body.tTaskId;
   var reqTaskName = req.body.tTaskName;
   var reqUpdateDate = req.body.tUpdateDate;
@@ -1696,7 +1712,6 @@ router.post('/getPlanTaskListByParentTask', function(req, res, next) {
   var reqTaskGroupFlag = Number(req.body.reqTaskGroupFlag);
   var reqPage = Number(req.body.reqPage);
   var reqSize = Number(req.body.reqSize);
-  console.log(reqParentTaskName)
   var criteria = {
     ParentTaskName: reqParentTaskName,
     TaskLevel: 3,
@@ -1711,20 +1726,22 @@ router.post('/getPlanTaskListByParentTask', function(req, res, next) {
       groupCriteria = {
         TaskGroupId: null
       } 
-    }
-    else {
+    }else {
       if (reqTaskGroupFlag == 0) {
         groupCriteria = {
           TaskGroupId: reqTaskGroupId
         } 
-      }
-      if (reqTaskGroupFlag == 1) {
+      }else if (reqTaskGroupFlag == 1) {
         groupCriteria = {
           [Op.or]: [
             {TaskGroupId: reqTaskGroupId},
             {TaskGroupId: null}
           ],
         } 
+      }else{
+        groupCriteria = {
+          TaskGroupId: reqTaskGroupId
+        }         
       }
     }
     var c = Object.assign(criteria, groupCriteria);
@@ -1735,6 +1752,7 @@ router.post('/getPlanTaskListByParentTask', function(req, res, next) {
   if (req.body.reqFilterStatus != null && req.body.reqFilterStatus != '') {
     criteria.Status = req.body.reqFilterStatus
   }
+  console.log(criteria)
   Task.findAll({
     include: [{model: TaskType, attributes: ['Id', 'Name']}],
     where: criteria,
@@ -1763,7 +1781,6 @@ function generatePlanTaskList(iTaskObjArray) {
       resJson.task_parent_name = iTaskObjArray[i].ParentTaskName;
       resJson.task_level = iTaskObjArray[i].TaskLevel;
       resJson.task_desc = iTaskObjArray[i].Description;
-      resJson.task_type_id = iTaskObjArray[i].task_type.Id;
       resJson.task_status = iTaskObjArray[i].Status;
       resJson.task_effort = iTaskObjArray[i].Effort;
       resJson.task_estimation = iTaskObjArray[i].Estimation;
@@ -1776,9 +1793,12 @@ function generatePlanTaskList(iTaskObjArray) {
       }
       var timegroupId = iTaskObjArray[i].TaskGroupId;
       if (timegroupId != null && timegroupId!= ''){
-        var timegroupName = await getTimeGroupById(timegroupId);
-        resJson.task_group_id = timegroupName
+        var rtnTaskGroup =  await getTimeGroupById(timegroupId);
+        timegroupId = rtnTaskGroup.Name
+        resJson.group_id = rtnTaskGroup.Id
+        resJson.group_name = rtnTaskGroup.Name
       }
+      resJson.task_group_id = timegroupId
       resJson.task_responsible_leader_id = iTaskObjArray[i].RespLeaderId;
       var assigneeId = iTaskObjArray[i].AssigneeId;
       if (assigneeId != null && assigneeId != '') {
@@ -1787,31 +1807,37 @@ function generatePlanTaskList(iTaskObjArray) {
       } else {
         resJson.task_assignee = null;
       }
-      var subTaskList = await getSubTasks(iTaskObjArray[i].TaskName);
       var resResult = [];
-      if(subTaskList != null && subTaskList.length > 0) {
-        for(var a=0; a<subTaskList.length; a++) {
-          var resJson1 = {};
-          resJson1.sub_task_id = subTaskList[a].Id;
-          resJson1.sub_task_name = subTaskList[a].TaskName;
-          resJson1.sub_task_status = subTaskList[a].Status;
-          resJson1.sub_task_desc = subTaskList[a].Description;
-          resJson1.sub_task_effort = subTaskList[a].Effort;
-          resJson1.sub_task_estimation = subTaskList[a].Estimation;
-          resJson1.sub_task_responsible_leader_id = subTaskList[a].RespLeaderId;
-          var assigneeId1 = subTaskList[a].AssigneeId;
-          if (assigneeId1 != null && assigneeId1 != '') {
-            var assigneeName1 = await getUserById(assigneeId1);
-            resJson1.sub_task_assignee = assigneeName1;
-          } else {
-            resJson1.sub_task_assignee = null;
+      if(iTaskObjArray[i].TaskLevel!=2){
+        resJson.task_type_id = iTaskObjArray[i].task_type.Id;
+        var subTaskList = await getSubTasks(iTaskObjArray[i].TaskName);
+        
+        if(subTaskList != null && subTaskList.length > 0) {
+          for(var a=0; a<subTaskList.length; a++) {
+            var resJson1 = {};
+            resJson1.sub_task_id = subTaskList[a].Id;
+            resJson1.sub_task_name = subTaskList[a].TaskName;
+            resJson1.sub_task_status = subTaskList[a].Status;
+            resJson1.sub_task_desc = subTaskList[a].Description;
+            resJson1.sub_task_effort = subTaskList[a].Effort;
+            resJson1.sub_task_estimation = subTaskList[a].Estimation;
+            resJson1.sub_task_responsible_leader_id = subTaskList[a].RespLeaderId;
+            var assigneeId1 = subTaskList[a].AssigneeId;
+            if (assigneeId1 != null && assigneeId1 != '') {
+              var assigneeName1 = await getUserById(assigneeId1);
+              resJson1.sub_task_assignee = assigneeName1;
+            } else {
+              resJson1.sub_task_assignee = null;
+            }
+            resResult.push(resJson1)
           }
-          resResult.push(resJson1)
-        }
+        }        
       }
       resJson.task_sub_tasks = resResult;
+      
       rtnResult.push(resJson);  
     } 
+    console.log(rtnResult[0])
     resolve(rtnResult);
   });
 }
@@ -1843,34 +1869,69 @@ router.post('/updateTaskGroupForPlanTask', async function(req, res, next) {
   });
 });
 
+function getNowFormatDate() {//获取当月时间 yyyy-MM-dd
+  var currentDate = {}
+  var date = new Date();
+  var year = date.getFullYear();
+  var month = date.getMonth() + 1;
+  var strDate = date.getDate();
+  if (strDate >= 1 && strDate <= 9) {
+    strDate = '0' + strDate ;
+  }
+  if ( month == 2 ){
+    currentDate.StartTime = Number(year-1) + '-' + '12' + '-' + strDate
+    currentDate.EndTime = year + '-' + '04' + '-' + strDate  
+  }else if ( month == 1 ){
+    currentDate.StartTime = Number(year-1) + '-' + '11' + '-' + strDate  
+    currentDate.EndTime = year + '-' + '03' + '-' + strDate  
+  }else if ( month == 11 ){
+    currentDate.StartTime = year + '-' + '09' + '-' + strDate 
+    currentDate.EndTime = Number(year+1) + '-' + '01' + '-' + strDate        
+  }else if ( month == 12 ){
+    currentDate.StartTime = year + '-' + '10' + '-' + strDate 
+    currentDate.EndTime = Number(year+1) + '-' + '02' + '-' + strDate        
+  }else{
+    currentDate.StartTime = year + '-' + Number(month-2) + '-' + strDate 
+    if(month>=3||month<=7){
+      currentDateEndTime = year + '-' + '0' + Number(month+2) + '-' + strDate   
+    }else{
+      currentDate.EndTime = year + '-' + Number(month+2) + '-' + strDate 
+    } 
+  }
+  return currentDate;
+}
+
 //Task Group
 router.get('/getTaskGroup', function(req, res, next) {
   var rtnResult = [];
   var groupCriteria = {}
+  console.log(typeof(req.query.isShowCurrent))
   if( req.query.tGroupId != "0"){
     groupCriteria = { 
       Id: req.query.tGroupId,
       //RelatedTaskName: req.query.tGroupRelatedTask,
-      EndTime: {[Op.gt]: req.query.tToday}
+      //EndTime: {[Op.gt]: req.query.tToday},
+      //RelatedTaskName: { [Op.or]: [null ,'']  },
     };
   } else {
-    if(Boolean(req.query.isShowCurrent) === true){
+    if(req.query.isShowCurrent === 'true'){
       console.log("req.query.isShowCurrent === true")
+      console.log(req.query.tToday)
+      var today = getNowFormatDate ()
+      console.log(today)
       groupCriteria = { 
         Id: { [Op.ne]: null },
         //RelatedTaskName: req.query.tGroupRelatedTask,
-        EndTime: {[Op.gt]: req.query.tToday},
-        StartTime: {[Op.lt]: req.query.tToday}
+        EndTime: {[Op.gte]: today.EndTime},
+        StartTime: {[Op.lte]: today.StartTime}
       };      
     }else{
       console.log("req.query.isShowCurrent != true")
       groupCriteria = { 
         Id: { [Op.ne]: null },
-        //RelatedTaskName: req.query.tGroupRelatedTask,
-        EndTime: {[Op.gt]: req.query.tToday}
+        RelatedTaskName: { [Op.or]: [null ,'']  },
       };         
     }
-    console.log(groupCriteria)
   }
   TaskGroup.findAll({
     where: groupCriteria,
@@ -1878,6 +1939,7 @@ router.get('/getTaskGroup', function(req, res, next) {
       ['StartTime', 'DESC']
     ]
   }).then(async function(taskGroup) {
+    console.log(taskGroup)
     if(taskGroup.length > 0) {
       for(var i=0;i<taskGroup.length;i++){
         var resJson = {};
