@@ -408,7 +408,8 @@ async function saveTask(req, res, remark) {
 function regularTaskSubTask(tTaskName){
   Task.findAll({
     where: {
-      ParentTaskName: tTaskName
+      ParentTaskName: tTaskName,
+      Status: { [Op.ne]: 'Done' }
     },
     order: [
       ['Id', 'ASC']
@@ -417,7 +418,6 @@ function regularTaskSubTask(tTaskName){
       if(task.length > 0) {
         for(var i=0;i<task.length;i++){
           createTaskByScheduleJob(task[i].TaskName);
-          console.log('george: ' + task[i].TaskName);
         }
       }
   })

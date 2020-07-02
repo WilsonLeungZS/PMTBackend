@@ -43,5 +43,5 @@ var Schedule = sequelize.define('schedule',{
 });
 
 
-Schedule.sync({alter: true});
+Schedule.sync();
 module.exports = Schedule; 
