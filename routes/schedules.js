@@ -7,38 +7,45 @@ var nodeSchedule = require('node-schedule');
 var dateFormat = require('dateformat');
 var Task = require('../model/task/task');
 var taskItem = require('../services/taskItem');
+var dateConversion = require('../util/dataConversion');
 const Op = Sequelize.Op;
 
 router.get('/', function(req, res, next) {
     return res.json({message: 'Response formats resource'});
 });
 
-router.post('/saveRegularTask',function(req,res,next){
+router.post('/saveRegularTask',async function(req,res,next){
   console.log('saveRegularTask')
-  var tTaskId = req.body.reqTaskId;
-  var jobId = 'PMT' + tTaskId;
+  var tTaskName = req.body.reqTaskName;
+  console.log(req.body);
+  var jobId = 'PMT' + tTaskName;
+  var tTaskId = null;
+  var tRegularTaskTime = req.body.reqRegularTaskTime;
+  tTaskId = await taskItem.getTaskId(tTaskName);
   Schedule.findOrCreate({
-    where: { TaskId : req.body.reqTaskId}, 
+    where: { TaskName : tTaskName}, 
     defaults: {
     Schedule: req.body.reqSchedule,
-    RegularTime: req.body.reqRegularTaskTime,
+    RegularTime: tRegularTaskTime,
     StartTime: req.body.reqStartTime,
     JobId: jobId,
-    TaskId : tTaskId,
+    TaskName : tTaskName,
+    TaskId: tTaskId,
     Status: 'Planning',
     EndTime: req.body.reqEndTime
   }})
-  .spread(function(schedule, created) {
+  .spread(async function(schedule, created) {
     console.log(schedule)
     if(created) {
       return res.json(responseMessage(0, schedule, 'Create schedule successfully!'));
     }
-      else if(schedule != null && !created) {
+    else if(schedule != null && !created) {
       schedule.update({
-      Schedule: req.body.reqSchedule,
-      RegularTime: req.body.reqRegularTaskTime,
-      StartTime: req.body.reqStartTime,
-      EndTime: req.body.reqEndTime
+        TaskId: tTaskId,
+        Schedule: req.body.reqSchedule,
+        RegularTime: tRegularTaskTime,
+        StartTime: req.body.reqStartTime,
+        EndTime: req.body.reqEndTime
       });
       return res.json(responseMessage(0, schedule, 'Update schedule successfully!'));
     }
@@ -51,7 +58,7 @@ router.post('/saveRegularTask',function(req,res,next){
 router.post('/getSchedulesByTaskName',function(req,res,next){
   console.log('getSchedulesByTaskName')
   Schedule.findOne({
-    where: {TaskId: req.body.reqTaskName}
+    where: {TaskName: req.body.reqTaskName}
   }).then(async function(schedule) {
     if(schedule!=null) {
       console.log(schedule)
@@ -81,8 +88,10 @@ router.get('/startBackgroundJob', function(req, res, next) {
   if (runningJob != null) {
       runningJob.cancel();
   }
-  var iJobConfiguration = '1 * * * * *';
+  //var iJobConfiguration = '0,10,20,30,40,50 * * * * *';
+  var iJobConfiguration = '0 0 1 * * *';
   nodeSchedule.scheduleJob(reqJobId, iJobConfiguration, function(){
+    console.log("The Schedule background Job start to run. time: " + new Date());
     ReActiveRegularJob();
     AutoCreateRegularTask();
     cancelScheduleJob();
@@ -112,7 +121,7 @@ function ReActiveRegularJob(){
   var today = dateFormat(new Date(), "yyyy-mm-dd");
   console.log('Current day: ' + today);
   Schedule.findAll({
-    attributes: ['JobId','TaskId','cronJonTime'],
+    attributes: ['JobId','TaskName','cronJonTime','Schedule','RegularTime','StartTime'],
     where: { 
       EndTime: { [Op.gt]: today},
       Status: 'Running'
@@ -124,16 +133,15 @@ function ReActiveRegularJob(){
     }
     for(var i = 0; i < sch.length; i++){
       var tempJobId = sch[i].JobId;
-      var tTaskId = sch[i].TaskId;
-      var cronJonTime = sch[i].cronJonTime;
+      var tTaskName = sch[i].TaskName;
+      var tSchedule = sch[i].Schedule;
+      var tRegularTime = sch[i].RegularTime;
+      var tStartTime = sch[i].StartTime;
+      var crossbar = tStartTime.split("-");
+      var day = crossbar[2];
+      console.log("Job " +  tempJobId + 'start day is ' + day);
       console.log('JobId: ' + tempJobId);
-      if(createScheduleJob(tempJobId,tTaskId,null,null,null,cronJonTime)){
-        Schedule.update({
-          Status: 'Running'
-        },
-          {where: {JobId: tempJobId}
-        });
-      }
+      createScheduleJob(tempJobId,tTaskName,tSchedule,tRegularTime,day)
     }
   });
 }
@@ -142,11 +150,10 @@ function AutoCreateRegularTask() {
   console.log('Create Or Update schedule Job Start: ------------->');
   var today = new Date();
   var tDay = dateFormat(today, "yyyy-mm-dd");
-  var day = today.getDate();
-  
-  console.log('Current day: ' + tDay);
+  var day = today.getDay();
+  console.log('Current day: ' + tDay + ', and the day is ' + day);
   Schedule.findAll({
-    attributes: ['JobId','TaskId','Schedule','RegularTime'],
+    attributes: ['JobId','TaskName','Schedule','RegularTime'],
     where: { 
       StartTime: tDay,
       Status: 'Planning'
@@ -158,55 +165,78 @@ function AutoCreateRegularTask() {
     } 
     for(var i = 0; i < sch.length; i++){
       var tempJobId = sch[i].JobId;
-      var tTaskId = sch[i].TaskId;
+      var tTaskName = sch[i].TaskName;
       var tSchedule = sch[i].Schedule;
       var tRegularTime = sch[i].RegularTime;
       console.log('JobId: ' + tempJobId);
-      createScheduleJob(tempJobId,tTaskId,tSchedule,tRegularTime,day,null)
-      //taskItem.createTaskByScheduleJob(tempJobId);
+      createScheduleJob(tempJobId,tTaskName,tSchedule,tRegularTime,day);
+      taskItem.createTaskByScheduleJob(tTaskName);
+      taskItem.regularTaskSubTask(tTaskName);
     }
   });
   return true;
 }
 
-function createScheduleJob(jId,tTaskId,tSchedule,tRegularTime,day,tCronJonTime) {
+
+function createScheduleJob(jId,tTaskName,tSchedule,tRegularTime,day) {
   var previousTime = dateFormat(new Date(), "yyyy-mm-dd hh:MM:ss");
   try{
-    var cronJonTime = '* * * * * *';
-    if(tCronJonTime == null){
-      switch(tRegularTime){
-        case 'Daily':
-         switch(tSchedule){
-           case 'Every weekday':
-            cronJonTime = '* * * * * 1-5';
-            break;
-          case 'Everyday':
-            cronJonTime = '* * * 1-31 * *';
-            break;
-          }
+    var cronJonTime;
+    var arr = [];
+    arr = tSchedule.split(' ');
+    switch(tRegularTime){
+      case 'Daily':
+       if(tSchedule == 'Every Weekday'){
+        cronJonTime = "0 0 2 * * 1,2,3,4,5";
+        console.log('final cronJonTime: ' + cronJonTime);
+       }else{
+        var days = arr[1];
+        cronJonTime = "0 0 2 " + day + "/" + days + " * *"
+        console.log('final cronJonTime: ' + cronJonTime);
+       }
+      break;
+      case 'Weekly':
+        var week = arr[2];
+        var dayOfWeek = arr[5];
+        var dayOfWeek1 = dateConversion.weekConversionToNumber(dayOfWeek);
+        var interval = Number(week) * Number(7);
+        console.log('convert time: ' + week + ',' + dayOfWeek + ',' + interval);
+        
+        cronJonTime = "0 0 2 " + "*/" + interval + " * */" + dayOfWeek1;
+        console.log('final cronJonTime: ' + cronJonTime);
         break;
-        case 'Weekly':
-            cronJonTime = '* * * ' + day + '/7 * *'
-            break;
-        case 'Monthly':
-            //cronJonTime = '* * * ' + day + ' 1-12 *'
-            cronJonTime = '*/5 * * * * *';
-            break;
-       default:
-            break;
-      }
-    }else{
-      cronJonTime = tCronJonTime;
+      case 'Monthly':
+        var checkDay = null;
+        var dayOfWeek = null;
+        var checkWeek = null;
+        var checkMonth = null;
+        if(Number(arr.length == 7)){
+          checkWeek = arr[1];
+          dayOfWeek = arr[2];
+          checkMonth = arr[5];
+          console.log('convert time: ' + checkWeek + ',' + dayOfWeek + ',' + checkMonth);
+          var dayOfWeek1 = dateConversion.weekConversionToNumber(dayOfWeek);
+          var rank = dateConversion.rankConversionToNumber(checkWeek);
+          cronJonTime = "0 0 2 * " + "*/" + checkMonth + " " + rank + "#" + dayOfWeek1;
+          console.log('final cronJonTime: ' + cronJonTime);
+        }else if(Number(arr.length == 6)){
+          checkDay = arr[1];
+          checkMonth = arr[4];
+          cronJonTime = "0 0 2 * " + checkDay + "/" + checkMonth +" *";
+          console.log('final cronJonTime: ' + cronJonTime);
+          console.log('convert time: ' + checkDay + ',' + checkMonth);
+        }
+        break;
     }
-      
     console.log('Start Schedule Job');
     var runningJob = nodeSchedule.scheduledJobs[jId];
     if (runningJob != null) {
       runningJob.cancel();
     }
     nodeSchedule.scheduleJob(jId, cronJonTime, function(){
-      taskItem.createTaskByScheduleJob(tTaskId);
-    }); 
+      taskItem.createTaskByScheduleJob(tTaskName);
+      taskItem.regularTaskSubTask(tTaskName);
+    });
     console.log('Finish Schedule Job');
 
     Schedule.update({
@@ -216,8 +246,14 @@ function createScheduleJob(jId,tTaskId,tSchedule,tRegularTime,day,tCronJonTime) 
     },
       {where: {JobId: jId}
     });
+
+    Task.update({
+      Status: 'Running'
+    },
+      {where: {TaskName: tTaskName}
+    });
   }catch(Exception){
-      console.log('Exception occurred: ' + exception);
+      console.log('Exception occurred: ' + Exception);
   }
 };
 
@@ -226,7 +262,7 @@ function cancelScheduleJob () {
   var day = dateFormat(new Date(), "yyyy-mm-dd");
   console.log('Current day: ' + day);
   Schedule.findAll({
-    attributes: ['JobId'],
+    attributes: ['JobId','TaskName'],
     where: { 
       EndTime: day,
       Status: { [Op.ne]: 'Done' }
@@ -247,6 +283,11 @@ function cancelScheduleJob () {
             Status: 'Done'
           },
             {where: {JobId: tempJobId}
+          });
+          Task.update({
+            Status: 'Done'
+          },
+            {where: {TaskName: sch[i].TaskName}
           });
           console.log('JobId: ' + tempJobId + ' was done.');
         }

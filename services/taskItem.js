@@ -1,5 +1,7 @@
 var Task = require('../model/task/task');
 var dateFormat = require('dateformat');
+var Schedule = require('../model/schedule');
+var nodeSchedule = require('node-schedule');
 
 async function saveTask(req, res, remark) {
   var reqTask = null;
@@ -67,6 +69,35 @@ async function saveTask(req, res, remark) {
           //return res.json(responseMessage(0, task, 'Task Created'));
         } else {
           console.log("Task existed");
+          /*if(reqTask.task_status == 'Running' && reqTask.task_TypeTag == 'Regular Task'){
+            Schedule.update({
+              Status: 'Running'
+            },
+              {where: {JobId: reqTaskName}
+            });
+            console.log("Task Schedule status update to running"); 
+          }else if(reqTask.task_status == 'Done' && reqTask.task_TypeTag == 'Regular Task'){
+            Schedule.findAll({
+              attributes: ['JobId'],
+              where: { 
+                tTaskName: reqTaskName
+              },
+            }).then(function(sch) {
+              var tempJobId = sch[0].JobId;
+              var runningJob = nodeSchedule.scheduledJobs[String(tempJobId)];
+              console.log('Start To Cancel Schedule Job ----------------------------->');
+              if(runningJob != null){
+                if(runningJob.cancel()){
+                  Schedule.update({
+                    Status: 'Done'
+                  },
+                    {where: {JobId: tempJobId}
+                  });
+                  console.log('JobId: ' + tempJobId + ' was done.');
+                }
+              }
+            });
+          }*/
           taskObj.Effort = task.Effort;
           // Change parent task
           if (Number(reqTask.task_level) == 3 || Number(reqTask.task_level) == 4) {
@@ -212,7 +243,7 @@ async function saveTask(req, res, remark) {
       }).then(function(task) {
         if(task != null) {
           console.log('Task length: ' + task.length);
-          resolve(task.length);
+          resolve(task.length + 1);
         } else {
           resolve(0);
         }
@@ -262,19 +293,19 @@ async function saveTask(req, res, remark) {
     });
   }
 
-  function createTaskByScheduleJob(TaskId){
-    console.log('Create Regular task ' + TaskId + ' time: ' + new Date());
+  function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
+    var resJson = {}; 
+    resJson = {status: iStatusCode, data: iDataArray, message: iErrorMessage};
+    return resJson;
+  }
+
+  function createTaskByScheduleJob(tTaskName){
+    console.log('Create Regular task ' + tTaskName + ' time: ' + new Date());
     var day = dateFormat(new Date(), "yyyy-mm-dd hh:MM:ss");
     var iParentTask = null;
     Task.findAll({
-      attributes: ['ParentTaskName','TaskName','Description','Status','Creator',
-      'TaskTypeId','Effort','Estimation','IssueDate','TargetCompleteDate','ActualCompleteDate',
-      'BusinessArea','BizProject','TaskLevel','RespLeaderId','AssigneeId','Reference','Scope',
-      'TopConstraint','TopOppName','TopCustomer','TopFacingClient','TopTypeOfWork','TopChanceWinning',
-      'TopSowConfirmation','TopBusinessValue','TopTargetStart','TopTargetEnd','TopPaintPoints',
-      'TopTeamSizing','TopSkill','TopOppsProject','TaskGroupId','TypeTag','DeliverableTag','Detail'],
       where: { 
-        TaskName: TaskId
+        TaskName: tTaskName
       },
     })
     .then(async function(sch) {
@@ -285,9 +316,8 @@ async function saveTask(req, res, remark) {
       for(var i = 0; i < sch.length; i++){
         iParentTask = sch[i].ParentTaskName;
         var subTaskLength = await getSubTaskCount(iParentTask);
-        console.log('George: ' + subTaskLength);
         var TaskName = iParentTask + '-' + subTaskLength;
-        console.log('George TaskName: ' + TaskName);
+        console.log('New TaskName: ' + TaskName + ' which create by Regular task');
         var taskObj = {
           task_parent_name: iParentTask,
           task_name: TaskName,
@@ -320,7 +350,7 @@ async function saveTask(req, res, remark) {
           task_top_skill: null,
           task_top_opps_project: null,
           task_group_id: sch[i].TaskGroupId,
-          task_TypeTag: null,
+          task_TypeTag: 'One-Off Task',
           task_deliverableTag: null,
           task_detail: null
         };
@@ -329,7 +359,75 @@ async function saveTask(req, res, remark) {
     });
   }
 
+  function getTaskId(tTaskName) {
+    return new Promise((resolve, reject) => {
+      Task.findOne({
+        where: { TaskName: tTaskName }
+      }).then(function(task) {
+        if(task != null) {
+          resolve(task.Id);
+        }
+      });
+    });
+  }
+
+  function getTaskSchedule(tTaskName) {
+    return new Promise((resolve, reject) => {
+      Schedule.findOne({
+        where: { TaskName: tTaskName }
+      }).then(function(task) {
+        if(task != null) {
+          resolve(task.Schedule);
+        }
+      });
+    });
+  }
+
+  function getTaskStatus(tTaskName) {
+    return new Promise((resolve, reject) => {
+      Schedule.findOne({
+        where: { TaskName: tTaskName }
+      }).then(function(task) {
+        if(task != null) {
+          resolve(task.Status);
+        }
+      });
+    });
+  }
+
+  function isSameDay(date1,date2){
+    var oDate1 = new Date(date1);
+    var oDate2 = new Date(date2);
+    if(oDate1 == oDate2){
+        return true;
+    } else {
+        return false;
+    }
+  }
+
+function regularTaskSubTask(tTaskName){
+  Task.findAll({
+    where: {
+      ParentTaskName: tTaskName,
+      Status: { [Op.ne]: 'Done' }
+    },
+    order: [
+      ['Id', 'ASC']
+    ]
+  }).then(async function(task) {
+      if(task.length > 0) {
+        for(var i=0;i<task.length;i++){
+          createTaskByScheduleJob(task[i].TaskName);
+        }
+      }
+  })
+}
+
 module.exports = {
   saveTask,
-  createTaskByScheduleJob
+  createTaskByScheduleJob,
+  getTaskId,
+  getTaskSchedule,
+  getTaskStatus,
+  regularTaskSubTask
 }

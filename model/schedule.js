@@ -12,7 +12,8 @@ var moment = require('moment');
 var Schedule = sequelize.define('schedule',{
     Id:{ type:Sequelize.INTEGER,primaryKey: true, autoIncrement:true},
     JobId:{ type:Sequelize.STRING},
-    TaskId : { type:Sequelize.STRING},
+    TaskName : { type:Sequelize.STRING},
+    TaskId : { type:Sequelize.INTEGER},
     Schedule : { type:Sequelize.STRING},
     RegularTime : { type:Sequelize.STRING},
     StartTime : { type:Sequelize.STRING},
@@ -20,7 +21,7 @@ var Schedule = sequelize.define('schedule',{
     PreviousTime : { type:Sequelize.STRING},
     LastTime : { type:Sequelize.STRING},
     Status : { type:Sequelize.STRING},
-    cronJonTime: { type:Sequelize.STRING},
+    cronJonTime: {type:Sequelize.STRING},
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,

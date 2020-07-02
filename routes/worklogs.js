@@ -27,18 +27,9 @@ router.post('/getMonthAdEffort', function(req, res, next) {
           attributes: ['Id', 'TaskName', 'Description', 'Status', 'Effort', 'Estimation'],
           where: {
             Id: { [Op.ne]: null },
-            TaskName: {[Op.notLike]: 'Dummy - %'}
-          },
-          include: [{
-            model: TaskType, 
-            attributes: ['Name'],
-            where: {
-              [Op.or]: [
-                {Name: 'Change'},
-                {Name: 'App Admin'}
-              ]
-            }
-          }]
+            TaskName: {[Op.notLike]: 'Dummy - %'},
+            Reference:  { [Op.ne]: null }
+          }
         }],
         where: {
           WorklogMonth: reqWorklogMonth,
@@ -264,41 +255,45 @@ router.post('/getWorklogTaskByMonthForWeb', function(req, res, next) {
   Worklog.findAll({
     include: [{
       model: Task,
-      attributes: ['Id', 'TaskName', 'Description', 'Status', 'Effort', 'Estimation'],
+      attributes: ['Id', 'TaskName', 'Description', 'Status', 'Reference', 'Effort', 'Estimation'],
       where: {
         Id: { [Op.ne]: null },
-        TaskName: {[Op.notLike]: 'Dummy - %'}
-      },
-      include: [{
-        model: TaskType, 
-        attributes: ['Name'],
-        where: {
-          [Op.or]: [
-            {Name: 'Change'},
-            {Name: 'App Admin'}
-          ]
-        }
-      }]
+        TaskName: {[Op.notLike]: 'Dummy - %'},
+        Reference: { [Op.ne]: null }
+      }
     }],
     where: {
       WorklogMonth: reqWorklogMonth,
       Effort: { [Op.ne]: 0 },
       Id: { [Op.ne]: null }
     }
-  }).then(function(worklog) {
+  }).then( async function(worklog) {
     if(worklog.length > 0) {
+      var refSet = [];
       for(var i=0; i<worklog.length; i++) {
         var resJson = {};
-        var index = getIndexOfValueInArr(rtnResult, 'tl_task', worklog[i].task.TaskName);
+        var index = getIndexOfValueInArr(rtnResult, 'tl_task', worklog[i].task.Reference);
         if (index == -1 ) {
-          resJson['tl_task'] = worklog[i].task.TaskName;
-          resJson['tl_status'] = worklog[i].task.Status;
-          resJson['tl_estimation'] = worklog[i].task.Estimation;
-          resJson['tl_effort'] = worklog[i].task.Effort;
+          resJson['tl_task'] = worklog[i].task.Reference;
+          resJson['tl_status'] = '';
+          resJson['tl_estimation'] = '';
+          resJson['tl_effort'] = '';
           resJson['tl_montheffort'] = worklog[i].Effort;
           rtnResult.push(resJson);
+          refSet.push(worklog[i].task.Reference);
         } else {
           rtnResult[index]['tl_montheffort'] = rtnResult[index]['tl_montheffort'] + worklog[i].Effort;
+        }
+      }
+      if(refSet.length > 0) {
+        var refTaskList = await getReferenceTaskSet(refSet);
+        for (var a=0; a<refTaskList.length; a++) {
+          var index1 = getIndexOfValueInArr(rtnResult, 'tl_task', refTaskList[a].TaskName);
+          if (index1 > -1 ) {
+            rtnResult[index1]['tl_status'] = refTaskList[a].Status;
+            rtnResult[index1]['tl_effort'] = refTaskList[a].Effort;
+            rtnResult[index1]['tl_estimation'] = refTaskList[a].Estimation;
+          }
         }
       }
       return res.json(responseMessage(0, rtnResult, ''));
@@ -308,22 +303,35 @@ router.post('/getWorklogTaskByMonthForWeb', function(req, res, next) {
   })
 });
 
+function getReferenceTaskSet(iTaskReference) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      attributes: ['Id', 'TaskName', 'Status', 'Effort', 'Estimation'],
+      where: {
+        TaskName: { [Op.in]: iTaskReference}
+      }
+    }).then(function(task){
+      if(task != null) {
+        resolve(task);
+      } else {
+        resolve(null);
+      }
+    })
+  });
+}
+
 router.post('/getWorklogByMonthForWeb', function(req, res, next) {
   var reqWorklogMonth = req.body.sWorklogMonth;
-  var reqTaskName = req.body.sWorklogTask;
+  var reqTask = req.body.sWorklogTask;
   var rtnResult = [];
   Worklog.findAll({
     include: [{
       model: Task,
-      attributes: ['Id', 'TaskName', 'Status', 'Description', 'Effort', 'Estimation'],
+      attributes: ['Id', 'TaskName', 'Reference', 'Status', 'Description', 'Effort', 'Estimation'],
       where: {
         Id: { [Op.ne]: null },
-        TaskName: reqTaskName
-      },
-      include: [ {
-        model: TaskType, 
-        attributes: ['Name']
-      }]
+        Reference: reqTask
+      }
     }, {
       model: User,
       attributes: ['Id', 'Name'],
@@ -333,19 +341,19 @@ router.post('/getWorklogByMonthForWeb', function(req, res, next) {
       Effort: { [Op.ne]: 0 },
       Id: { [Op.ne]: null }
     }
-  }).then(function(worklog) {
+  }).then(async function(worklog) {
     if(worklog.length > 0) {
       var monthEffort = 0;
       var rtnResult1 = [];
       var rtnResult2 = [];
       var resJson1 = {};
-      resJson1['tl_task_id'] = worklog[0].task.Id;
-      resJson1['tl_task'] = worklog[0].task.TaskName;
-      resJson1['tl_status'] = worklog[0].task.Status;
-      resJson1['tl_desc'] = worklog[0].task.Description;
-      resJson1['tl_task_type'] = worklog[0].task.task_type.Name;
-      resJson1['tl_estimation'] = worklog[0].task.Estimation;
-      resJson1['tl_effort'] = worklog[0].task.Effort;
+      var refTask = await getReferenceTask(worklog[0].task.Reference)
+      resJson1['tl_task_id'] = refTask.Id;
+      resJson1['tl_task'] = refTask.TaskName;
+      resJson1['tl_status'] = refTask.Status;
+      resJson1['tl_desc'] = refTask.Description;
+      resJson1['tl_estimation'] = refTask.Estimation;
+      resJson1['tl_effort'] = refTask.Effort;
       resJson1['tl_month_effort'] = 0;
       rtnResult1.push(resJson1);
       for(var i=0; i<worklog.length; i++) {
@@ -369,6 +377,22 @@ router.post('/getWorklogByMonthForWeb', function(req, res, next) {
     }
   })
 });
+
+function getReferenceTask(iTaskReference) {
+  return new Promise((resolve, reject) => {
+    Task.findOne({
+      where: {
+        TaskName: iTaskReference
+      }
+    }).then(function(task){
+      if(task != null) {
+        resolve(task);
+      } else {
+        resolve(null);
+      }
+    })
+  });
+}
 
 //Get worklog by worklog information
 router.post('/getWorklogForWeb', function(req, res, next) {
@@ -721,33 +745,38 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
       where: {
         Id: reqWorklogId
       }
-    }).then(function(worklog) {
+    }).then(async function(worklog) {
       if(worklog != null){
+        // Update effort of worklog which need to be adjust
         var iEffort = Number(worklog.Effort) - reqWorklogChangeEffort
         Worklog.update({Effort: iEffort}, {where: {Id: reqWorklogId}});
+        //Get reference task
+        var refTask = await getReferenceTask(worklog.task.Reference)
         //Create Dummy Task
-        dummyTaskName = 'Dummy - ' + worklog.task.TaskName
+        dummyTaskName = 'Dummy - ' + refTask.TaskName
         console.log('Dummy Task Name: ' + dummyTaskName)
         Task.findOrCreate({
           where: {
             TaskName: dummyTaskName
           }, 
           defaults: {
-            ParentTaskName: worklog.task.ParentTaskName,
+            ParentTaskName: refTask.ParentTaskName,
             TaskName: dummyTaskName,
-            Description: worklog.task.Description,
+            Description: refTask.Description,
             TaskTypeId: Number(worklog.task.TaskTypeId),
-            Status: worklog.task.Status,
-            Creator: 'PMT',
-            Effort: 0,
-            Estimation: 0
+            Status: refTask.Status,
+            Creator: 'PMT:Dummy',
+            Effort: reqWorklogChangeEffort,
+            Estimation: 0,
+            TaskLevel: refTask.TaskLevel,
+            IssueDate: getNowFormatDate()
           }
         })
       .spread((task, created) => {
         var dummyTaskId = task.Id;
         if(task != null) {
           console.log('Dummy Task Id: ' + dummyTaskId)
-          // Record dummy worklog of dummy task
+          // Record dummy worklog of dummy task for user
           Worklog.findOrCreate({
             where: {
               WorklogMonth: worklog.WorklogMonth,
@@ -771,7 +800,7 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
               }
               User.findOne({
                 where: {
-                  Name: {[Op.like]: 'TEAM%'},
+                  Name: {[Op.like]: 'team%'},
                   TeamId: worklog.user.team.Id
                 }
               }).then(function(user) {
@@ -791,6 +820,7 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
                     iMonth = '0' + iMonth
                   }
                   var worklogMonth = '' + iYear + '-' + iMonth
+                  // Record actual effort of actual task for team account
                   Worklog.findOrCreate({
                     where: {
                       WorklogMonth: worklogMonth,
@@ -1041,5 +1071,23 @@ function getIndexOfValueInArr(iArray, iKey, iValue) {
   }
   return -1;
 }
+
+function getNowFormatDate() {
+  var date = new Date();
+  var seperator1 = "-";
+  var seperator2 = ":";
+  var month = date.getMonth() + 1;
+  var strDate = date.getDate();
+  if (month >= 1 && month <= 9) {
+      month = "0" + month;
+  }
+  if (strDate >= 0 && strDate <= 9) {
+      strDate = "0" + strDate;
+  }
+  var currentdate = date.getFullYear() + seperator1 + month + seperator1 + strDate
+          + " " + date.getHours() + seperator2 + date.getMinutes()
+          + seperator2 + date.getSeconds();
+  return currentdate;
+} 
 
 module.exports = router;

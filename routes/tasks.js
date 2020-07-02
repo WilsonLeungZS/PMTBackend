@@ -7,7 +7,9 @@ var Task = require('../model/task/task');
 var User = require('../model/user');
 var TaskGroup = require('../model/task/task_group');
 var Worklog = require('../model/worklog');
-
+var taskItems = require('../services/taskItem');
+var Schedule = require('../model/schedule');
+var nodeSchedule = require('node-schedule');
 const Op = Sequelize.Op;
 
 router.get('/', function(req, res, next) {
@@ -806,6 +808,7 @@ router.get('/checkSubTaskDone', async function(req, res, next) {
 });
 
 router.post('/saveTask', function(req, res, next) {
+  //taskItems.saveTask(req, res,'createByUser');
   saveTask(req, res);
 });
 
@@ -864,7 +867,7 @@ async function saveTask(req, res) {
     })
     .spread(async function(task, created) {
       if(created) {
-        console.log("Task created"); 
+        console.log("Task created");
         return res.json(responseMessage(0, task, 'Task Created'));
       } else {
         console.log("Task existed");
@@ -894,7 +897,35 @@ async function saveTask(req, res) {
           var updateResult2 = await updateSubTasksGroup(reqTask.task_name, reqTask.task_group_id);
           var updateResult3 = await updateSubTasksReference(reqTask.task_name, reqTask.task_reference);
           var updateResult4 = await updateSubTasksWhenChangeParent(reqTask.task_name, taskObj.TaskName);
+
+          if(reqTask.task_TypeTag == 'Regular Task'){
+            await Task.update( {Status: reqTask.task_status }, { where: { ParentTaskName: reqTaskName } });
+  
+            Schedule.update({ Status: reqTask.task_status }, { where: { TaskName: reqTaskName } });
+            
+            if(reqTask.task_status == 'Running') taskItems.createTaskByScheduleJob(reqTaskName);
+  
+            if(reqTask.task_status == 'Done'){
+              Schedule.findAll({
+                attributes: ['JobId'],
+                where: { 
+                  TaskName: reqTaskName
+                },
+              }).then(function(sch) {
+                var tempJobId = sch[0].JobId;
+                var runningJob = nodeSchedule.scheduledJobs[String(tempJobId)];
+                console.log('Start To Cancel Schedule Job ----------------------------->');
+                if(runningJob != null){
+                  if(runningJob.cancel()){
+                    console.log('JobId: ' + tempJobId + ' was done.');
+                  }
+                }
+                Schedule.update( {Status: 'Done'}, {where: {JobId: tempJobId} });
+              });
+            }
+          }
         }
+        console.log('Task ' + reqTaskName + ' status is ' + reqTask.task_status);
         return res.json(responseMessage(1, task, 'Task existed'));
       }
   });
@@ -1095,6 +1126,7 @@ router.post('/getTaskByNameForParentTask', function(req, res, next) {
         }
         resJson.task_type = task[i].task_type.Name;
         resJson.task_type_id = task[i].TaskTypeId;
+        resJson.task_type_tag = task[i].TypeTag;
         resJson.task_responsible_leader = task[i].RespLeaderId;
         resJson.task_group_id = task[i].TaskGroupId;
         resJson.task_reference = task[i].Reference;
