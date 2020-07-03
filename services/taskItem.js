@@ -1,7 +1,8 @@
+var Sequelize = require('sequelize');
 var Task = require('../model/task/task');
 var dateFormat = require('dateformat');
 var Schedule = require('../model/schedule');
-var nodeSchedule = require('node-schedule');
+const Op = Sequelize.Op;
 
 async function saveTask(req, res, remark) {
   var reqTask = null;
@@ -66,7 +67,9 @@ async function saveTask(req, res, remark) {
       .spread(async function(task, created) {
         if(created) {
           console.log("Task created"); 
-          //return res.json(responseMessage(0, task, 'Task Created'));
+          /*if(String(remark) == String('createByUser')){
+            return res.json(responseMessage(0, task, 'Task Created'));
+          }*/
         } else {
           console.log("Task existed");
           /*if(reqTask.task_status == 'Running' && reqTask.task_TypeTag == 'Regular Task'){
@@ -409,6 +412,7 @@ function regularTaskSubTask(tTaskName){
   Task.findAll({
     where: {
       ParentTaskName: tTaskName,
+      TypeTag: 'Regular Task',
       Status: { [Op.ne]: 'Done' }
     },
     order: [
