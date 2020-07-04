@@ -78,10 +78,12 @@ router.get('/getLv3TaskList', function(req, res, next) {
   }).then(async function(tasks) {
     if(tasks != null && tasks.length > 0) {
       console.log("---Number(req.query.reqTaskLevel == 3)--")
-
       var response = await generateTaskListByPath(tasks);
+      console.log('Return Response ---------------------------------------->')
+      console.log(response)
+      console.log('Return Response ----------------------------------------<')
       console.log(req.query.reqOpportunity)
-      if(req.query.reqOpportunity!=null&&req.query.reqOpportunity!=''){
+      if(req.query.reqOpportunity !=null && req.query.reqOpportunity != ''){
         var response2 = []
         for(var i = 0 ; i <response.length ; i ++){
           if(response[i][0].task_parent_name ===req.query.reqOpportunity){
@@ -92,6 +94,42 @@ router.get('/getLv3TaskList', function(req, res, next) {
         console.log(response)
       }
       return res.json(responseMessage(0, response, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    } 
+  })
+});
+
+router.get('/getLv3TaskListForSingleTable', function(req, res, next) {
+  console.log('/getLv3TaskListForSingleTable')
+  var reqPage = Number(req.query.reqPage);
+  var reqSize = Number(req.query.reqSize);
+  var taskCriteria = generateTaskCriteria(req);
+  var taskTypeCriteria = generateTaskTypeCriteria(req);
+  var orderSeq = [];
+  if (Number(req.query.reqTaskLevel == 3)){
+    orderSeq = ['ParentTaskName']
+  }
+  else {
+    orderSeq = ['createdAt', 'DESC']
+  }
+  Task.findAll({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name'],
+      where: taskTypeCriteria
+    }],
+    where: taskCriteria,
+    order: [
+      orderSeq
+    ],
+    limit: (reqSize - 1),
+    offset: (reqSize - 1) * (reqPage - 1),    
+  }).then(async function(tasks) {
+    if(tasks != null && tasks.length > 0) {
+      console.log("---Number(req.query.reqTaskLevel == 3) for single table--")
+      var response = await generateTaskListByPath(tasks);
+      return res.json(responseMessage(0, response[0], ''));
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
     } 
@@ -178,9 +216,12 @@ function generateTaskListByPath(iTaskObjArray) {
       }
       //resArr.push({'ressArr_length':resArr.length})
       resArr[0].task_length = resArr.length-1
+      resArr[0].task_table_loading = false
+      resArr[0].task_current_page = 1
+      resArr[0].task_page_size = 20
       rtnResult.push(resArr)
     }
-      resolve(rtnResult)
+    resolve(rtnResult)
   });
 }
 
