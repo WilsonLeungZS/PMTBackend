@@ -52,6 +52,7 @@ router.get('/getLv3TaskList', function(req, res, next) {
   console.log('/getLv3TaskList')
   var reqPage = Number(req.query.reqPage);
   var reqSize = Number(req.query.reqSize);
+  console.log(req.query)
   var taskCriteria = generateTaskCriteria(req);
   var taskTypeCriteria = generateTaskTypeCriteria(req);
   var orderSeq = [];
@@ -73,7 +74,7 @@ router.get('/getLv3TaskList', function(req, res, next) {
     order: [
       orderSeq
     ],
-    // limit: reqSize,
+    //limit: reqSize
     // offset: reqSize * (reqPage - 1),    
   }).then(async function(tasks) {
     if(tasks != null && tasks.length > 0) {
@@ -104,6 +105,7 @@ router.get('/getLv3TaskListForSingleTable', function(req, res, next) {
   console.log('/getLv3TaskListForSingleTable')
   var reqPage = Number(req.query.reqPage);
   var reqSize = Number(req.query.reqSize);
+  console.log(req.query)
   var taskCriteria = generateTaskCriteria(req);
   var taskTypeCriteria = generateTaskTypeCriteria(req);
   var orderSeq = [];
@@ -214,11 +216,13 @@ function generateTaskListByPath(iTaskObjArray) {
           resArr.push(iTaskObjArray[i])
         }
       }
-      //resArr.push({'ressArr_length':resArr.length})
       resArr[0].task_length = resArr.length-1
       resArr[0].task_table_loading = false
       resArr[0].task_current_page = 1
       resArr[0].task_page_size = 20
+      resArr = resArr.sort((a,b) => a.task_id-b.task_id)
+      console.log("---resArr--")
+      console.log(resArr)
       rtnResult.push(resArr)
     }
     resolve(rtnResult)
@@ -253,6 +257,9 @@ function generateTaskCriteria(iReq) {
     TaskName: {[Op.notLike]: 'Dummy - %'},
     TaskLevel: reqTaskLevel,
     Id: { [Op.ne]: null }
+  }
+  if(iReq.query.reqParentTaskName != null && iReq.query.reqParentTaskName != ''){
+    criteria.ParentTaskName = iReq.query.reqParentTaskName 
   }
   if (iReq.query.reqTaskKeyword != null && iReq.query.reqTaskKeyword != '') {
     var reqTaskKeyWord = iReq.query.reqTaskKeyword.trim();
@@ -292,19 +299,19 @@ function generateTaskCriteria(iReq) {
     }
     var c2 = Object.assign(criteria, issueDateCriteria);
   }
-  if(iReq.query.reqTaskGroup!=null&&iReq.query.reqTaskGroup!=''){
-    var groupCriteria = []
-    for(var i = 0 ; i < iReq.query.reqTaskGroup.length ; i ++){
-      var resJson = {}
-      resJson = JSON.parse(iReq.query.reqTaskGroup[i])
-      groupCriteria.push(resJson)
-    }
-    criteria.TaskGroupId = {[Op.or]: groupCriteria}
-    criteria.TaskLevel = 3
-    if(iReq.query.reqParentTaskName!=null&&iReq.query.reqParentTaskName!=''){
-      criteria.ParentTaskName = iReq.query.reqParentTaskName
-    }
-  }else{
+  // if(iReq.query.reqTaskGroup!=null&&iReq.query.reqTaskGroup!=''){
+  //   var groupCriteria = []
+  //   for(var i = 0 ; i < iReq.query.reqTaskGroup.length ; i ++){
+  //     var resJson = {}
+  //     resJson = JSON.parse(iReq.query.reqTaskGroup[i])
+  //     groupCriteria.push(resJson)
+  //   }
+  //   criteria.TaskGroupId = {[Op.or]: groupCriteria}
+  //   criteria.TaskLevel = 3
+  //   if(iReq.query.reqParentTaskName!=null&&iReq.query.reqParentTaskName!=''){
+  //     criteria.ParentTaskName = iReq.query.reqParentTaskName
+  //   }
+  // }else{
     if (iReq.query.reqCurrentTimeGroup != null && iReq.query.reqCurrentTimeGroup != ''){
       var reqCurrentTimeGroup = []
       for(var i = 0 ; i < iReq.query.reqCurrentTimeGroup.length ; i ++){
@@ -320,7 +327,6 @@ function generateTaskCriteria(iReq) {
       }
       criteria.TaskGroupId = {[Op.in]: reqGroupId}
     }     
-  }
   if (iReq.query.reqLeadingBy != null&&iReq.query.reqLeadingBy!='') {
     criteria.RespLeaderId = iReq.query.reqLeadingBy
   }
