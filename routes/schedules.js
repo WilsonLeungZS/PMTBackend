@@ -202,7 +202,7 @@ function createScheduleJob(jId,tTaskName,tSchedule,tRegularTime,day) {
         var interval = Number(week) * Number(7);
         console.log('convert time: ' + week + ',' + dayOfWeek + ',' + interval);
         
-        cronJonTime = "0 0 2 " + "*/" + interval + " * */" + dayOfWeek1;
+        cronJonTime = "0 0 2 * * " + dayOfWeek1 + '#' + dayOfWeek1;
         console.log('final cronJonTime: ' + cronJonTime);
         break;
       case 'Monthly':
