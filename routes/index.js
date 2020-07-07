@@ -9,7 +9,6 @@ var Team = require('../model//team/team');
 var TaskType = require('../model/task/task_type');
 var Worklog = require('../model/worklog');
 var TaskGroup = require('../model/task/task_group');
-var Schedule = require('../model/schedule')
 var Sequelize = require('sequelize');
 const Op = Sequelize.Op;
 
