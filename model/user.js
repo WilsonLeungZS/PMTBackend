@@ -1,3 +1,10 @@
+/*
+ * @Description: 
+ * @Author: 
+ * @Date: 2020-06-04 09:41:37
+ * @LastEditTime: 2020-06-16 16:22:11
+ * @LastEditors: Wanlin Chen
+ */ 
 var Sequelize = require('sequelize');
 var sequelize = require('../config/db');
 var moment = require('moment');
@@ -44,6 +51,12 @@ var User = sequelize.define('user', {
         defaultValue: -1
     },
     Assignment: {
+        type: Sequelize.STRING
+    },
+    EmailGroups: {
+        type: Sequelize.STRING
+    },
+    SkillType: {
         type: Sequelize.STRING
     },
     createdAt: {
