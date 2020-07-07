@@ -205,24 +205,29 @@ function generateTaskListByPath(iTaskObjArray) {
       }
     }
     for(var i = 0 ; i< lv2TaskList.length; i ++){
-      lv2TaskListInfo.push(await getTaskByName(lv2TaskList[i]));   
+      lv2TaskListInfo.push(await getTaskByName(lv2TaskList[i])); 
+
     }
     lv2TaskListInfo = await generatePlanTaskList(lv2TaskListInfo);
     for(var j = 0 ; j < lv2TaskListInfo.length ; j ++){
+      var effort = 0
+      var subTasksEst = 0
       var resArr = []
       resArr.push(lv2TaskListInfo[j])
       for(var i = 0 ; i < iTaskObjArray.length ; i ++){
         if(iTaskObjArray[i].task_parent_name === lv2TaskListInfo[j].task_name){
           resArr.push(iTaskObjArray[i])
+          effort = effort + iTaskObjArray[i].task_effort
+          subTasksEst = subTasksEst + iTaskObjArray[i].task_subtasks_estimation
         }
       }
+      resArr[0].task_effort = effort
+      resArr[0].task_subtasks_estimation = subTasksEst
       resArr[0].task_length = resArr.length-1
       resArr[0].task_table_loading = false
       resArr[0].task_current_page = 1
       resArr[0].task_page_size = 20
       resArr = resArr.sort((a,b) => a.task_id-b.task_id)
-      console.log("---resArr--")
-      console.log(resArr)
       rtnResult.push(resArr)
     }
     resolve(rtnResult)
