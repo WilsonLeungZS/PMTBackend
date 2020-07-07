@@ -808,7 +808,7 @@ router.post('/getSubTaskByTaskName', function(req, res, next) {
   Task.findAll({
     where: {
       ParentTaskName: req.body.reqTaskName,
-      TypeTag:{ [Op.ne] :'Regular Task'}
+      TypeTag:{[Op.or]: [{[Op.ne]: 'Regular Task'}, null]}
     },
     order: [
       ['Id', 'ASC']
