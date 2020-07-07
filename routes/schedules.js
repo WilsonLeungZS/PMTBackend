@@ -191,7 +191,7 @@ function createScheduleJob(jId,tTaskName,tSchedule,tRegularTime,day) {
         console.log('final cronJonTime: ' + cronJonTime);
        }else{
         var days = arr[1];
-        cronJonTime = "0 0 2 *" + "/" + days + " * *"
+        cronJonTime = "0 0 2 " + day + "/" + days + " * *"
         console.log('final cronJonTime: ' + cronJonTime);
        }
       break;
@@ -202,7 +202,7 @@ function createScheduleJob(jId,tTaskName,tSchedule,tRegularTime,day) {
         var interval = Number(week) * Number(7);
         console.log('convert time: ' + week + ',' + dayOfWeek + ',' + interval);
         
-        cronJonTime = "0 0 2 " + "*/" + interval + " * */" + dayOfWeek1;
+        cronJonTime = "0 0 2 * * " + dayOfWeek1 + '#' + dayOfWeek1;
         console.log('final cronJonTime: ' + cronJonTime);
         break;
       case 'Monthly':
@@ -222,7 +222,7 @@ function createScheduleJob(jId,tTaskName,tSchedule,tRegularTime,day) {
         }else if(Number(arr.length == 6)){
           checkDay = arr[1];
           checkMonth = arr[4];
-          cronJonTime = "0 0 2 " + checkDay + "*/" + checkMonth +" *";
+          cronJonTime = "0 0 2 * " + checkDay + "/" + checkMonth +" *";
           console.log('final cronJonTime: ' + cronJonTime);
           console.log('convert time: ' + checkDay + ',' + checkMonth);
         }
