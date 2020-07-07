@@ -299,19 +299,19 @@ function generateTaskCriteria(iReq) {
     }
     var c2 = Object.assign(criteria, issueDateCriteria);
   }
-  // if(iReq.query.reqTaskGroup!=null&&iReq.query.reqTaskGroup!=''){
-  //   var groupCriteria = []
-  //   for(var i = 0 ; i < iReq.query.reqTaskGroup.length ; i ++){
-  //     var resJson = {}
-  //     resJson = JSON.parse(iReq.query.reqTaskGroup[i])
-  //     groupCriteria.push(resJson)
-  //   }
-  //   criteria.TaskGroupId = {[Op.or]: groupCriteria}
-  //   criteria.TaskLevel = 3
-  //   if(iReq.query.reqParentTaskName!=null&&iReq.query.reqParentTaskName!=''){
-  //     criteria.ParentTaskName = iReq.query.reqParentTaskName
-  //   }
-  // }else{
+  if(iReq.query.reqTaskGroup!=null&&iReq.query.reqTaskGroup!=''){
+    var groupCriteria = []
+    for(var i = 0 ; i < iReq.query.reqTaskGroup.length ; i ++){
+      var resJson = {}
+      resJson = JSON.parse(iReq.query.reqTaskGroup[i])
+      groupCriteria.push(resJson)
+    }
+    criteria.TaskGroupId = {[Op.or]: groupCriteria}
+    criteria.TaskLevel = 3
+    if(iReq.query.reqParentTaskName!=null&&iReq.query.reqParentTaskName!=''){
+      criteria.ParentTaskName = iReq.query.reqParentTaskName
+    }
+  }else{
     if (iReq.query.reqCurrentTimeGroup != null && iReq.query.reqCurrentTimeGroup != ''){
       var reqCurrentTimeGroup = []
       for(var i = 0 ; i < iReq.query.reqCurrentTimeGroup.length ; i ++){
@@ -326,7 +326,8 @@ function generateTaskCriteria(iReq) {
         reqGroupId.push(resJson)
       }
       criteria.TaskGroupId = {[Op.in]: reqGroupId}
-    }     
+    }
+  }     
   if (iReq.query.reqLeadingBy != null&&iReq.query.reqLeadingBy!='') {
     criteria.RespLeaderId = iReq.query.reqLeadingBy
   }
@@ -1691,13 +1692,14 @@ router.get('/getPlanTaskSizeByParentTask', function(req, res, next) {
   if(reqCurrentTimeGroup != null && reqCurrentTimeGroup != '') {
     var groupCriteria = []
     console.log(reqCurrentTimeGroup)
-    for(var i = 0 ; i < reqCurrentTimeGroup.length ; i ++){
-      var resJson = {}
-      resJson = JSON.parse(reqCurrentTimeGroup[i])
-      console.log(resJson)
-      groupCriteria.push(resJson.group_id)
-    }
-    criteria.TaskGroupId = {[Op.or]: groupCriteria}
+    // for(var i = 0 ; i < reqCurrentTimeGroup.length ; i ++){
+    //   var resJson = {}
+    //   resJson = JSON.parse(reqCurrentTimeGroup[i])
+    //   console.log(resJson)
+    //   groupCriteria.push(resJson.group_id)
+    // }
+    // console.log(groupCriteria)
+    criteria.TaskGroupId = {[Op.or]: reqCurrentTimeGroup}
   }
   if (req.query.reqFilterAssignee != null && req.query.reqFilterAssignee != '') {
     criteria.AssigneeId = Number(req.query.reqFilterAssignee)
@@ -1801,13 +1803,13 @@ router.get('/getPlanTaskListByParentTask', function(req, res, next) {
   if(reqCurrentTimeGroup != null && reqCurrentTimeGroup != '') {
     var groupCriteria = []
     console.log(reqCurrentTimeGroup)
-    for(var i = 0 ; i < reqCurrentTimeGroup.length ; i ++){
-      var resJson = {}
-      resJson = JSON.parse(reqCurrentTimeGroup[i])
-      console.log(resJson)
-      groupCriteria.push(resJson.group_id)
-    }
-    criteria.TaskGroupId = {[Op.or]: groupCriteria}
+    // for(var i = 0 ; i < reqCurrentTimeGroup.length ; i ++){
+    //   var resJson = {}
+    //   resJson = JSON.parse(reqCurrentTimeGroup[i])
+    //   console.log(resJson)
+    //   groupCriteria.push(resJson.group_id)
+    // }
+    criteria.TaskGroupId = {[Op.or]: reqCurrentTimeGroup}
   }
   if (req.query.reqFilterAssignee != null && req.query.reqFilterAssignee != '') {
     criteria.AssigneeId = Number(req.query.reqFilterAssignee)
@@ -1982,18 +1984,17 @@ router.get('/getTaskGroup', function(req, res, next) {
           StartTime: {[Op.gte]: today.StartTime}
         };           
       }else{
-        // var date = new Date();
-        // var year = date.getFullYear();
-        // var month = date.getMonth() + 1;
-        // var strDate = date.getDate();
-        // if (strDate >= 1 && strDate <= 9) {
-        //   strDate = '0' + strDate ;
-        // }
-        // if(month >=1 && month <=9){
-        //   month = '0' + month ;
-        // }        
-        // var today = year + '-' + month + '-' + strDate 
-        var today = '2020-06-10'
+        var date = new Date();
+        var year = date.getFullYear();
+        var month = date.getMonth() + 1;
+        var strDate = date.getDate();
+        if (strDate >= 1 && strDate <= 9) {
+          strDate = '0' + strDate ;
+        }
+        if(month >=1 && month <=9){
+          month = '0' + month ;
+        }        
+        var today = year + '-' + month + '-' + strDate 
         groupCriteria = { 
           Id: { [Op.ne]: null },
           //RelatedTaskName: req.query.tGroupRelatedTask,
