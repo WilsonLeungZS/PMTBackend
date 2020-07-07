@@ -177,6 +177,7 @@ function AutoCreateRegularTask() {
   return true;
 }
 
+
 function createScheduleJob(jId,tTaskName,tSchedule,tRegularTime,day) {
   var previousTime = dateFormat(new Date(), "yyyy-mm-dd hh:MM:ss");
   try{
