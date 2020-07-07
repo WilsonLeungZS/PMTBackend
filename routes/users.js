@@ -132,9 +132,13 @@ router.post('/addOrUpdateUser', function(req, res, next) {
         Level: req.body.reqUserLevel,
         EmployeeNumber: req.body.reqUserEmployeeNumber,
         Assignment: req.body.reqUserAssignment,
+<<<<<<< HEAD
         Nickname : req.body.reqUserNickname,
         EmailGroups : req.body.reqUserEmailGroups,
         SkillType : req.body.reqUserSkillType
+=======
+        Nickname : req.body.reqUserNickname
+>>>>>>> a9cbdce3d4343d8f6d1b4f63605482f41c601c73
       }})
     .spread(function(user, created) {
       if(created) {
