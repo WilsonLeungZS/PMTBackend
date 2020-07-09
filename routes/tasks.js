@@ -10,6 +10,7 @@ var Worklog = require('../model/worklog');
 var taskItems = require('../services/taskItem');
 var Schedule = require('../model/schedule');
 var nodeSchedule = require('node-schedule');
+var Reference = require('../model/reference')
 const Op = Sequelize.Op;
 
 router.get('/', function(req, res, next) {
@@ -92,14 +93,96 @@ router.get('/getLv3TaskList', function(req, res, next) {
           }
         }
         response = response2
-        console.log(response)
       }
+      if(req.query.reqSkill!=null){
+        var response3 = []
+        for(var i = 0 ; i < response.length ; i ++){
+          if(response[i][0].task_skill!=null){
+            var reqSkill = response[i][0].task_skill.split(",")
+            var check = false
+            for( var j = 0 ; j <req.query.reqSkill.length ; j ++ ){
+              if(reqSkill.includes(req.query.reqSkill[j])){
+                check = true
+                break
+              }
+            }
+            if(check == true){
+              console.log(i)
+              console.log(response[i])
+              response3.push(response[i])
+            }            
+          }
+      }
+      response = response3
+    }
+    console.log(response)
       return res.json(responseMessage(0, response, ''));
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
     } 
   })
 });
+
+router.post('/getSkillFromReference',function(req, res, next) {
+  console.log('/getSkillFromReference')
+  Reference.findOne({
+    where:{Id:20},
+  }).then(async function(reference){
+    console.log(reference)
+    if(reference!=null){
+      var rtnResult = reference.Value.split(",")
+    return res.json(responseMessage(1, rtnResult, ''));
+    }else{
+      return res.json(responseMessage(1, null, 'Failed to update reference'));
+    }
+  })
+})
+
+router.post('/saveSkillToReference',function(req, res, next) {
+  console.log('/saveSkillToReference')
+  var TaskSkill = JSON.parse(req.body.reqTaskSkill)
+  Reference.findOne({
+    where:{Id:20},
+  }).then(async function(reference){
+    console.log(reference)
+    if(reference!=null){
+      var resJson = {}
+      resJson.reference_value = reference.Value.split(",")
+      console.log()
+      var resLen = resJson.reference_value.length
+      for(var i = 0 ; i < TaskSkill.length ; i ++){
+        var equal = false
+        for(var j = 0 ; j < resLen ; j ++){
+          if(TaskSkill[i] === resJson.reference_value[j]){
+            equal = true
+            break
+          }
+        }
+        if(equal === false){
+          resJson.reference_value.push(TaskSkill[i])
+        }
+      }
+    var rtnResult =   await updateReference(resJson.reference_value)
+    return res.json(responseMessage(1, rtnResult, ''));
+    }else{
+      return res.json(responseMessage(1, null, 'Failed to update reference'));
+    }
+  })
+})
+
+function updateReference(rValue){
+  return new Promise(async (resolve,reject) => {
+    Reference.update(
+      {Value: rValue.toString()},
+      {where: {Id: 20}}).then(function(reference) {
+      if(reference != null) {
+        resolve(reference);
+      } else {
+        resolve(null);
+      }
+    });      
+  })
+}
 
 router.get('/getLv3TaskListForSingleTable', function(req, res, next) {
   console.log('/getLv3TaskListForSingleTable')
@@ -565,6 +648,7 @@ router.post('/getTaskByName', function(req, res, next) {
 
 function generateTaskInfo (iTask) {
   return new Promise(async (resolve, reject) => {
+    console.log(iTask)
     var resJson = {};
     resJson.task_id = iTask.Id;
     resJson.task_parent_name = iTask.ParentTaskName;
@@ -577,6 +661,7 @@ function generateTaskInfo (iTask) {
     }
     resJson.task_name = iTask.TaskName;
     resJson.task_level = iTask.TaskLevel;
+    resJson.task_skill = iTask.Skill
     resJson.task_desc = iTask.Description;
     resJson.task_type_id = iTask.TaskTypeId;
     resJson.task_type = iTask.task_type.Name;
@@ -879,8 +964,13 @@ async function saveTask(req, res) {
   var reqTask = JSON.parse(req.body.reqTask);
   var reqTaskName = reqTask.task_name;
   var reqTaskParent = reqTask.task_parent_name;
+  var reqTaskSkill = null
   if((reqTaskName == null || reqTaskName == '') && reqTaskParent != 'N/A'){
     reqTaskName = await getSubTaskName(reqTaskParent);
+  }
+  console.log(reqTask)
+  if(Number(reqTask.task_level) === 2){
+    reqTaskSkill = reqTask.task_skill
   }
   var taskObj = {
     ParentTaskName: reqTaskParent,
@@ -920,6 +1010,7 @@ async function saveTask(req, res) {
     TypeTag: reqTask.task_TypeTag != ''? reqTask.task_TypeTag: null,
     DeliverableTag: reqTask.task_deliverableTag != ''? reqTask.task_deliverableTag: null,
     Detail: reqTask.task_detail != ''? reqTask.task_detail: null,
+    Skill: reqTaskSkill
   }
   console.log('TaskObject Start: ------------->');
   console.log(taskObj);
@@ -1806,14 +1897,7 @@ router.get('/getPlanTaskListByParentTask', function(req, res, next) {
     // TypeTag:{ [Op.ne]: 'Regular Task' }
   }
   if(reqCurrentTimeGroup != null && reqCurrentTimeGroup != '') {
-    var groupCriteria = []
     console.log(reqCurrentTimeGroup)
-    // for(var i = 0 ; i < reqCurrentTimeGroup.length ; i ++){
-    //   var resJson = {}
-    //   resJson = JSON.parse(reqCurrentTimeGroup[i])
-    //   console.log(resJson)
-    //   groupCriteria.push(resJson.group_id)
-    // }
     criteria.TaskGroupId = {[Op.or]: reqCurrentTimeGroup}
   }
   if (req.query.reqFilterAssignee != null && req.query.reqFilterAssignee != '') {
@@ -1852,6 +1936,7 @@ function generatePlanTaskList(iTaskObjArray) {
       resJson.task_desc = iTaskObjArray[i].Description;
       resJson.task_status = iTaskObjArray[i].Status;
       resJson.task_effort = iTaskObjArray[i].Effort;
+      resJson.task_skill = iTaskObjArray[i].Skill;
       resJson.task_estimation = iTaskObjArray[i].Estimation;
       resJson.task_subtasks_estimation = await getSubTaskTotalEstimation(iTaskObjArray[i].TaskName);
       resJson.task_reference = iTaskObjArray[i].Reference;
