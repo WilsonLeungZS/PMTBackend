@@ -53,7 +53,6 @@ router.get('/getLv3TaskList', function(req, res, next) {
   console.log('/getLv3TaskList')
   var reqPage = Number(req.query.reqPage);
   var reqSize = Number(req.query.reqSize);
-  console.log(req.query)
   var taskCriteria = generateTaskCriteria(req);
   var taskTypeCriteria = generateTaskTypeCriteria(req);
   var orderSeq = [];
@@ -107,15 +106,12 @@ router.get('/getLv3TaskList', function(req, res, next) {
               }
             }
             if(check == true){
-              console.log(i)
-              console.log(response[i])
               response3.push(response[i])
             }            
           }
       }
       response = response3
     }
-    console.log(response)
       return res.json(responseMessage(0, response, ''));
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
