@@ -317,6 +317,9 @@ function generateTaskListByPath(iTaskObjArray) {
 router.get('/getTaskListTotalSize', function(req, res, next) {
   var taskCriteria = generateTaskCriteria(req);
   var taskTypeCriteria = generateTaskTypeCriteria(req);
+  console.log(taskTypeCriteria)
+  console.log(taskCriteria)
+  console.log('~~~~~~~~~~~~~~~~~~~~~~~~~~')
   Task.findAll({
     include: [{
       model: TaskType, 
@@ -343,6 +346,18 @@ function generateTaskCriteria(iReq) {
     //Id: { [Op.ne]: null },
     TypeTag:{[Op.or]: [{[Op.ne]: 'Regular Task'}, null]}
   }
+  if (iReq.query.reqFilterShowRefPool != null && iReq.query.reqFilterShowRefPool != '') {
+    if (iReq.query.reqFilterShowRefPool != 'true') {
+      criteria.TypeTag = {[Op.or]: [{[Op.ne]: 'Regular Task'}, null]}
+      if(iReq.query.reqCurrentTimeGroup != null){
+        if (!iReq.query.reqCurrentTimeGroup.includes('All') && !iReq.query.reqCurrentTimeGroup.includes('null') ){
+          criteria.TaskGroupId = {[Op.in]: iReq.query.reqCurrentTimeGroup}
+        }else if(iReq.query.reqCurrentTimeGroup.includes('null') ){
+          criteria.TaskGroupId = null
+        }    
+      }
+    }
+  }
   if(iReq.query.reqParentTaskName != null && iReq.query.reqParentTaskName != ''){
     criteria.ParentTaskName = iReq.query.reqParentTaskName 
   }
@@ -366,13 +381,6 @@ function generateTaskCriteria(iReq) {
   }
   if (iReq.query.reqFilterStatus != null && iReq.query.reqFilterStatus != '') {
     criteria.Status = iReq.query.reqFilterStatus
-  }
-  if(iReq.query.reqCurrentTimeGroup != null){
-    if (!iReq.query.reqCurrentTimeGroup.includes('All') && !iReq.query.reqCurrentTimeGroup.includes('null') ){
-      criteria.TaskGroupId = {[Op.in]: iReq.query.reqCurrentTimeGroup}
-    }else if(iReq.query.reqCurrentTimeGroup.includes('null') ){
-      criteria.TaskGroupId = null
-    }    
   }
   if (iReq.query.reqLeadingBy != null&&iReq.query.reqLeadingBy!='') {
     criteria.RespLeaderId = iReq.query.reqLeadingBy
