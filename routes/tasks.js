@@ -350,9 +350,9 @@ function generateTaskCriteria(iReq) {
     if (iReq.query.reqFilterShowRefPool != 'true') {
       criteria.TypeTag = {[Op.or]: [{[Op.ne]: 'Regular Task'}, null]}
       if(iReq.query.reqCurrentTimeGroup != null){
-        if (!iReq.query.reqCurrentTimeGroup.includes('All') && !iReq.query.reqCurrentTimeGroup.includes('null') ){
+        if (!iReq.query.reqCurrentTimeGroup.includes('All') && !iReq.query.reqCurrentTimeGroup.includes('null') && !iReq.query.reqCurrentTimeGroup.includes('0') ){
           criteria.TaskGroupId = {[Op.in]: iReq.query.reqCurrentTimeGroup}
-        }else if(iReq.query.reqCurrentTimeGroup.includes('null') ){
+        }else if(iReq.query.reqCurrentTimeGroup.includes('0') || iReq.query.reqCurrentTimeGroup.includes('null') ){
           criteria.TaskGroupId = null
         }    
       }
@@ -1749,11 +1749,10 @@ router.get('/getPlanTaskSizeByParentTask', function(req, res, next) {
     ParentTaskName: reqParentTaskName,
     TaskLevel: 3
   }
-  console.log(req.query)
   if(req.query.reqCurrentTimeGroup != null){
-    if (!req.query.reqCurrentTimeGroup.includes('All') && !req.query.reqCurrentTimeGroup.includes('null') ){
+    if (!req.query.reqCurrentTimeGroup.includes('All') && !req.query.reqCurrentTimeGroup.includes('null') && !req.query.reqCurrentTimeGroup.includes('0') ){
       criteria.TaskGroupId = {[Op.in]: req.query.reqCurrentTimeGroup}
-    }else if(req.query.reqCurrentTimeGroup.includes('null') ){
+    }else if(req.query.reqCurrentTimeGroup.includes('0') || req.query.reqCurrentTimeGroup.includes('null') ){
       criteria.TaskGroupId = null
     }    
   }
@@ -1859,9 +1858,9 @@ router.get('/getPlanTaskListByParentTask', function(req, res, next) {
     TaskLevel: 3,
     TypeTag:{[Op.or]: [{[Op.ne]: 'Regular Task'}, null]}
   }
-  if (req.query.reqCurrentTimeGroup != null && req.query.reqCurrentTimeGroup!='null' && req.query.reqCurrentTimeGroup!='null' && req.query.reqCurrentTimeGroup!='All' && req.query.reqCurrentTimeGroup!='0'){
+  if (req.query.reqCurrentTimeGroup != null && !req.query.reqCurrentTimeGroup.includes('null') && !req.query.reqCurrentTimeGroup.includes('0') && !req.query.reqCurrentTimeGroup.includes('All')){
     criteria.TaskGroupId = {[Op.in]: req.query.reqCurrentTimeGroup}
-  }else if(req.query.reqCurrentTimeGroup == 'null'){
+  }else if(req.query.reqCurrentTimeGroup.includes('0') || req.query.reqCurrentTimeGroup.includes('null')){
     criteria.TaskGroupId = null
   }
   if (req.query.reqFilterAssignee != null && req.query.reqFilterAssignee != '') {
