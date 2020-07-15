@@ -49,12 +49,30 @@ router.get('/searchTaskByKeywordAndLevel', function(req, res, next) {
   })
 });
 
-router.get('/getLv3TaskList', function(req, res, next) {
+router.get('/getLv3TaskList', async function(req, res, next) {
   console.log('/getLv3TaskList!')
   var reqPage = Number(req.query.reqPage);
   var reqSize = Number(req.query.reqSize);
   var taskCriteria = generateTaskCriteria(req);
   var taskTypeCriteria = generateTaskTypeCriteria(req);
+  if (req.query.reqSkill != null && req.query.reqSkill != ''){
+    var reqParentTaskName = await getLv2BySkill(req.query.reqSkill)
+    if(reqParentTaskName!=null){
+      taskCriteria.ParentTaskName = {
+        [Op.or] : reqParentTaskName
+      }      
+    }
+  }
+  if (req.query.reqOpportunity != null && req.query.reqOpportunity != ''){
+    var reqParentTaskName = await getTasksByParentName(req.query.reqOpportunity)
+    if(reqParentTaskName!=null){
+      taskCriteria.ParentTaskName = {
+        [Op.or] : reqParentTaskName
+      }      
+    }
+  }
+  console.log('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+  console.log(taskCriteria)
   var orderSeq = [];
   if (Number(req.query.reqTaskLevel == 1)) {
     orderSeq = ['TopTargetStart', 'DESC']
@@ -68,7 +86,7 @@ router.get('/getLv3TaskList', function(req, res, next) {
     include: [{
       model: TaskType, 
       attributes: ['Name'],
-      //where: taskTypeCriteria
+      where: taskTypeCriteria
     }],
     where: taskCriteria,
     order: [
@@ -93,25 +111,25 @@ router.get('/getLv3TaskList', function(req, res, next) {
         }
         response = response2
       }
-      if(req.query.reqSkill!=null){
-        var response3 = []
-        for(var i = 0 ; i < response.length ; i ++){
-          if(response[i][0].task_skill!=null){
-            var reqSkill = response[i][0].task_skill.split(",")
-            var check = false
-            for( var j = 0 ; j <req.query.reqSkill.length ; j ++ ){
-              if(reqSkill.includes(req.query.reqSkill[j])){
-                check = true
-                break
-              }
-            }
-            if(check == true){
-              response3.push(response[i])
-            }            
-          }
-      }
-      response = response3
-    }
+    //   if(req.query.reqSkill!=null){
+    //     var response3 = []
+    //     for(var i = 0 ; i < response.length ; i ++){
+    //       if(response[i][0].task_skill!=null){
+    //         var reqSkill = response[i][0].task_skill.split(",")
+    //         var check = false
+    //         for( var j = 0 ; j <req.query.reqSkill.length ; j ++ ){
+    //           if(reqSkill.includes(req.query.reqSkill[j])){
+    //             check = true
+    //             break
+    //           }
+    //         }
+    //         if(check == true){
+    //           response3.push(response[i])
+    //         }            
+    //       }
+    //   }
+    //   response = response3
+    // }
       return res.json(responseMessage(0, response, ''));
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
@@ -314,12 +332,29 @@ function generateTaskListByPath(iTaskObjArray) {
 }
 
 
-router.get('/getTaskListTotalSize', function(req, res, next) {
-  var taskCriteria = generateTaskCriteria(req);
+router.get('/getTaskListTotalSize', async function(req, res, next) {
+  console.log('getTaskListTotalSize')
+  console.log(req.query)
+  var taskCriteria =  generateTaskCriteria(req);
   var taskTypeCriteria = generateTaskTypeCriteria(req);
-  console.log(taskTypeCriteria)
+  if (req.query.reqSkill != null && req.query.reqSkill != ''){
+    var reqParentTaskName = await getLv2BySkill(req.query.reqSkill)
+    console.log(reqParentTaskName)
+    if(reqParentTaskName!=null){
+      taskCriteria.ParentTaskName = {
+        [Op.or] : reqParentTaskName
+      }      
+    }
+  }
+  if (req.query.reqOpportunity != null && req.query.reqOpportunity != ''){
+    var reqParentTaskName = await getTasksByParentName(req.query.reqOpportunity)
+    if(reqParentTaskName!=null){
+      taskCriteria.ParentTaskName = {
+        [Op.or] : reqParentTaskName
+      }      
+    }
+  }
   console.log(taskCriteria)
-  console.log('~~~~~~~~~~~~~~~~~~~~~~~~~~')
   Task.findAll({
     include: [{
       model: TaskType, 
@@ -344,20 +379,19 @@ function generateTaskCriteria(iReq) {
     //TaskName: {[Op.notLike]: 'Dummy - %'},
     TaskLevel: reqTaskLevel,
     //Id: { [Op.ne]: null },
-    TypeTag:{[Op.or]: [{[Op.ne]: 'Regular Task'}, null]}
   }
   if (iReq.query.reqFilterShowRefPool != null && iReq.query.reqFilterShowRefPool != '') {
-    if (iReq.query.reqFilterShowRefPool != 'true') {
-      criteria.TypeTag = {[Op.or]: [{[Op.ne]: 'Regular Task'}, null]}
-      if(iReq.query.reqCurrentTimeGroup != null){
-        if (!iReq.query.reqCurrentTimeGroup.includes('All') && !iReq.query.reqCurrentTimeGroup.includes('null') && !iReq.query.reqCurrentTimeGroup.includes('0') ){
-          criteria.TaskGroupId = {[Op.in]: iReq.query.reqCurrentTimeGroup}
-        }else if(iReq.query.reqCurrentTimeGroup.includes('0') || iReq.query.reqCurrentTimeGroup.includes('null') ){
-          criteria.TaskGroupId = null
-        }    
+      if (iReq.query.reqFilterShowRefPool != 'true') {
+        criteria.TypeTag = {[Op.or]: [{[Op.ne]: 'Regular Task'}, null]}
       }
     }
-  }
+  if(iReq.query.reqCurrentTimeGroup != null){
+    if (!iReq.query.reqCurrentTimeGroup.includes('All') && !iReq.query.reqCurrentTimeGroup.includes('null') && !iReq.query.reqCurrentTimeGroup.includes('0') ){
+      criteria.TaskGroupId = {[Op.in]: iReq.query.reqCurrentTimeGroup}
+    }else if(iReq.query.reqCurrentTimeGroup.includes('0') || iReq.query.reqCurrentTimeGroup.includes('null') ){
+      criteria.TaskGroupId = null
+    }    
+  }      
   if(iReq.query.reqParentTaskName != null && iReq.query.reqParentTaskName != ''){
     criteria.ParentTaskName = iReq.query.reqParentTaskName 
   }
@@ -385,8 +419,73 @@ function generateTaskCriteria(iReq) {
   if (iReq.query.reqLeadingBy != null&&iReq.query.reqLeadingBy!='') {
     criteria.RespLeaderId = iReq.query.reqLeadingBy
   }
-  console.log(criteria)
-  return criteria;
+  return criteria
+}
+
+function getLv2BySkill(reqSkill) {
+  return new Promise(async (resolve, reject) => {
+    console.log(reqSkill)
+    var rtnResult = []  
+    Task.findAll({
+      where: {
+        Skill : { [Op.like]: '%'+reqSkill+'%'} , 
+        TaskLevel : 2
+      }
+      }).then(async function(tasks) {
+        if(tasks != null && tasks.length > 0) {
+          for (var i = 0 ; i < tasks.length ; i ++){
+            rtnResult.push(tasks[i].TaskName)
+          }
+          resolve(rtnResult)
+      }else{
+        resolve(null)
+      }
+    })
+  });
+}
+
+function getTasksByParentName(iParentTaskName) {
+  return new Promise(async (resolve, reject) => {
+    var rtnResult = []  
+    Task.findAll({
+      where: {
+        ParentTaskName :  iParentTaskName , 
+        TaskLevel : 2
+      }
+      }).then(async function(tasks) {
+        if(tasks != null && tasks.length > 0) {
+          for (var i = 0 ; i < tasks.length ; i ++){
+            rtnResult.push(tasks[i].TaskName)
+          }
+          resolve(rtnResult)
+      }else{
+        resolve(null)
+      }
+    })    
+  });      
+}
+
+function getLv1ByOppname(reqOpp) {
+  return new Promise(async (resolve, reject) => {
+    console.log(reqOpp)
+    var rtnResult = []  
+    Task.findAll({
+      where: {
+        TopOppName :  {[Op.in]:'%'+reqOpp+'%'} , 
+        TaskLevel : 1
+      }
+      }).then(async function(tasks) {
+        console.log(tasks)
+        if(tasks != null && tasks.length > 0) {
+          for (var i = 0 ; i < tasks.length ; i ++){
+            rtnResult = await getTasksByParentName(tasks[i].TaskName)
+          }
+          resolve(rtnResult)
+      }else{
+        resolve(null)
+      }
+    })
+  });
 }
 
 function generateTaskTypeCriteria(iReq) {
@@ -590,7 +689,24 @@ router.post('/getTasksByParentName', function(req, res, next) {
   })
 });
 
-
+router.post('/getTaskTypeByName', function(req, res, next) {
+  Task.findOne({
+    include: [{
+      model: TaskType, 
+      attributes: ['Name']
+    }],
+    where: {
+      TaskName: req.body.reqTaskName 
+    }
+  }).then(function(task) {
+    if (task != null) {
+      var response = task.task_type.Name
+      return res.json(responseMessage(0, response, ''));  
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  });
+});
 
 router.post('/getTaskByName', function(req, res, next) {
   console.log('Start to get task by name: ' + req.body.reqTaskName)
@@ -935,7 +1051,7 @@ async function saveTask(req, res) {
   }
   console.log(reqTask)
   if(Number(reqTask.task_level) === 2){
-    reqTaskSkill = reqTask.task_skill
+    reqTaskSkill = reqTask.task_skill.toString()
   }
   var taskObj = {
     ParentTaskName: reqTaskParent,
@@ -1924,6 +2040,7 @@ function generatePlanTaskList(iTaskObjArray) {
       resJson.task_status = iTaskObjArray[i].Status;
       resJson.task_effort = iTaskObjArray[i].Effort;
       resJson.task_skill = iTaskObjArray[i].Skill;
+      resJson.task_type_id = iTaskObjArray[i].TaskTypeId;
       resJson.task_estimation = iTaskObjArray[i].Estimation;
       resJson.task_subtasks_estimation = await getSubTaskTotalEstimation(iTaskObjArray[i].TaskName);
       resJson.task_reference = iTaskObjArray[i].Reference;
