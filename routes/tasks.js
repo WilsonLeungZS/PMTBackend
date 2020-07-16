@@ -198,6 +198,8 @@ function updateReference(rValue){
   })
 }
 
+
+
 router.get('/getLv3TaskListForSingleTable', function(req, res, next) {
   console.log('/getLv3TaskListForSingleTable')
   var reqPage = Number(req.query.reqPage);
@@ -1040,6 +1042,42 @@ router.post('/saveTask', function(req, res, next) {
   //taskItems.saveTask(req, res,'createByUser');
   saveTask(req, res);
 });
+
+router.get('/countByTaskGroup', function(req, res, next) {
+  console.log('countByTaskGroup')
+  var reqTaskGroupId = Number(req.query.reqTaskGroupId);
+  Task.findAll({
+    where: {
+        TaskGroupId : reqTaskGroupId,
+        TaskLevel : 3,
+        Status : {[Op.ne] : 'Drafting'}
+    },
+    order: [
+      ['createdAt', 'DESC']
+    ]
+  }).then(async function(tasks) {
+      if(tasks != null && tasks.length > 0) {
+        var rtnResult = {
+          planningC : 0,
+          runningC : 0,
+          doneC :0       
+        }
+        for(var i = 0 ; i < tasks.length ; i++){
+          if(tasks[i].Status === 'Planning'){
+            rtnResult.planningC ++
+          }else if(tasks[i].Status === 'Running'){
+            rtnResult.runningC ++
+          }else if(tasks[i].Status === 'Done'){
+            rtnResult.doneC ++
+          }
+        }
+        return res.json(responseMessage(0, rtnResult, ''));
+      } else {
+        return res.json(responseMessage(1, null, 'No task exist'));
+      }
+  })
+});
+
 
 async function saveTask(req, res) {
   var reqTask = JSON.parse(req.body.reqTask);
