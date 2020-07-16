@@ -692,14 +692,15 @@ router.post('/getTaskTypeByName', function(req, res, next) {
   Task.findOne({
     include: [{
       model: TaskType, 
-      attributes: ['Name']
+      attributes: ['Name','Id']
     }],
     where: {
       TaskName: req.body.reqTaskName 
     }
   }).then(function(task) {
     if (task != null) {
-      var response = task.task_type.Name
+      console.log(task.task_type)
+      var response = task.task_type.Id
       return res.json(responseMessage(0, response, ''));  
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
@@ -1605,7 +1606,7 @@ router.post('/getLevel2TaskListByParentTask', function(req, res, next) {
     where: {
       ParentTaskName: req.body.reqParentTaskName,
       TaskLevel: 2,
-      Status: {[Op.ne]: 'Drafting'}
+      //Status: {[Op.ne]: 'Drafting'}
     },
     order: [
       ['createdAt', 'DESC']
