@@ -71,8 +71,6 @@ router.get('/getLv3TaskList', async function(req, res, next) {
       }      
     }
   }
-  console.log('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
-  console.log(taskCriteria)
   var orderSeq = [];
   if (Number(req.query.reqTaskLevel == 1)) {
     orderSeq = ['TopTargetStart', 'DESC']
@@ -101,13 +99,11 @@ router.get('/getLv3TaskList', async function(req, res, next) {
       console.log('Return Response ---------------------------------------->')
       console.log(response)
       console.log('Return Response ----------------------------------------<')
-      console.log(req.query.reqOpportunity)
       for(var i = 0 ; i <response.length ; i ++){
         if(response[i][0].task_parent_name ===req.query.reqOpportunity){
           response2.push(response[i])
         }
         response[i][0].task_effort = await getSubTaskTotalEffortForPlanTask(response[i][0].task_name,req.query.reqCurrentTimeGroup,0)
-        console.log(response[i][0].task_effort)
         response[i][0].task_subtasks_estimation =  await getSubTaskTotalEstimationForPlanTask(response[i][0].task_name,req.query.reqCurrentTimeGroup,0)
       }
       return res.json(responseMessage(0, response, ''));
@@ -122,7 +118,6 @@ router.post('/getSkillFromReference',function(req, res, next) {
   Reference.findOne({
     where:{Id:20},
   }).then(async function(reference){
-    console.log(reference)
     if(reference!=null){
       var rtnResult = reference.Value.split(",")
     return res.json(responseMessage(1, rtnResult, ''));
@@ -138,11 +133,9 @@ router.post('/saveSkillToReference',function(req, res, next) {
   Reference.findOne({
     where:{Id:20},
   }).then(async function(reference){
-    console.log(reference)
     if(reference!=null){
       var resJson = {}
       resJson.reference_value = reference.Value.split(",")
-      console.log()
       var resLen = resJson.reference_value.length
       for(var i = 0 ; i < TaskSkill.length ; i ++){
         var equal = false
@@ -184,7 +177,6 @@ router.get('/getLv3TaskListForSingleTable', function(req, res, next) {
   console.log('/getLv3TaskListForSingleTable')
   var reqPage = Number(req.query.reqPage);
   var reqSize = Number(req.query.reqSize);
-  console.log(req.query)
   var taskCriteria = generateTaskCriteria(req);
   var taskTypeCriteria = generateTaskTypeCriteria(req);
   var orderSeq = [];
@@ -313,12 +305,10 @@ function generateTaskListByPath(iTaskObjArray) {
 
 router.get('/getTaskListTotalSize', async function(req, res, next) {
   console.log('getTaskListTotalSize')
-  console.log(req.query)
   var taskCriteria =  generateTaskCriteria(req);
   var taskTypeCriteria = generateTaskTypeCriteria(req);
   if (req.query.reqSkill != null && req.query.reqSkill != ''){
     var reqParentTaskName = await getLv2BySkill(req.query.reqSkill)
-    console.log(reqParentTaskName)
     if(reqParentTaskName!=null){
       taskCriteria.ParentTaskName = {
         [Op.or] : reqParentTaskName
@@ -333,8 +323,6 @@ router.get('/getTaskListTotalSize', async function(req, res, next) {
       }      
     }
   }
-  console.log(taskCriteria)
-  console.log(taskTypeCriteria)
   Task.findAll({
     include: [{
       model: TaskType, 
@@ -343,7 +331,6 @@ router.get('/getTaskListTotalSize', async function(req, res, next) {
     }],
     where: taskCriteria
   }).then(async function(tasks) {
-    console.log(tasks)
     if(tasks != null && tasks.length > 0) {
       var resJson = {};
       resJson.task_list_total_size = tasks.length;
@@ -405,7 +392,6 @@ function generateTaskCriteria(iReq) {
 
 function getLv2BySkill(reqSkill) {
   return new Promise(async (resolve, reject) => {
-    console.log(reqSkill)
     var rtnResult = []  
     Task.findAll({
       where: {
@@ -446,28 +432,6 @@ function getTasksByParentName(iParentTaskName) {
   });      
 }
 
-function getLv1ByOppname(reqOpp) {
-  return new Promise(async (resolve, reject) => {
-    console.log(reqOpp)
-    var rtnResult = []  
-    Task.findAll({
-      where: {
-        TopOppName :  {[Op.in]:'%'+reqOpp+'%'} , 
-        TaskLevel : 1
-      }
-      }).then(async function(tasks) {
-        console.log(tasks)
-        if(tasks != null && tasks.length > 0) {
-          for (var i = 0 ; i < tasks.length ; i ++){
-            rtnResult = await getTasksByParentName(tasks[i].TaskName)
-          }
-          resolve(rtnResult)
-      }else{
-        resolve(null)
-      }
-    })
-  });
-}
 
 function generateTaskTypeCriteria(iReq) {
   var taskTypeCriteria = {}
@@ -681,7 +645,6 @@ router.post('/getTaskTypeByName', function(req, res, next) {
     }
   }).then(function(task) {
     if (task != null) {
-      console.log(task.task_type)
       var response = task.task_type.Id
       return res.json(responseMessage(0, response, ''));  
     } else {
@@ -1691,7 +1654,6 @@ function generateTaskListForPlanTask(iTaskObjArray, iTaskGroupId, iTaskGroupFlag
 
 router.get('/refreshLevel2TaskSubEstimation', function(req, res, next) {
   console.log('Start to refresh level 2 task sub est');
-  console.log(req.query)
   var reqTaskId = Number(req.query.reqTaskId);
   var reqTaskGroupFlag = Number(req.query.reqTaskGroupFlag);
   Task.findOne({
@@ -1780,39 +1742,54 @@ router.get('/refreshLevel2TaskSubEstimation', function(req, res, next) {
 function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGroupFlag) {
   return new Promise((resolve, reject) => {
     console.log('getSubTaskTotalEstimationForPlanTask')
+    console.log(iTaskGroupId.length)
     var criteria = '';
-    if (iTaskGroupId > 0 ) {
-      if (iTaskGroupFlag == 0) {
-        if(iTaskGroupId.length == 1){
-          criteria = ' where raw_data.TaskGroupId = ' + iTaskGroupId
-        }else{
-          criteria = ' where raw_data.TaskGroupId in ' + iTaskGroupId
-        }
+    if (iTaskGroupId != null && iTaskGroupId!=0) {
+      if(iTaskGroupId.length == 1 &&!iTaskGroupId.includes('All') && !iTaskGroupId.includes('null') && !iTaskGroupId.includes('0')){
+        criteria = ' where raw_data.TaskGroupId = ' + iTaskGroupId
+      }else if(iTaskGroupId.length > 1&&!iTaskGroupId.includes('All') && !iTaskGroupId.includes('null') && !iTaskGroupId.includes('0')){
+        criteria = ' where raw_data.TaskGroupId in (' + iTaskGroupId +')'
+      }else if(iTaskGroupId.includes('null')|| iTaskGroupId.includes('0')) {
+          criteria = ' where raw_data.TaskGroupId is null'
       }
-      if (iTaskGroupFlag == 1) {
-        if(iTaskGroupId.length == 1){
-          criteria = ' where (raw_data.TaskGroupId = ' + iTaskGroupId + ' or raw_data.TaskGroupId is null)'
-        }else{
-          criteria = ' where (raw_data.TaskGroupId in ' + iTaskGroupId + ' or raw_data.TaskGroupId is null)'
-        }        
-      }
+      // if (iTaskGroupFlag == 1) {
+      //   if(iTaskGroupId.length == 1){
+      //     criteria = ' where (raw_data.TaskGroupId = ' + iTaskGroupId + ' or raw_data.TaskGroupId is null)'
+      //   }else{
+      //     criteria = ' where (raw_data.TaskGroupId in ' + iTaskGroupId + ' or raw_data.TaskGroupId is null)'
+      //   }        
+      // }
+       
     } 
-    else if (iTaskGroupId.length == 0 ) {
-      criteria = ' where raw_data.TaskGroupId is null'
-    } 
-    else {
-      criteria = ''
+     else {
+       criteria = ''
     }
+    console.log(criteria)
     var sql = 'select * from (select id, ParentTaskName, TaskName, Estimation, TaskLevel, TaskGroupId from (select * from tasks order by ParentTaskName, id) data_sorted, (select @pv := "' + iTaskName + '") initialisation where   find_in_set(ParentTaskName, @pv) and length(@pv := concat(@pv, ",", TaskName))) raw_data'
     sql = sql + criteria
     db.query(sql).then(totalTask => {
       var tasks = totalTask[0];
       var rtnTotalEstimation = 0;
+      console.log(tasks)
+      var taskLv3 = []
       if (tasks != null && tasks.length > 0) {
+        for(var i = 0 ; i < tasks.length ; i ++){
+          if(tasks[i].TaskLevel == 3){
+            taskLv3.push(tasks[i].TaskName)
+          }else{
+            break;
+          }
+        }
+        console.log(taskLv3)
         for (var i=0; i<tasks.length; i++) {
           var taskName = tasks[i].TaskName;
           if (getIndexOfValueInArr(tasks, 'ParentTaskName', taskName) == -1){
-            rtnTotalEstimation = rtnTotalEstimation + Number(tasks[i].Estimation);
+            if(tasks[i].TaskLevel==4&&taskLv3.includes(tasks[i].ParentTaskName)){
+              rtnTotalEstimation = rtnTotalEstimation + Number(tasks[i].Estimation);             
+            }else if(tasks[i].TaskLevel==3){
+              rtnTotalEstimation = rtnTotalEstimation + Number(tasks[i].Estimation);              
+            }
+            console.log(rtnTotalEstimation)
           } else {
             continue;
           }
@@ -1827,43 +1804,43 @@ function getSubTaskTotalEffortForPlanTask(iTaskName, iTaskGroupId, iTaskGroupFla
   return new Promise((resolve, reject) => {
     console.log('getSubTaskTotalEffortForPlanTask')
     var criteria = {TypeTag : { [Op.ne]: 'Regular Task' },}
-    if (iTaskGroupId.length > 0 ) {
-      if (iTaskGroupFlag == 0) {
+    if(iTaskGroupId!=0){
+      if (iTaskGroupId.length >= 1 &&!iTaskGroupId.includes('All') && !iTaskGroupId.includes('null') && !iTaskGroupId.includes('0')) {
+        if (iTaskGroupFlag == 0) {
+          criteria = {
+            ParentTaskName: iTaskName,
+            TaskLevel: 3,
+            TaskGroupId: { [Op.in]: iTaskGroupId },
+            Effort: { [Op.ne]: 0 }
+          }
+        }
+        // if (iTaskGroupFlag == 1) {
+        //   criteria = {
+        //     ParentTaskName: iTaskName,
+        //     TaskLevel: 3,
+        //     [Op.or]: [
+        //       {TaskGroupId: iTaskGroupId},
+        //       {TaskGroupId: null}
+        //     ],
+        //     Effort: { [Op.ne]: 0 }
+        //   }
+        // }
+      }else if (iTaskGroupId.includes('null') || iTaskGroupId.includes('0')) {
         criteria = {
           ParentTaskName: iTaskName,
           TaskLevel: 3,
-          TaskGroupId: { [Op.in]: iTaskGroupId },
+          TaskGroupId: null,
           Effort: { [Op.ne]: 0 }
         }
-      }
-      if (iTaskGroupFlag == 1) {
-        criteria = {
-          ParentTaskName: iTaskName,
-          TaskLevel: 3,
-          [Op.or]: [
-            {TaskGroupId: iTaskGroupId},
-            {TaskGroupId: null}
-          ],
-          Effort: { [Op.ne]: 0 }
-        }
-      }
-    } 
-    else if (iTaskGroupId.length == 0 ) {
-      criteria = {
-        ParentTaskName: iTaskName,
-        TaskLevel: 3,
-        TaskGroupId: null,
-        Effort: { [Op.ne]: 0 }
-      }
-    } 
-    else {
+      }       
+    }else {
       criteria = {
         ParentTaskName: iTaskName,
         TaskLevel: 3,
         Effort: { [Op.ne]: 0 }
       }
     }
-    console.log(criteria)
+
     Task.findAll({
       include: [{
         model: TaskType, 
@@ -1878,7 +1855,6 @@ function getSubTaskTotalEffortForPlanTask(iTaskName, iTaskGroupId, iTaskGroupFla
         var rtnTotalEffort = 0
         for(var i=0; i< task.length; i++){
           rtnTotalEffort = rtnTotalEffort + Number(task[i].Effort);
-          console.log(rtnTotalEffort)
         }
         resolve(rtnTotalEffort);
       } else {
@@ -1912,7 +1888,6 @@ router.get('/getPlanTaskSizeByParentTask', function(req, res, next) {
   if (req.query.reqFilterStatus != null && req.query.reqFilterStatus != '') {
     criteria.Status = req.query.reqFilterStatus
   }
-  console.log(criteria)
   Task.findAll({
     include: [{model: TaskType, attributes: ['Id', 'Name']}],
     where: criteria,
@@ -1920,7 +1895,6 @@ router.get('/getPlanTaskSizeByParentTask', function(req, res, next) {
       ['createdAt', 'DESC']
     ]
   }).then(async function(tasks) {
-    console.log(tasks)
     if(tasks != null && tasks.length > 0) {
       var resJson = {};
       resJson.task_list_total_size = tasks.length;
