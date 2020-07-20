@@ -60,7 +60,7 @@ router.get('/getLv3TaskList', async function(req, res, next) {
     if(reqParentTaskName!=null){
       taskCriteria.ParentTaskName = {
         [Op.or] : reqParentTaskName
-      }      
+      }  
     }
   }
   if (req.query.reqOpportunity != null && req.query.reqOpportunity != ''){
@@ -68,7 +68,7 @@ router.get('/getLv3TaskList', async function(req, res, next) {
     if(reqParentTaskName!=null){
       taskCriteria.ParentTaskName = {
         [Op.or] : reqParentTaskName
-      }      
+      }        
     }
   }
   var orderSeq = [];
@@ -80,6 +80,7 @@ router.get('/getLv3TaskList', async function(req, res, next) {
   else {
     orderSeq = ['createdAt', 'DESC']
   }
+  console.log(taskCriteria)
   Task.findAll({
     include: [{
       model: TaskType, 
@@ -100,11 +101,17 @@ router.get('/getLv3TaskList', async function(req, res, next) {
       console.log(response)
       console.log('Return Response ----------------------------------------<')
       for(var i = 0 ; i <response.length ; i ++){
-        if(response[i][0].task_parent_name ===req.query.reqOpportunity){
-          response2.push(response[i])
-        }
         response[i][0].task_effort = await getSubTaskTotalEffortForPlanTask(response[i][0].task_name,req.query.reqCurrentTimeGroup,0)
         response[i][0].task_subtasks_estimation =  await getSubTaskTotalEstimationForPlanTask(response[i][0].task_name,req.query.reqCurrentTimeGroup,0)
+      }
+      if(req.query.reqOpportunity != null && req.query.reqOpportunity != '' && req.query.reqSkill != null && req.query.reqSkill != ''){
+        var newArr = []
+        for(var i = 0 ; i <response.length ; i ++){
+          if(response[i][0].task_skill == req.query.reqSkill){
+            newArr.push(response[i])
+          }
+        }
+        response = newArr
       }
       return res.json(responseMessage(0, response, ''));
     } else {
