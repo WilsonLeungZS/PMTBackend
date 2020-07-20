@@ -60,7 +60,7 @@ router.get('/getLv3TaskList', async function(req, res, next) {
     if(reqParentTaskName!=null){
       taskCriteria.ParentTaskName = {
         [Op.or] : reqParentTaskName
-      }      
+      }  
     }
   }
   if (req.query.reqOpportunity != null && req.query.reqOpportunity != ''){
@@ -68,7 +68,7 @@ router.get('/getLv3TaskList', async function(req, res, next) {
     if(reqParentTaskName!=null){
       taskCriteria.ParentTaskName = {
         [Op.or] : reqParentTaskName
-      }      
+      }        
     }
   }
   var orderSeq = [];
@@ -80,6 +80,7 @@ router.get('/getLv3TaskList', async function(req, res, next) {
   else {
     orderSeq = ['createdAt', 'DESC']
   }
+  console.log(taskCriteria)
   Task.findAll({
     include: [{
       model: TaskType, 
@@ -100,11 +101,17 @@ router.get('/getLv3TaskList', async function(req, res, next) {
       console.log(response)
       console.log('Return Response ----------------------------------------<')
       for(var i = 0 ; i <response.length ; i ++){
-        if(response[i][0].task_parent_name ===req.query.reqOpportunity){
-          response2.push(response[i])
-        }
         response[i][0].task_effort = await getSubTaskTotalEffortForPlanTask(response[i][0].task_name,req.query.reqCurrentTimeGroup,0)
         response[i][0].task_subtasks_estimation =  await getSubTaskTotalEstimationForPlanTask(response[i][0].task_name,req.query.reqCurrentTimeGroup,0)
+      }
+      if(req.query.reqOpportunity != null && req.query.reqOpportunity != '' && req.query.reqSkill != null && req.query.reqSkill != ''){
+        var newArr = []
+        for(var i = 0 ; i <response.length ; i ++){
+          if(response[i][0].task_skill == req.query.reqSkill){
+            newArr.push(response[i])
+          }
+        }
+        response = newArr
       }
       return res.json(responseMessage(0, response, ''));
     } else {
@@ -126,6 +133,7 @@ router.post('/getSkillFromReference',function(req, res, next) {
     }
   })
 })
+
 
 router.post('/saveSkillToReference',function(req, res, next) {
   console.log('/saveSkillToReference')
@@ -204,7 +212,6 @@ router.get('/getLv3TaskListForSingleTable', function(req, res, next) {
       var response = await generateTaskListByPath(tasks);
       response[0][0].task_effort = await getSubTaskTotalEffortForPlanTask(response[0][0].task_name, req.query.reqCurrentTimeGroup, 0);;
       response[0][0].task_subtasks_estimation = await getSubTaskTotalEstimationForPlanTask(response[0][0].task_name, req.query.reqCurrentTimeGroup, 0);
-      console.log(response)
       return res.json(responseMessage(0, response[0], ''));
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
@@ -280,9 +287,9 @@ function generateTaskListByPath(iTaskObjArray) {
     }
     for(var i = 0 ; i< lv2TaskList.length; i ++){
       lv2TaskListInfo.push(await getTaskByName(lv2TaskList[i])); 
-
     }
     lv2TaskListInfo = await generatePlanTaskList(lv2TaskListInfo);
+    iTaskObjArray = iTaskObjArray.sort((a,b) => a.task_id-b.task_id)
     for(var j = 0 ; j < lv2TaskListInfo.length ; j ++){
       var resArr = []
       resArr.push(lv2TaskListInfo[j])
@@ -295,7 +302,6 @@ function generateTaskListByPath(iTaskObjArray) {
       resArr[0].task_table_loading = false
       resArr[0].task_current_page = 1
       resArr[0].task_page_size = 20
-      resArr = resArr.sort((a,b) => a.task_id-b.task_id)
       rtnResult.push(resArr)
     }
     resolve(rtnResult)
@@ -986,44 +992,43 @@ router.post('/saveTask', function(req, res, next) {
   saveTask(req, res);
 });
 
-router.get('/countByTaskGroup', function(req, res, next) {
-  console.log('countByTaskGroup')
-  var reqTaskGroupId = Number(req.query.reqTaskGroupId);
-  Task.findAll({
-    where: {
-        TaskGroupId : reqTaskGroupId,
-        TaskLevel : 3,
-        Status : {[Op.ne] : 'Drafting'}
-    },
-    order: [
-      ['createdAt', 'DESC']
-    ]
-  }).then(async function(tasks) {
-      if(tasks != null && tasks.length > 0) {
-        var rtnResult = {
-          planningC : 0,
-          runningC : 0,
-          doneC :0,
-          draftingC:0       
-        }
-        for(var i = 0 ; i < tasks.length ; i++){
-          if(tasks[i].Status === 'Planning'){
-            rtnResult.planningC ++
-          }else if(tasks[i].Status === 'Running'){
-            rtnResult.runningC ++
-          }else if(tasks[i].Status === 'Done'){
-            rtnResult.doneC ++
-          }else {
-            rtnResult.draftingC ++
+function countByTaskGroup (reqTaskGroupId) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      where: {
+          TaskGroupId : reqTaskGroupId,
+          TaskLevel : 3
+      },
+      order: [
+        ['createdAt', 'DESC']
+      ]
+    }).then(async function(tasks) {
+        if(tasks != null && tasks.length > 0) {
+          var rtnResult = {
+            planningC : 0,
+            runningC : 0,
+            doneC :0,
+            draftingC:0       
           }
-        }
-        return res.json(responseMessage(0, rtnResult, ''));
-      } else {
-        return res.json(responseMessage(1, null, 'No task exist'));
-      }
-  })
-});
+          for(var i = 0 ; i < tasks.length ; i++){
+            if(tasks[i].Status === 'Planning'){
+              rtnResult.planningC ++
+            }else if(tasks[i].Status === 'Running'){
+              rtnResult.runningC ++
+            }else if(tasks[i].Status === 'Done'){
+              rtnResult.doneC ++
+            }else {
+              rtnResult.draftingC ++
+            }
+          }
 
+          resolve(rtnResult)
+        } else {
+          resolve(null)
+        }
+    })
+  });
+}
 
 async function saveTask(req, res) {
   var reqTask = JSON.parse(req.body.reqTask);
@@ -1742,7 +1747,6 @@ router.get('/refreshLevel2TaskSubEstimation', function(req, res, next) {
 function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGroupFlag) {
   return new Promise((resolve, reject) => {
     console.log('getSubTaskTotalEstimationForPlanTask')
-    console.log(iTaskGroupId.length)
     var criteria = '';
     if (iTaskGroupId != null && iTaskGroupId!=0) {
       if(iTaskGroupId.length == 1 &&!iTaskGroupId.includes('All') && !iTaskGroupId.includes('null') && !iTaskGroupId.includes('0')){
@@ -1764,13 +1768,11 @@ function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGrou
      else {
        criteria = ''
     }
-    console.log(criteria)
     var sql = 'select * from (select id, ParentTaskName, TaskName, Estimation, TaskLevel, TaskGroupId from (select * from tasks order by ParentTaskName, id) data_sorted, (select @pv := "' + iTaskName + '") initialisation where   find_in_set(ParentTaskName, @pv) and length(@pv := concat(@pv, ",", TaskName))) raw_data'
     sql = sql + criteria
     db.query(sql).then(totalTask => {
       var tasks = totalTask[0];
       var rtnTotalEstimation = 0;
-      console.log(tasks)
       var taskLv3 = []
       if (tasks != null && tasks.length > 0) {
         for(var i = 0 ; i < tasks.length ; i ++){
@@ -1780,7 +1782,6 @@ function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGrou
             break;
           }
         }
-        console.log(taskLv3)
         for (var i=0; i<tasks.length; i++) {
           var taskName = tasks[i].TaskName;
           if (getIndexOfValueInArr(tasks, 'ParentTaskName', taskName) == -1){
@@ -1789,7 +1790,6 @@ function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGrou
             }else if(tasks[i].TaskLevel==3){
               rtnTotalEstimation = rtnTotalEstimation + Number(tasks[i].Estimation);              
             }
-            console.log(rtnTotalEstimation)
           } else {
             continue;
           }
@@ -1993,7 +1993,6 @@ router.get('/getPlanTaskListByParentTask', function(req, res, next) {
   if (req.query.reqFilterStatus != null && req.query.reqFilterStatus != '') {
     criteria.Status = req.query.reqFilterStatus
   }
-  console.log(criteria)
   Task.findAll({
     include: [{model: TaskType, attributes: ['Id', 'Name']}],
     where: criteria,
@@ -2017,10 +2016,7 @@ router.get('/getPlanTaskListByParentTask', function(req, res, next) {
       response2[0].task_length = response2.length-1
       response2[0].task_table_loading = false
       response2[0].task_current_page = 1
-      response2[0].task_page_size = 20
-      console.log('Debug -------------<')
-      console.log(response2)
-      console.log('Debug -------------->')      
+      response2[0].task_page_size = 20  
       return res.json(responseMessage(0, response2, ''));  
     } else {
       return res.json(responseMessage(1, null, 'No task exist'));
@@ -2221,6 +2217,7 @@ router.get('/getTaskGroup', function(req, res, next) {
         resJson.group_start_time = taskGroup[i].StartTime;
         resJson.group_end_time = taskGroup[i].EndTime;
         resJson.group_group_dis = false
+        var taskCount = await countByTaskGroup(taskGroup[i].Id)
         var taskGroupTasks = await getTaskGroupTask(taskGroup[i].Id);
         var level3TaskCount = 0;
         var level4TaskCount = 0;
@@ -2233,6 +2230,16 @@ router.get('/getTaskGroup', function(req, res, next) {
               level4TaskCount = level4TaskCount + 1;
             }
           }
+        }
+        resJson.planningC = 0;
+        resJson.runningC = 0;
+        resJson.draftingC = 0;
+        resJson.doneC = 0;          
+        if(taskCount!=null){
+          resJson.planningC = taskCount.planningC;
+          resJson.runningC = taskCount.runningC;
+          resJson.draftingC = taskCount.draftingC;
+          resJson.doneC = taskCount.doneC;          
         }
         resJson.group_lv3_task_count = level3TaskCount;
         resJson.group_lv4_task_count = level4TaskCount;
