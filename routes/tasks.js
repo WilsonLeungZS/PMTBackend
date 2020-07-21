@@ -54,7 +54,7 @@ router.get('/getLv3TaskList', async function(req, res, next) {
   var reqPage = Number(req.query.reqPage);
   var reqSize = Number(req.query.reqSize);
   var taskCriteria = generateTaskCriteria(req);
-  var taskTypeCriteria = generateTaskTypeCriteria(req);
+  var taskTypeCriteria = generateTaskTypeCriteria(req);   
   if (req.query.reqSkill != null && req.query.reqSkill != ''){
     var reqParentTaskName = await getLv2BySkill(req.query.reqSkill)
     if(reqParentTaskName!=null){
@@ -194,11 +194,12 @@ router.get('/getLv3TaskListForSingleTable', function(req, res, next) {
   else {
     orderSeq = ['createdAt', 'DESC']
   }
+  console.log(taskCriteria)
   Task.findAll({
     include: [{
       model: TaskType, 
       attributes: ['Name'],
-      //where: taskTypeCriteria
+      where: taskTypeCriteria
     }],
     where: taskCriteria,
     order: [
@@ -329,6 +330,10 @@ router.get('/getTaskListTotalSize', async function(req, res, next) {
       }      
     }
   }
+  if(req.query.reqParentTaskName!='' && req.query.reqParentTaskName!=null){
+    taskCriteria.ParentTaskName = req.query.reqParentTaskName
+  }
+  console.log(taskCriteria)
   Task.findAll({
     include: [{
       model: TaskType, 
@@ -353,6 +358,7 @@ function generateTaskCriteria(iReq) {
     //TaskName: {[Op.notLike]: 'Dummy - %'},
     TaskLevel: reqTaskLevel,
     //Id: { [Op.ne]: null },
+    TypeTag :{[Op.ne]: 'Regular Task'}
   }
   if (iReq.query.reqFilterShowRefPool != null && iReq.query.reqFilterShowRefPool != '') {
       if (iReq.query.reqFilterShowRefPool != 'true') {
@@ -437,6 +443,7 @@ function getTasksByParentName(iParentTaskName) {
     })    
   });      
 }
+
 
 
 function generateTaskTypeCriteria(iReq) {
@@ -1803,8 +1810,9 @@ function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGrou
 function getSubTaskTotalEffortForPlanTask(iTaskName, iTaskGroupId, iTaskGroupFlag) {
   return new Promise((resolve, reject) => {
     console.log('getSubTaskTotalEffortForPlanTask')
-    var criteria = {TypeTag : { [Op.ne]: 'Regular Task' },}
-    if(iTaskGroupId!=0){
+    var criteria = {TypeTag : { [Op.ne]: 'Regular Task' }}
+    console.log(iTaskGroupId)
+    if(iTaskGroupId!=0 && iTaskGroupId!=null){
       if (iTaskGroupId.length >= 1 &&!iTaskGroupId.includes('All') && !iTaskGroupId.includes('null') && !iTaskGroupId.includes('0')) {
         if (iTaskGroupFlag == 0) {
           criteria = {
