@@ -81,6 +81,7 @@ router.get('/getLv3TaskList', async function(req, res, next) {
     orderSeq = ['createdAt', 'DESC']
   }
   console.log(taskCriteria)
+  taskCriteria.TypeTag = {[Op.ne]: 'Regular Task'}
   Task.findAll({
     include: [{
       model: TaskType, 
@@ -306,7 +307,7 @@ function generateTaskListByPath(iTaskObjArray) {
           resArr.push(iTaskObjArray[i])
         }
       }
-      resArr[0].task_length = resArr.length-1
+      resArr[0].task_length = resArr.length
       resArr[0].task_table_loading = false
       resArr[0].task_current_page = 1
       resArr[0].task_page_size = 20
@@ -1893,7 +1894,10 @@ router.get('/getPlanTaskSizeByParentTask', function(req, res, next) {
   var reqTaskGroupFlag = Number(req.query.reqTaskGroupFlag);
   var criteria = {
     ParentTaskName: reqParentTaskName,
-    TaskLevel: 3
+    TaskLevel: 3,
+    TaskName: {[Op.notLike]: 'Dummy - %'},
+    Id: { [Op.ne]: null },
+    TypeTag :{[Op.ne]: 'Regular Task'}
   }
   if(req.query.reqCurrentTimeGroup != null){
     if (!req.query.reqCurrentTimeGroup.includes('All') && !req.query.reqCurrentTimeGroup.includes('null') && !req.query.reqCurrentTimeGroup.includes('0') ){
@@ -1911,6 +1915,7 @@ router.get('/getPlanTaskSizeByParentTask', function(req, res, next) {
   if (req.query.reqFilterStatus != null && req.query.reqFilterStatus != '') {
     criteria.Status = req.query.reqFilterStatus
   }
+  console.log(criteria)
   Task.findAll({
     include: [{model: TaskType, attributes: ['Id', 'Name']}],
     where: criteria,
@@ -2000,7 +2005,7 @@ router.get('/getPlanTaskListByParentTask', function(req, res, next) {
   var criteria = {
     ParentTaskName: reqParentTaskName,
     TaskLevel: 3,
-    TypeTag:{[Op.or]: [{[Op.ne]: 'Regular Task'}, null]}
+    TypeTag :{[Op.ne]: 'Regular Task'}
   }
   if (req.query.reqCurrentTimeGroup != null && !req.query.reqCurrentTimeGroup.includes('null') && !req.query.reqCurrentTimeGroup.includes('0') && !req.query.reqCurrentTimeGroup.includes('All')){
     criteria.TaskGroupId = {[Op.in]: req.query.reqCurrentTimeGroup}
