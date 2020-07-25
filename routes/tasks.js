@@ -1856,7 +1856,11 @@ function getSubTaskTotalEffortForPlanTask(iTaskName, iTaskGroupId, iTaskGroupFla
           TaskGroupId: null,
           Effort: { [Op.ne]: 0 }
         }
-      }       
+      }else if(iTaskGroupId.includes('All')){
+        criteria = {
+          ParentTaskName: iTaskName
+        }
+      }   
     }else {
       criteria = {
         ParentTaskName: iTaskName,
@@ -1864,54 +1868,26 @@ function getSubTaskTotalEffortForPlanTask(iTaskName, iTaskGroupId, iTaskGroupFla
         Effort: { [Op.ne]: 0 }
       }
     }
-    
-    if(iTaskGroupId.includes('All')){
-      criteria = {
-        ParentTaskName: iTaskName
+    Task.findAll({
+      include: [{
+        model: TaskType, 
+        attributes: ['Name'],
+        where: {
+          Name: { [Op.ne]: 'Pool' }
+        }
+      }],
+      where: criteria
+    }).then(async function(task) {
+      if(task != null && task.length > 0) {
+        var rtnTotalEffort = 0
+        for(var i=0; i< task.length; i++){
+          rtnTotalEffort = rtnTotalEffort + Number(task[i].Effort);
+        }
+        resolve(rtnTotalEffort);
+      } else {
+        resolve(0);
       }
-      Task.findAll({
-        include: [{
-          model: TaskType, 
-          attributes: ['Name'],
-          where: {
-            Name: { [Op.ne]: 'Pool' }
-          }
-        }],
-        where: criteria
-      }).then(async function(task) {
-        if(task != null && task.length > 0) {
-          var rtnTotalEffort = 0
-          for(var i=0; i< task.length; i++){
-            rtnTotalEffort = rtnTotalEffort + Number(task[i].Effort);
-          }
-          console.log("george: " + rtnTotalEffort);
-          resolve(rtnTotalEffort);
-        } else {
-          resolve(0);
-        }
-      });
-    }else{
-      Task.findAll({
-        include: [{
-          model: TaskType, 
-          attributes: ['Name'],
-          where: {
-            Name: { [Op.ne]: 'Pool' }
-          }
-        }],
-        where: criteria
-      }).then(async function(task) {
-        if(task != null && task.length > 0) {
-          var rtnTotalEffort = 0
-          for(var i=0; i< task.length; i++){
-            rtnTotalEffort = rtnTotalEffort + Number(task[i].Effort);
-          }
-          resolve(rtnTotalEffort);
-        } else {
-          resolve(0);
-        }
-      });
-    }
+    });
   })
 }
 
