@@ -89,7 +89,7 @@ router.get('/startBackgroundJob', function(req, res, next) {
       runningJob.cancel();
   }
   //var iJobConfiguration = '0,10,20,30,40,50 * * * * *';
-  var iJobConfiguration = '0 0 1 * * *';
+  var iJobConfiguration = '0 0 1-23 * * *';
   nodeSchedule.scheduleJob(reqJobId, iJobConfiguration, function(){
     console.log("The Schedule background Job start to run. time: " + new Date());
     ReActiveRegularJob();
@@ -155,7 +155,7 @@ function AutoCreateRegularTask() {
   Schedule.findAll({
     attributes: ['JobId','TaskName','Schedule','RegularTime'],
     where: { 
-      StartTime: tDay,
+      StartTime: { [Op.lte]: tDay },
       Status: 'Planning'
     },
   }).then(function(sch) {
