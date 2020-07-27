@@ -667,6 +667,26 @@ router.post('/removeWorklog', function(req, res, next) {
   })
 });
 
+//george
+router.post('/getTaskStatusAndLevel', function(req, res, next) {
+  console.log('Request: ' + JSON.stringify(req.body));
+  Task.findOne({
+    where: {
+      Id: req.body.TaskId
+    }
+  }).then(async function(sch){
+    if(sch!=null) {
+      var rtnResult = {};
+      rtnResult.task_status = sch.Status;
+      rtnResult.task_level = sch.TaskLevel;
+      console.log("getTaskStatusAndLevel result: " + rtnResult);
+      return res.json(responseMessage(0, rtnResult, ''));
+    }else {
+      return res.json(responseMessage(1, null, 'No task exist'));
+    }
+  });
+});
+
 function getParentTask (iParentTaskName) {
   return new Promise((resolve, reject) => {
     Task.findOne({
