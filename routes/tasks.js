@@ -229,22 +229,24 @@ router.get('/getTaskList', function(req, res, next) {
   var taskCriteria = generateTaskCriteria(req);
   var taskTypeCriteria = generateTaskTypeCriteria(req);
   var orderSeq = [];
-  if (Number(req.query.reqTaskLevel == 1)) {
+  if (Number(req.query.reqTaskLevel) == 1) {
     orderSeq = ['TopTargetStart', 'DESC']
-  } else if (Number(req.query.reqTaskLevel == 3)&&Boolean(req.query.reqFilterShowRefPool)===false){
+  } else if (Number(req.query.reqTaskLevel) == 3 &&Boolean(req.query.reqFilterShowRefPool)===false){
     orderSeq = ['ParentTaskName']
     reqSize = 10000000
   }
   else {
     orderSeq = ['createdAt', 'DESC']
   }
-  if(req.query.reqFilterShowRefPool == 'true'){
+  /*if(req.query.reqFilterShowRefPool == 'true'){
     taskCriteria = {
       TaskName: {[Op.notLike]: 'Dummy - %'},
       TaskLevel: 3,
       Id: { [Op.ne]: null }    
     }
-  }
+  }*/
+  console.log("george");
+  console.log(taskCriteria);
   Task.findAll({
     include: [{
       model: TaskType, 
@@ -341,13 +343,13 @@ router.get('/getTaskListTotalSize', async function(req, res, next) {
   if(req.query.reqParentTaskName!='' && req.query.reqParentTaskName!=null){
     taskCriteria.ParentTaskName = req.query.reqParentTaskName
   }
-  if(req.query.reqFilterShowRefPool == 'true'){
+  /*if(req.query.reqFilterShowRefPool == 'true'){
     taskCriteria = {
       TaskName: {[Op.notLike]: 'Dummy - %'},
       TaskLevel: 3,
       Id: { [Op.ne]: null }    
     }
-  }
+  }*/
   console.log(taskCriteria)
   Task.findAll({
     include: [{
@@ -369,11 +371,24 @@ router.get('/getTaskListTotalSize', async function(req, res, next) {
 
 function generateTaskCriteria(iReq) {
   var reqTaskLevel = Number(iReq.query.reqTaskLevel);
-  var criteria = {
-    TaskName: {[Op.notLike]: 'Dummy - %'},
-    TaskLevel: reqTaskLevel,
-    Id: { [Op.ne]: null },
-    TypeTag :{[Op.ne]: 'Regular Task'}
+  var criteria = {};
+  if(iReq.query.reqFilterTaskLevel === 'EX'){
+    criteria = {
+      TaskName: {[Op.notLike]: 'Dummy - %'},
+      TaskLevel: reqTaskLevel,
+      Id: { [Op.ne]: null },
+      [Op.or]: [
+        {TypeTag :{[Op.ne]: 'Regular Task'}},
+        {TypeTag : null},
+      ]
+    }
+  }else{
+    criteria = {
+      TaskName: {[Op.notLike]: 'Dummy - %'},
+      TaskLevel: reqTaskLevel,
+      Id: { [Op.ne]: null },
+      TypeTag :{[Op.ne]: 'Regular Task'}
+    }
   }
   if (iReq.query.reqFilterShowRefPool != null && iReq.query.reqFilterShowRefPool != '') {
       if (iReq.query.reqFilterShowRefPool != 'true') {
