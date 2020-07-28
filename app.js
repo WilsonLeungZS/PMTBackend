@@ -1,3 +1,10 @@
+/*
+ * @Description: 
+ * @Author: 
+ * @Date: 2020-06-04 09:41:37
+ * @LastEditTime: 2020-06-13 14:10:14
+ * @LastEditors: Wanlin Chen
+ */ 
 var express = require('express');
 var compression = require('compression');
 var createError = require('http-errors');
@@ -10,6 +17,7 @@ var usersRouter = require('./routes/users');
 var tasksRouter = require('./routes/tasks');
 var worklogRouter = require('./routes/worklogs');
 var formatRouter = require('./routes/formats');
+var scheduleRouter = require('./routes/schedules')
 
 var app = express();
 
@@ -29,6 +37,7 @@ app.all('*', function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "X-Requested-With,Content-Type");
   res.header("Access-Control-Allow-Methods","PUT,POST,GET,DELETE,OPTIONS");
+  //res.header("Cache-Control", "max-age=10, public");
   next();
 });
 
@@ -36,6 +45,7 @@ app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/tasks', tasksRouter);
 app.use('/worklogs', worklogRouter);
+app.use('/schedules', scheduleRouter);
 app.use('/formats', formatRouter);
 
 // catch 404 and forward to error handler
