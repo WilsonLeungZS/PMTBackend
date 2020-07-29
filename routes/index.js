@@ -554,7 +554,7 @@ function getTaskGroupByDateAndRelateTask(iDate, iRelatedTask) {
       where: {
         StartTime: { [Op.lte]: iDate },
         EndTime: { [Op.gte]: iDate },
-        RelatedTaskName: iRelatedTask
+        //RelatedTaskName: iRelatedTask
       }
     }).then(function(taskGroup) {
       resolve(taskGroup);
