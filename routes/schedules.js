@@ -264,7 +264,7 @@ function cancelScheduleJob () {
   Schedule.findAll({
     attributes: ['JobId','TaskName'],
     where: { 
-      EndTime: day,
+      EndTime: { [Op.lte]: day },
       Status: { [Op.ne]: 'Done' }
     },
   }).then(function(sch) {
