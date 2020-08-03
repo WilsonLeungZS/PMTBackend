@@ -2614,6 +2614,12 @@ function getIndexOfValueInArr(iArray, iKey, iValue) {
   return -1;
 }
 
+router.post('/getTaskTOPDesc',async function(req,res,next){
+  var resTask = {};
+  resTask.task_reference_desc =await getTaskDescription(req.body.reqTaskName);
+  return res.json(responseMessage(0, resTask, ''));
+})
+
 /*function dateToString(date) {  
   var y = date.getFullYear();  
   var m = date.getMonth() + 1;  
