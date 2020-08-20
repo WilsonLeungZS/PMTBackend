@@ -174,14 +174,7 @@ router.post('/getWorklogByUserAndMonthForWeb', function(req, res, next) {
 
 //Get team worklog by team and month for web timesheet
 router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
-  var reqWorklogTeamId = Number(req.body.wTeamId);
-  var reqWorklogProject = req.body.wProject;
-  var teamCriteria = {}
-  if(reqWorklogTeamId !== 0) {
-    teamCriteria = { Id: reqWorklogTeamId }
-  } else {
-    teamCriteria = { Project: reqWorklogProject }
-  }
+  var reqUserList = req.body.wUserList.split(',');
   var reqWorklogMonth = req.body.wWorklogMonth;
   var rtnResult = [];
   Worklog.findAll({
@@ -192,14 +185,8 @@ router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
       model: User,
       attributes: ['Name'],
       where: {
-        Id: { [Op.ne]: null },
-        Name: {[Op.notLike]: 'Team%'}
-      },
-      include: [{
-        model: Team, 
-        attributes: ['Id', 'Name'],
-        where: teamCriteria
-      }]
+        Id: { [Op.in]: reqUserList }
+      }
     }],
     where: {
       WorklogMonth: reqWorklogMonth,
@@ -207,12 +194,11 @@ router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
       Id: { [Op.ne]: null }
     }
   }).then(function(worklog) {
-    if(worklog.length > 0) {
+    if(worklog != null && worklog.length > 0) {
       for(var i=0; i<worklog.length; i++) {
         var resJson = {};
         var index = getIndexOfValueInArr(rtnResult, 'user', worklog[i].user.Name);
         if (index == -1 ) {
-          resJson['team'] = worklog[i].user.team.Name;
           resJson['user'] = worklog[i].user.Name;
           resJson['month'] = worklog[i].WorklogMonth;
           resJson['timesheetData'] = [];
