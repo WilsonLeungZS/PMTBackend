@@ -147,7 +147,10 @@ router.post('/getWorklogByUserAndMonthForWeb', function(req, res, next) {
       UserId: reqWorklogUserId,
       WorklogMonth: reqWorklogMonth,
       Effort: { [Op.ne]: 0 }
-    }
+    },
+    order: [
+      ['createdAt', 'DESC']
+    ]
   }).then(function(worklog) {
     if(worklog.length > 0) {
       for(var i=0; i< worklog.length; i++) {
@@ -192,7 +195,10 @@ router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
       WorklogMonth: reqWorklogMonth,
       Effort: { [Op.ne]: 0 },
       Id: { [Op.ne]: null }
-    }
+    },
+    order: [
+      ['createdAt', 'DESC']
+    ]
   }).then(function(worklog) {
     if(worklog != null && worklog.length > 0) {
       for(var i=0; i<worklog.length; i++) {
@@ -390,7 +396,7 @@ router.post('/getWorklogForWeb', function(req, res, next) {
   Worklog.findOne({
     include: [{
         model: Task,
-        attributes: ['Id', 'TaskName']
+        attributes: ['Id', 'TaskName', 'Effort', 'Estimation']
     }],
     where: {
         UserId: reqUserId,
@@ -406,10 +412,31 @@ router.post('/getWorklogForWeb', function(req, res, next) {
         resJson.worklog_task_name = worklog.task.TaskName;
         resJson.worklog_effort = worklog.Effort;
         resJson.worklog_remark = worklog.Remark;
+        resJson.worklog_task_effort = worklog.task.Effort == null? 0: worklog.task.Effort;
+        resJson.worklog_task_estimation = worklog.task.Estimation == null? 0: worklog.task.Estimation;
+        var percentage1 =  "" + toPercent(worklog.task.Effort, worklog.task.Estimation);
+        resJson.worklog_task_progress_nosymbol = percentage1.replace("%","");
         rtnResult.push(resJson);
         return res.json(responseMessage(0, rtnResult, ''));
       } else {
-        return res.json(responseMessage(1, null, 'No worklog existed'));
+        Task.findOne({
+            attributes: ['Id', 'TaskName', 'Effort', 'Estimation'],
+            where: {
+              Id: reqTaskId
+          }
+        }).then(function(task) {
+          if(task != null) {
+            var resJson = {};
+            resJson.worklog_task_effort = task.Effort == null? 0: task.Effort;
+            resJson.worklog_task_estimation = task.Estimation == null? 0: task.Estimation;
+            var percentage2 =  "" + toPercent(task.Effort, task.Estimation);
+            resJson.worklog_task_progress_nosymbol = percentage2.replace("%","");
+            rtnResult.push(resJson);
+            return res.json(responseMessage(1, rtnResult, 'No worklog existed, but found task'));
+          } else {
+            return res.json(responseMessage(1, null, 'No worklog existed'));
+          }
+        })
       }
     })
 });
@@ -478,7 +505,7 @@ router.post('/getWorklogById', function(req, res, next) {
           resJson.worklog_currenteffort = worklog.task.Effort;
           if(worklog.task.Estimation != null){
             resJson.worklog_totaleffort =  worklog.task.Estimation;
-            resJson.worklog_progress = toPercent(worklog.task.Effort / worklog.task.Estimation);
+            resJson.worklog_progress = toPercent(worklog.task.Effort, worklog.task.Estimation);
           } else {
             resJson.worklog_totaleffort = "0"
             resJson.worklog_progress = "0";
@@ -1062,8 +1089,12 @@ function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
   return resJson;
 }
 
-function toPercent(point){
-  var str = Number(point*100).toFixed(0);
+function toPercent(numerator, denominator){
+  var point = Number(numerator) / Number(denominator);
+  if (point > 1) {
+    point = 1;
+  }
+  var str=Number(point*100).toFixed(0);
   str+="%";
   return str;
 }
