@@ -74,7 +74,8 @@ router.get('/getLv3TaskList', async function(req, res, next) {
   var orderSeq = [];
   if (Number(req.query.reqTaskLevel == 1)) {
     orderSeq = ['TopTargetStart', 'DESC']
-  } else if (Number(req.query.reqTaskLevel == 3)){
+  } 
+  else if (Number(req.query.reqTaskLevel == 3)){
     orderSeq = ['ParentTaskName']
   }
   else {
@@ -763,6 +764,8 @@ function generateTaskInfo (iTask) {
       } else {
         resJson.task_creator_name = '';
       }
+    } else {
+      resJson.task_creator_name = iTask.Creator;
     }
     resJson.task_status = iTask.Status;
     resJson.task_effort = iTask.Effort;
@@ -1621,6 +1624,10 @@ router.post('/getTaskByNameForWorklogTask', function(req, res, next) {
         resJson.task_id = task[i].Id;
         resJson.task_name = task[i].TaskName;
         resJson.task_desc = task[i].Description;
+        resJson.task_effort = task[i].Effort == null? 0: task[i].Effort;
+        resJson.task_estimation = task[i].Estimation == null? 0: task[i].Estimation;
+        var percentage =  "" + toPercent(task[i].Effort, task[i].Estimation);
+        resJson.task_progress_nosymbol = percentage.replace("%","");
         rtnResult.push(resJson);
       }
       return res.json(responseMessage(0, rtnResult, ''));
