@@ -31,7 +31,8 @@ router.get('/searchTaskByKeywordAndLevel', function(req, res, next) {
       [Op.or]: [
         {TaskName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
         {Description: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
-        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}}
+        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {Reference: {[Op.like]:'%' + reqTaskKeyWord + '%'}}
       ],
       TaskName: {[Op.notLike]: 'Dummy - %'},
       TaskLevel: reqTaskLevel
@@ -392,7 +393,8 @@ function generateTaskCriteria(iReq) {
       [Op.or]: [
         {TaskName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
         {Description: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
-        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}}
+        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {Reference: {[Op.like]:'%' + reqTaskKeyWord + '%'}}
       ]
     }
     var c1 = Object.assign(criteria, searchKeywordCriteria);
@@ -404,7 +406,7 @@ function generateTaskCriteria(iReq) {
       var assigneeCriteria = {
         [Op.or]: [
           {AssigneeId: Number(iReq.query.reqFilterAssignee)},
-          {SubTasksAssigneeId: {[Op.like]:'%:' + iReq.query.reqFilterAssignee + ',%'}},
+          {SubTasksAssigneeId: {[Op.like]:'%:' + iReq.query.reqFilterAssignee + '#%'}},
         ]
       }
       Object.assign(criteria, assigneeCriteria);
@@ -1158,8 +1160,8 @@ async function saveTask(req, res) {
       if(created) {
         console.log("Task created");
         if (Number(reqTask.task_level) == 4 && reqTask.task_assignee != undefined) {
-          var taskAssigneeId = task.Id + ':' + reqTask.task_assignee;
-          if (reqTask.task_parent_name != 'N/A' && preTaskAssigneeId != taskAssigneeId) {
+          var taskAssigneeId = task.Id + ':' + reqTask.task_assignee + '#';
+          if (reqTask.task_parent_name != 'N/A') {
             await Task.findOne({
               where: { TaskName: reqTask.task_parent_name}
             }).then(async function(lv3Task) {
@@ -1188,7 +1190,7 @@ async function saveTask(req, res) {
         console.log("Task existed");
         taskObj.Effort = task.Effort;
         // Get old task assigneeId
-        var preTaskAssigneeId = task.Id + ':' + task.AssigneeId;
+        var preTaskAssigneeId = task.Id + ':' + task.AssigneeId + '#';
         // Change parent task
         if (Number(reqTask.task_level) == 3 || Number(reqTask.task_level) == 4) {
           if (!reqTaskName.startsWith(reqTaskParent) && checkIfChangeParent(reqTaskName)) {
@@ -1245,7 +1247,7 @@ async function saveTask(req, res) {
         // End update subtask information
         // when Lv4 task update assignee, update related Lv3 task subtask assignee data
         if (Number(reqTask.task_level) == 4 && reqTask.task_assignee != undefined) {
-          var taskAssigneeId = task.Id + ':' + reqTask.task_assignee;
+          var taskAssigneeId = task.Id + ':' + reqTask.task_assignee + '#';
           console.log('Lv4 Task assignee --->: Old [' + preTaskAssigneeId + '] New [' + taskAssigneeId + ']');
           console.log('Lv3 Task --> ' + reqTask.task_parent_name);
           // Assignee: A != B
@@ -1466,7 +1468,8 @@ router.post('/getTaskByNameForParentTask', function(req, res, next) {
       [Op.or]: [
         {TaskName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
         {Description: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
-        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}}
+        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {Reference: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
       ],
       TaskName: {[Op.notLike]: 'Dummy - %'},
       TaskLevel: reqTaskLevel,
@@ -1522,7 +1525,8 @@ router.post('/getTaskByNameForRefPool', function(req, res, next) {
       [Op.or]: [
         {TaskName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
         {Description: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
-        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}}
+        {TopOppName: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
+        {Reference: {[Op.like]:'%' + reqTaskKeyWord + '%'}}
       ],
       TaskName: {[Op.notLike]: 'Dummy - %'},
       TaskLevel: 3,
@@ -1657,7 +1661,7 @@ function removeSubTaskAssignee(iTask) {
     console.log('Start method: removeSubTaskAssignee: task level -> ' + iTask.TaskLevel + ', task assignee -> ' + iTask.AssigneeId)
     if(iTask.TaskLevel == 4 && iTask.AssigneeId != null && iTask.AssigneeId != '') {
       var lv3ParentTaskName = iTask.ParentTaskName;
-      var taskAssigneeStr = iTask.Id + ':' + iTask.AssigneeId;
+      var taskAssigneeStr = iTask.Id + ':' + iTask.AssigneeId + '#';
       console.log('lv3 task name -> ' + lv3ParentTaskName)
       console.log('task assignee str -> ' + taskAssigneeStr)
       if(lv3ParentTaskName != 'N/A') {
@@ -2184,7 +2188,13 @@ router.get('/getPlanTaskListByParentTask', function(req, res, next) {
     criteria.TaskGroupId = null
   }
   if (req.query.reqFilterAssignee != null && req.query.reqFilterAssignee != '') {
-    criteria.AssigneeId = Number(req.query.reqFilterAssignee)
+    var assigneeCriteria = {
+      [Op.or]: [
+        {AssigneeId: Number(req.query.reqFilterAssignee)},
+        {SubTasksAssigneeId: {[Op.like]:'%:' + req.query.reqFilterAssignee + '#%'}},
+      ]
+    }
+    Object.assign(criteria, assigneeCriteria);
   }
   if (req.query.reqLeadingBy != null && req.query.reqLeadingBy != '') {
     criteria.RespLeaderId = Number(req.query.reqLeadingBy)
