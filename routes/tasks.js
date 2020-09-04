@@ -62,6 +62,8 @@ router.get('/getLv3TaskList', async function(req, res, next) {
       taskCriteria.ParentTaskName = {
         [Op.or] : reqParentTaskName
       }  
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
     }
   }
   if (req.query.reqOpportunity != null && req.query.reqOpportunity != ''){
@@ -70,6 +72,8 @@ router.get('/getLv3TaskList', async function(req, res, next) {
       taskCriteria.ParentTaskName = {
         [Op.or] : reqParentTaskName
       }        
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
     }
   }
   var orderSeq = [];
@@ -326,6 +330,8 @@ router.get('/getTaskListTotalSize', async function(req, res, next) {
       taskCriteria.ParentTaskName = {
         [Op.or] : reqParentTaskName
       }      
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
     }
   }
   if (req.query.reqOpportunity != null && req.query.reqOpportunity != ''){
@@ -334,6 +340,8 @@ router.get('/getTaskListTotalSize', async function(req, res, next) {
       taskCriteria.ParentTaskName = {
         [Op.or] : reqParentTaskName
       }      
+    } else {
+      return res.json(responseMessage(1, null, 'No task exist'));
     }
   }
   if(req.query.reqParentTaskName!='' && req.query.reqParentTaskName!=null){
@@ -2256,14 +2264,14 @@ function generatePlanTaskList(iTaskObjArray) {
       if(reqReferenceArray.length == 0) {
         reqReferenceArray.push(iTaskObjArray[j].Reference)
       } else {
-        if(reqReferenceArray.indexOf(iTaskObjArray[j].Reference) == -1) {
+        if(reqReferenceArray != null && reqReferenceArray.indexOf(iTaskObjArray[j].Reference) == -1) {
           reqReferenceArray.push(iTaskObjArray[j].Reference)
         }
       }
       if(reqTimeGroupArray.length == 0) {
         reqTimeGroupArray.push(iTaskObjArray[j].TaskGroupId)
       } else {
-        if(reqTimeGroupArray.indexOf(iTaskObjArray[j].TaskGroupId) == -1) {
+        if(reqTimeGroupArray != null && reqTimeGroupArray.indexOf(iTaskObjArray[j].TaskGroupId) == -1) {
           reqTimeGroupArray.push(iTaskObjArray[j].TaskGroupId)
         }
       }
@@ -2336,7 +2344,7 @@ function generatePlanTaskList(iTaskObjArray) {
         resJson.task_deliverableTag = iTaskObjArray[i].DeliverableTag;
         resJson.task_type_id = iTaskObjArray[i].TaskTypeId;
         var subTaskList = null;
-        if (taskHasSubtasksList.indexOf(iTaskObjArray[i].TaskName) != -1 ) {
+        if (taskHasSubtasksList != null && taskHasSubtasksList.indexOf(iTaskObjArray[i].TaskName) != -1 ) {
           subTaskList = await getSubTasks(iTaskObjArray[i].TaskName);
         }
         if(subTaskList != null && subTaskList.length > 0) {
