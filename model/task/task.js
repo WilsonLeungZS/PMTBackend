@@ -55,6 +55,7 @@ var Task = sequelize.define('task', {
     Scope: { type:Sequelize.STRING },
     TaskGroupId: { type:Sequelize.INTEGER,defaultValue: null },
     Skill: { type:Sequelize.STRING },
+    SubTasksAssigneeId: { type:Sequelize.STRING },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
