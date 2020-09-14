@@ -175,8 +175,8 @@ router.post('/getWorklogByUserAndMonthForWeb', function(req, res, next) {
   })
 });
 
-//Get team worklog by team and month for web timesheet
-router.post('/getWorklogByTeamAndMonthForWeb', function(req, res, next) {
+//Get worklogs by user list and month for web timesheet
+router.post('/getWorklogByUserListAndMonthForWeb', function(req, res, next) {
   var reqUserList = req.body.wUserList.split(',');
   var reqWorklogMonth = req.body.wWorklogMonth;
   var rtnResult = [];
