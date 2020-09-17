@@ -2221,7 +2221,7 @@ router.get('/getPlanTaskListByParentTask', function(req, res, next) {
     include: [{model: TaskType, attributes: ['Id', 'Name']}],
     where: criteria,
     order: [
-      ['ParentTaskName']
+      ['createdAt', 'DESC']
     ],
     // limit: reqSize,
     // offset: reqSize * (reqPage - 1)
