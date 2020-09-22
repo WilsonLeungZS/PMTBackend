@@ -214,7 +214,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
   }
 });
 
-//Spider job to receive task list for service now
+//Spider job to receive task list for TRLS
 router.post('/receiveTaskListForTRLS', function(req, res, next) {
   Logger.info('Request: \n' + JSON.stringify(req.body))
   //console.log('Request: \n' + JSON.stringify(req.body))
@@ -494,7 +494,7 @@ function getAssignmentUser(iAssignment) {
           if(assignmentStr != '' && assignmentStr != null) {
             var assignmentArray = assignmentStr.split(',');
             for(var a=0; a<assignmentArray.length; a++) {
-              if(assignmentArray[a] == iAssignment){
+              if(assignmentArray[a].toUpperCase() == iAssignment){
                 result.push(users[i].Id);
                 break;
               }
