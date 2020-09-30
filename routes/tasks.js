@@ -7,7 +7,7 @@ var Task = require('../model/task/task');
 var User = require('../model/user');
 var TaskGroup = require('../model/task/task_group');
 var Worklog = require('../model/worklog');
-var taskItems = require('../services/taskItem');
+var taskService = require('../services/taskService');
 var Schedule = require('../model/schedule');
 var nodeSchedule = require('node-schedule');
 var Reference = require('../model/reference')
@@ -832,8 +832,8 @@ function generateTaskInfo (iTask) {
     resJson.task_top_skill = iTask.TopSkill;
     resJson.task_top_opps_project = iTask.TopOppsProject;
     resJson.task_detail = iTask.Detail;
-    resJson.task_deliverableTag = iTask.DeliverableTag;
-    resJson.task_TypeTag = iTask.TypeTag
+    resJson.task_deliverable_tag = iTask.DeliverableTag;
+    resJson.task_type_tag = iTask.TypeTag
     resJson.task_table_loading = false
     resJson.task_current_page = 1
     resJson.task_page_size = 20    
@@ -1006,8 +1006,9 @@ router.post('/getSubTaskByTaskName', function(req, res, next) {
       ParentTaskName: req.body.reqTaskName,
       TypeTag:{[Op.or]: [{[Op.ne]: 'Regular Task'}, null]}
     },
+    limit: 50,
     order: [
-      ['Id', 'ASC']
+      ['createdAt', 'DESC']
     ]
   }).then(async function(task) {
       if(task.length > 0) {
@@ -1071,7 +1072,7 @@ router.get('/checkSubTaskDone', async function(req, res, next) {
 });
 
 router.post('/saveTask', function(req, res, next) {
-  //taskItems.saveTask(req, res,'createByUser');
+  //taskService.saveTask(req, res,'createByUser');
   saveTask(req, res);
 });
 
@@ -1160,8 +1161,8 @@ async function saveTask(req, res) {
     TopSkill: reqTask.task_top_skill != ''? reqTask.task_top_skill: null,
     TopOppsProject: reqTask.task_top_opps_project != ''? reqTask.task_top_opps_project: null,
     TaskGroupId: reqTask.task_group_id != ''? reqTask.task_group_id: null,
-    TypeTag: reqTask.task_TypeTag != ''? reqTask.task_TypeTag: null,
-    DeliverableTag: reqTask.task_deliverableTag != ''? reqTask.task_deliverableTag: null,
+    TypeTag: reqTask.task_type_tag != ''? reqTask.task_type_tag: null,
+    DeliverableTag: reqTask.task_deliverable_tag != ''? reqTask.task_deliverable_tag: null,
     Detail: reqTask.task_detail != ''? reqTask.task_detail: null,
     Skill: reqTaskSkill
   }
@@ -1225,38 +1226,21 @@ async function saveTask(req, res) {
         await Task.update(taskObj, {where: { TaskName: reqTaskName }});
         //Update sub-tasks related information: responsilbe leader/task group/reference/...
         if (Number(reqTask.task_level) == 2) {
-          var updateResult1 = await updateSubTasksRespLeader(reqTask.task_name, reqTask.task_responsible_leader);
+          var oldRespLeader = task.RespLeaderId;
+          var newRespLeader = reqTask.task_responsible_leader;
+          if (newRespLeader != oldRespLeader) {
+            console.log('Need to update responsible leader')
+            var updateResult1 = await updateSubTasksRespLeader(reqTask.task_name, reqTask.task_responsible_leader);
+          } else {
+            console.log('No need to update responsible leader')
+          }
         }
         if (Number(reqTask.task_level) == 3) {
           var updateResult2 = await updateSubTasksGroup(reqTask.task_name, reqTask.task_group_id);
           var updateResult3 = await updateSubTasksReference(reqTask.task_name, reqTask.task_reference);
           var updateResult4 = await updateSubTasksWhenChangeParent(reqTask.task_name, taskObj.TaskName);
-
-          if(reqTask.task_TypeTag == 'Regular Task'){
-            await Task.update( {Status: reqTask.task_status }, { where: { ParentTaskName: reqTaskName } });
-  
-            Schedule.update({ Status: reqTask.task_status }, { where: { TaskName: reqTaskName } });
-            
-            if(reqTask.task_status == 'Running') taskItems.createTaskByScheduleJob(reqTaskName);
-  
-            if(reqTask.task_status == 'Done'){
-              Schedule.findAll({
-                attributes: ['JobId'],
-                where: { 
-                  TaskName: reqTaskName
-                },
-              }).then(function(sch) {
-                var tempJobId = sch[0].JobId;
-                var runningJob = nodeSchedule.scheduledJobs[String(tempJobId)];
-                console.log('Start To Cancel Schedule Job ----------------------------->');
-                if(runningJob != null){
-                  if(runningJob.cancel()){
-                    console.log('JobId: ' + tempJobId + ' was done.');
-                  }
-                }
-                Schedule.update( {Status: 'Done'}, {where: {JobId: tempJobId} });
-              });
-            }
+          if (reqTask.task_type_tag == 'Regular Task') {
+            var updateResult5 = await updateSubTasksStatus(reqTask.task_name, reqTask.task_status);
           }
         } 
         // End update subtask information
@@ -1445,6 +1429,17 @@ function updateSubTasksRespLeader (iTaskName, iRespLeaderId) {
         resolve(1);
       }
     });
+  });
+}
+
+function updateSubTasksStatus (iTaskName, iStatus) {
+  return new Promise((resolve, reject) => {
+    Task.update({
+        Status: iStatus
+      },
+      {where: {ParentTaskName: iTaskName}
+    });
+    resolve(0);
   });
 }
 
@@ -2340,8 +2335,8 @@ function generatePlanTaskList(iTaskObjArray) {
       var resResult = [];
       if(iTaskObjArray[i].TaskLevel != 2) {
         //resJson.task_type_id = await getTaskType(iTaskObjArray[i].TaskName);
-        resJson.task_TypeTag = iTaskObjArray[i].TypeTag;
-        resJson.task_deliverableTag = iTaskObjArray[i].DeliverableTag;
+        resJson.task_type_tag = iTaskObjArray[i].TypeTag;
+        resJson.task_deliverable_tag = iTaskObjArray[i].DeliverableTag;
         resJson.task_type_id = iTaskObjArray[i].TaskTypeId;
         var subTaskList = null;
         if (taskHasSubtasksList != null && taskHasSubtasksList.indexOf(iTaskObjArray[i].TaskName) != -1 ) {

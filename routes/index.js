@@ -108,6 +108,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
       var userAssignmentList = await getAssignmentUser(taskAssignTeam);
       var autoAssignToTaskType = null;
       var tTaskGroupId = null;
+      var tRespLeaderId = null
       if(tAssigneeId != '' && tAssigneeId != null && tTaskIssueDate != null){
         // Auto assign Service now task to task group
         var issueDateArray = tTaskIssueDate.split(" ");
@@ -117,7 +118,8 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
         if (autoAssignToTaskRef != null) {
           autoAssignToTaskKeyWord = autoAssignToTaskRef.Value;
           var autoAssignToTask = await getTaskByDescriptionKeyWord(autoAssignToTaskKeyWord, userAssignmentList);
-          if(autoAssignToTask != null){
+          if(autoAssignToTask != null) {
+            tRespLeaderId = autoAssignToTask.RespLeaderId;
             var lv1TaskName = autoAssignToTask.ParentTaskName;
             tParentTaskName = autoAssignToTask.TaskName;
             autoAssignToTaskType = autoAssignToTask.task_type.Name;
@@ -171,6 +173,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             BusinessArea: tBusinessArea,
             TaskLevel: 3, 
             IssueDate: tTaskIssueDate,
+            RespLeaderId: tRespLeaderId,
             AssigneeId: tAssigneeId,
             TaskGroupId: tTaskGroupId,
             TypeTag: taskTypeTag
@@ -193,6 +196,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             BusinessArea: tBusinessArea,
             TaskLevel: 3,
             IssueDate: tTaskIssueDate,
+            RespLeaderId: tRespLeaderId,
             AssigneeId: tAssigneeId,
             TaskGroupId: tTaskGroupId
           });
@@ -382,7 +386,11 @@ function processRequest(req){
     else if(taskCategorization != null && taskCategorization != undefined ){
       if(taskCategorization[i].toUpperCase().startsWith("SERVICE")){
         taskJson.TaskType = 'Service Request';
-      } else {
+      }
+      else if(taskCategorization[i].toUpperCase().startsWith("STP")){
+        taskJson.TaskType = 'STP';
+      }
+      else {
         taskJson.TaskType = 'Incident';
       }
     }
