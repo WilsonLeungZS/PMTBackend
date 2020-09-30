@@ -48,7 +48,7 @@ router.post('/saveRegularTask',async function(req,res,next){
       RegularTime: req.body.reqRegularTaskTime,
       StartTime: req.body.reqStartTime,
       EndTime: req.body.reqEndTime,
-      Status: 'Planning'
+      Status: req.body.reqStatus
     }
   }).spread(async function(schedule, created) {
     if(created) {
@@ -59,7 +59,8 @@ router.post('/saveRegularTask',async function(req,res,next){
         Schedule: req.body.reqSchedule,
         RegularTime: req.body.reqRegularTaskTime,
         StartTime: req.body.reqStartTime,
-        EndTime: req.body.reqEndTime
+        EndTime: req.body.reqEndTime,
+        Status: req.body.reqStatus
       });
       return res.json(responseMessage(0, schedule, 'Updated task schedule successfully!'));
     }

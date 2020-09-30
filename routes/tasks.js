@@ -1239,32 +1239,8 @@ async function saveTask(req, res) {
           var updateResult2 = await updateSubTasksGroup(reqTask.task_name, reqTask.task_group_id);
           var updateResult3 = await updateSubTasksReference(reqTask.task_name, reqTask.task_reference);
           var updateResult4 = await updateSubTasksWhenChangeParent(reqTask.task_name, taskObj.TaskName);
-
-          if(reqTask.task_type_tag == 'Regular Task'){
-            await Task.update( {Status: reqTask.task_status }, { where: { ParentTaskName: reqTaskName } });
-  
-            Schedule.update({ Status: reqTask.task_status }, { where: { TaskName: reqTaskName } });
-            
-            if(reqTask.task_status == 'Running') taskService.createTaskByScheduleJob(reqTaskName);
-  
-            if(reqTask.task_status == 'Done'){
-              Schedule.findAll({
-                attributes: ['JobId'],
-                where: { 
-                  TaskName: reqTaskName
-                },
-              }).then(function(sch) {
-                var tempJobId = sch[0].JobId;
-                var runningJob = nodeSchedule.scheduledJobs[String(tempJobId)];
-                console.log('Start To Cancel Schedule Job ----------------------------->');
-                if(runningJob != null){
-                  if(runningJob.cancel()){
-                    console.log('JobId: ' + tempJobId + ' was done.');
-                  }
-                }
-                Schedule.update( {Status: 'Done'}, {where: {JobId: tempJobId} });
-              });
-            }
+          if (reqTask.task_type_tag == 'Regular Task') {
+            var updateResult5 = await updateSubTasksStatus(reqTask.task_name, reqTask.task_status);
           }
         } 
         // End update subtask information
@@ -1453,6 +1429,17 @@ function updateSubTasksRespLeader (iTaskName, iRespLeaderId) {
         resolve(1);
       }
     });
+  });
+}
+
+function updateSubTasksStatus (iTaskName, iStatus) {
+  return new Promise((resolve, reject) => {
+    Task.update({
+        Status: iStatus
+      },
+      {where: {ParentTaskName: iTaskName}
+    });
+    resolve(0);
   });
 }
 
