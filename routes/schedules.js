@@ -308,7 +308,7 @@ function createScheduleJob(iSchedule) {
         console.log('End to run schedule job -- > ', sJobName, ' Job create task result --> ', result);
       });
       var newExecution = dateFormat(newScheduleJob.nextInvocation(), "yyyy-mm-dd hh:MM:ss");
-      await Schedule.update({NextTime: newExecution}, {where: {JobName: sJobName}});
+      await Schedule.update({NextTime: newExecution, CronJobTime: cronJobTime}, {where: {JobName: sJobName}});
       console.log('Finish create Schedule Job');
       resolve(true);
     }catch(Exception){
