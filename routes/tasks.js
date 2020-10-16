@@ -1355,7 +1355,12 @@ async function getSubTaskName(iParentTask) {
     for (var i=0; i<subTasks.length; i++) {
       var lastSubTaskName = subTasks[i].TaskName;
       var nameArr = lastSubTaskName.split('-');
-      var lastNameNum = Number(nameArr[nameArr.length-1]);
+      var lastNameNum = nameArr[nameArr.length-1] + '';
+      if (lastNameNum.indexOf('(') != -1) {
+        let index = lastNameNum.indexOf('(');
+        lastNameNum = lastNameNum.substring(0, index);
+      }
+      lastNameNum = Number(lastNameNum);
       taskLastNumberArray.push(lastNameNum);
     }
     let max = taskLastNumberArray[0]
