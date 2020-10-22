@@ -241,6 +241,82 @@ router.post('/getWorklogByUserListAndMonthForWeb', function(req, res, next) {
   })
 });
 
+//Get last days worklogs by user list for web timesheet
+router.post('/getPastWorklogByUserForWeb', function(req, res, next) {
+  var reqUserList = req.body.wUserList.split(',');
+  var reqCurrentMonth =  req.body.wCurrentMonth;
+  var reqCurrentMonthDates = req.body.wCurrentMonthDates.split(',');
+  var reqOtherMonth =  req.body.wOtherMonth;
+  var reqOtherMonthDates = req.body.wOtherMonthDates.split(',');
+  //If need to return other month worklogs
+});
+
+function getWorklogsByUserListAndDate(iRequestUserList, iRequestMonth, iRequestDateList) {
+  return new Promise((resolve, reject) => {
+    var rtnResult = [];
+    Worklog.findAll({
+      include: [{
+        model: Task,
+        attributes: ['Id', 'TaskName', 'Description', 'Status', 'Assignee']
+      },{
+        model: User,
+        attributes: ['Name'],
+        where: {
+          Id: { [Op.in]: iRequestUserList }
+        }
+      }],
+      where: {
+        WorklogMonth: iRequestMonth,
+        WorklogDay: { [Op.in]: iRequestDateList },
+        Effort: { [Op.ne]: 0 },
+        Id: { [Op.ne]: null }
+      },
+      order: [
+        ['createdAt', 'DESC']
+      ]
+    }).then(function(worklog) {
+      if(worklog != null && worklog.length > 0) {
+        for(var i=0; i<worklog.length; i++) {
+          var resJson = {};
+          var index = getIndexOfValueInArr(rtnResult, 'user', worklog[i].user.Name);
+          if (index == -1 ) {
+            resJson['user'] = worklog[i].user.Name;
+            resJson['month'] = worklog[i].WorklogMonth;
+            resJson['timesheetData'] = [];
+            rtnResult.push(resJson);
+          } else {
+            continue;
+          }
+        }
+        for(var a=0; a<rtnResult.length; a++) {
+          var timesheetDataArray = [];
+          for(var i=0; i<worklog.length; i++) {
+            if(worklog[i].user.Name == rtnResult[a].user) {
+              var resJson = {};
+              var index = getIndexOfValueInArr(timesheetDataArray, 'task_id', worklog[i].task.Id);
+              if (index == -1 ) {
+                resJson['task_id'] = worklog[i].task.Id;
+                resJson['task'] = worklog[i].task.TaskName + ' - ' + worklog[i].task.Description;
+                resJson['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+                timesheetDataArray.push(resJson);
+              } else {
+                var item = timesheetDataArray[index];
+                if(item['task_id'] == worklog[i].task.Id) {
+                  item['day' + worklog[i].WorklogDay] = worklog[i].Effort;
+                }
+              }
+              rtnResult[a].timesheetData = timesheetDataArray;
+            }
+          }
+        }
+        
+      } else {
+        
+      }
+    })
+  });
+}
+
 router.post('/getWorklogTaskByMonthForWeb', function(req, res, next) {
   var reqWorklogMonth = req.body.sWorklogMonth;
   var rtnResult = [];
