@@ -21,7 +21,7 @@ var Task = sequelize.define('task', {
     Detail: { type: Sequelize.STRING },
     TypeTag: { type: Sequelize.STRING },
     DeliverableTag: { type: Sequelize.STRING },
-    Priority: { type: Sequelize.STRING },
+    TimeType: { type: Sequelize.STRING },
     Status: { type:Sequelize.STRING, allowNull: false },
     Creator: { type: Sequelize.STRING, allowNull: false },
     Effort: { type:Sequelize.INTEGER },
