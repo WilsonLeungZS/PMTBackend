@@ -700,6 +700,14 @@ router.post('/addOrUpdateWorklog', function(req, res, next) {
   })
 });
 
+router.post('/updateTaskdone', async function(req, res, next) {
+  var reqTaskId = req.body.reqTaskId;
+  var currentDay = getNowFormatDate().split(' ')[0];
+  console.log('Update task - ' + reqTaskId + ' Done and actual complete [' + currentDay + ']');
+  await Task.update({Status: 'Done', ActualCompleteDate: currentDay}, {where: {Id: reqTaskId}});
+  return res.json(responseMessage(0, null, 'Update task status to Done successfully'));
+});
+
 //Remove worklog
 router.post('/removeWorklog', function(req, res, next) {
   console.log('Request: ' + JSON.stringify(req.body));
@@ -755,8 +763,6 @@ router.post('/removeWorklog', function(req, res, next) {
     });
   })
 });
-
-//george
 router.post('/getTaskStatusAndLevel', function(req, res, next) {
   console.log('Request: ' + JSON.stringify(req.body));
   Task.findOne({
@@ -973,8 +979,6 @@ router.post('/adjustWorklogForWeb', function(req, res, next) {
     }
   });
 });
-
-
 
 //Extract report1(only AD/AM/BD for task category) for web PMT
 router.post('/extractReport1ForWeb', function(req, res, next) {
