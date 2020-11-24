@@ -195,6 +195,9 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
           errMsg = 'Task [' + taskObj.TaskName + ']: create or update failed!'
           needCreateRefTask = false;
         }
+        if (tStatus == 'Drafting' || tStatus == 'Planning') {
+          needCreateRefTask = false;
+        }
         console.log('Create reference task: ' + needCreateRefTask)
         // Start to create ref task
         if(needCreateRefTask) {
@@ -203,7 +206,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             ParentTaskName: tParentTaskName,
             TaskName: tName + ' (' + tTaskGroupName + ')',
             Description: tDescription,
-            Status: 'Drafting',
+            Status: tStatus,
             Creator: 'PMT:' + tCreator,
             Effort: 0,
             Estimation: 6,
