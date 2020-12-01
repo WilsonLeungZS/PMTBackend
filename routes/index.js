@@ -9,7 +9,6 @@ var Team = require('../model//team/team');
 var TaskType = require('../model/task/task_type');
 var Worklog = require('../model/worklog');
 var TaskGroup = require('../model/task/task_group');
-var Schedule = require('../model/schedule')
 var Sequelize = require('sequelize');
 const Op = Sequelize.Op;
 
@@ -24,7 +23,6 @@ router.get('/', function(req, res, next) {
       return res.json({message: 'Get Response index resource: PMT Version 3.1'});
     }
   })
-  
 });
 
 router.post('/', function(req, res, next) {
@@ -77,6 +75,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
   async function createTask(taskObj, cb){
     //console.log('Start to create task: ' + taskObj.TaskName);
     Logger.info('Start to create task: ' + taskObj.TaskName);
+    var needCreateRefTask = false;
     try {
       var errMsg = '';
       //Default task field
@@ -96,43 +95,52 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
           tParentTaskName = taskPoolRef.Value;
         }
       }
-      var tTaskBizProject = taskObj.BizProject;
-      var tBusinessArea = '';
       var tAssignee = taskObj.TaskAssignee;
       var tAssigneeId = await getUserMapping(tAssignee);
-      var tTaskIssueDate = taskObj.TaskIssueDate;
+      /*var tTaskIssueDate = taskObj.TaskIssueDate;
       if(tTaskIssueDate == null) {
         tTaskIssueDate = dateToString(new Date());
-      }
+      }*/
+      var tTaskIssueDate = dateToString(new Date());
       var taskAssignTeam = taskObj.AssignTeam;
       var userAssignmentList = await getAssignmentUser(taskAssignTeam);
+      console.log('User assignment list: ' + userAssignmentList);
       var autoAssignToTaskType = null;
       var tTaskGroupId = null;
+      var tTaskGroupName = '';
       var tRespLeaderId = null
-      if(tAssigneeId != '' && tAssigneeId != null && tTaskIssueDate != null){
+      if(tTaskIssueDate != null){
         // Auto assign Service now task to task group
         var issueDateArray = tTaskIssueDate.split(" ");
         var issueDateStr = issueDateArray[0];
+        console.log('Issue date: ' + issueDateStr);
         var autoAssignToTaskKeyWord = null;
         var autoAssignToTaskRef = await getReference('AutoAssignToTask', tTaskType);
+        console.log('Auto assign to task type: ' + tTaskType);
         if (autoAssignToTaskRef != null) {
           autoAssignToTaskKeyWord = autoAssignToTaskRef.Value;
+          console.log('Auto assign to task value: ' + autoAssignToTaskKeyWord);
           var autoAssignToTask = await getTaskByDescriptionKeyWord(autoAssignToTaskKeyWord, userAssignmentList);
           if(autoAssignToTask != null) {
             tRespLeaderId = autoAssignToTask.RespLeaderId;
-            var lv1TaskName = autoAssignToTask.ParentTaskName;
             tParentTaskName = autoAssignToTask.TaskName;
             autoAssignToTaskType = autoAssignToTask.task_type.Name;
-            if(lv1TaskName != null && lv1TaskName != '' && lv1TaskName != 'N/A') {
-              if(issueDateStr != null && issueDateStr != '') {
-                var taskGroup = await getTaskGroupByDateAndRelateTask(issueDateStr, lv1TaskName);
-                if(taskGroup != null) {
-                  tTaskGroupId = taskGroup.Id;
-                }
+            var autoAssignToTaskTimeType = autoAssignToTask.TimeType;
+            if(issueDateStr != null && issueDateStr != '') {
+              var taskGroup = await getTaskGroupByDateAndRelateTask(issueDateStr, autoAssignToTaskTimeType);
+              if(taskGroup != null) {
+                // Get time Group Id
+                tTaskGroupId = taskGroup.Id;
+                tTaskGroupName = taskGroup.Name;
+                needCreateRefTask = true;
               }
-            } // End to find task group
+            }
+            // End to find task group
           }
         }
+      }
+      if (tTaskType == 'Problem') {
+        needCreateRefTask = false;
       }
       //Get task type info
       var inTaskStatus = await getStatusMapping(tTaskType, tStatus);
@@ -140,12 +148,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
         tStatus = inTaskStatus;
         console.log('Status: ' + tStatus);
       }
-      var inTaskType = null
-      if(tAssigneeId != '' && tAssigneeId != null && autoAssignToTaskType != null && autoAssignToTaskType != '') {
-        inTaskType = await getTaskTypeInfo(autoAssignToTaskType);
-      } else {
-        inTaskType = await getTaskTypeInfo('Pool');
-      }
+      var inTaskType = await getTaskTypeInfo('Pool');
       console.log('Type --> ' + JSON.stringify(inTaskType));
       if(inTaskType != null){
         tTaskTypeId = inTaskType.Id;
@@ -161,44 +164,28 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
       Task.findOrCreate({
         where: {TaskName: tName}, 
         defaults: {
-            ParentTaskName: tParentTaskName,
+            ParentTaskName: 'N/A',
             TaskName: tName,
             Description: tDescription,
             Status: tStatus,
             Creator: tCreator,
-            Effort: tEffort,
-            Estimation: tEstimation,
+            Effort: 0,
+            Estimation: 0,
             TaskTypeId: tTaskTypeId,
-            BizProject: tTaskBizProject,
-            BusinessArea: tBusinessArea,
             TaskLevel: 3, 
-            IssueDate: tTaskIssueDate,
-            RespLeaderId: tRespLeaderId,
-            AssigneeId: tAssigneeId,
-            TaskGroupId: tTaskGroupId,
-            TypeTag: taskTypeTag
+            IssueDate: tTaskIssueDate
         }
       })
-      .spread(function(task, created) {
+      .spread(async function(task, created) {
         if(created) {
           console.log('Task created');
           Logger.info('Task created');
         }
         else if(task != null && !created){ 
-          task.update({
-            ParentTaskName: tParentTaskName,
+          await task.update({
             Description: tDescription,
             Status: tStatus,
-            Estimation: tEstimation,
-            TaskTypeId: tTaskTypeId,
-            Creator: tCreator,
-            BizProject: tTaskBizProject,
-            BusinessArea: tBusinessArea,
-            TaskLevel: 3,
-            IssueDate: tTaskIssueDate,
-            RespLeaderId: tRespLeaderId,
-            AssigneeId: tAssigneeId,
-            TaskGroupId: tTaskGroupId
+            IssueDate: tTaskIssueDate
           });
           console.log('Task updated');
           Logger.info('Task updated');
@@ -206,6 +193,50 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
         else {
           console.log('Task create fail');
           errMsg = 'Task [' + taskObj.TaskName + ']: create or update failed!'
+          needCreateRefTask = false;
+        }
+        if (tStatus == 'Drafting' || tStatus == 'Planning') {
+          needCreateRefTask = false;
+        }
+        console.log('Create reference task: ' + needCreateRefTask)
+        // Start to create ref task
+        if(needCreateRefTask) {
+          var refTaskType = await getTaskTypeInfo(autoAssignToTaskType);
+          var refTask = {
+            ParentTaskName: tParentTaskName,
+            TaskName: tName + ' (' + tTaskGroupName + ')',
+            Description: tDescription,
+            Status: tStatus,
+            Creator: 'PMT:' + tCreator,
+            Effort: 0,
+            Estimation: 6,
+            TaskTypeId: refTaskType.Id,
+            TaskLevel: 3, 
+            IssueDate: tTaskIssueDate,
+            RespLeaderId: tRespLeaderId,
+            TaskGroupId: tTaskGroupId,
+            TypeTag: taskTypeTag,
+            Reference: tName,
+          }
+          if (tAssigneeId != null && tAssigneeId != '') {
+            refTask.AssigneeId = tAssigneeId
+          }
+          await Task.findOrCreate({
+            where: {
+              [Op.or]: [
+                {TaskName: refTask.TaskName},
+                {Reference: refTask.Reference}
+              ],
+              TaskGroupId: refTask.TaskGroupId
+            },
+            defaults: refTask
+          }).spread(async function(refTask, created) {
+            if(created){
+              console.log('New task of incident is created!');
+            } else {
+              console.log('No need to create new task of incident!');
+            }
+          })
         }
         cb(errMsg, taskObj);
       }); 
@@ -556,13 +587,13 @@ function getTaskByDescriptionKeyWord(iKeyWord, iAssignmentList) {
   });
 }
 
-function getTaskGroupByDateAndRelateTask(iDate, iRelatedTask) {
+function getTaskGroupByDateAndRelateTask(iDate, iTimeType) {
   return new Promise((resolve, reject) => {
     TaskGroup.findOne({
       where: {
         StartTime: { [Op.lte]: iDate },
         EndTime: { [Op.gte]: iDate },
-        //RelatedTaskName: iRelatedTask
+        GroupType: iTimeType
       }
     }).then(function(taskGroup) {
       resolve(taskGroup);

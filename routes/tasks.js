@@ -193,13 +193,13 @@ router.get('/getLv3TaskListForSingleTable', function(req, res, next) {
   var reqSize = Number(req.query.reqSize);
   var taskCriteria = generateTaskCriteria(req);
   var taskTypeCriteria = generateTaskTypeCriteria(req);
-  var orderSeq = [];
-  if (Number(req.query.reqTaskLevel == 3)){
-    orderSeq = ['ParentTaskName']
+  var orderSeq = ['createdAt', 'DESC'];
+  /*if (Number(req.query.reqTaskLevel == 3)){
+    orderSeq = ['ParentTaskName'];
   }
   else {
-    orderSeq = ['createdAt', 'DESC']
-  }
+    orderSeq = ['createdAt', 'DESC'];
+  }*/
   console.log(taskCriteria)
   Task.findAll({
     include: [{
@@ -661,6 +661,7 @@ router.post('/getTasksByParentName', function(req, res, next) {
         resJson.task_parent_name = iTaskObjArray[i].ParentTaskName;
         resJson.task_level = iTaskObjArray[i].TaskLevel;
         resJson.task_desc = iTaskObjArray[i].Description;
+        resJson.task_time_type = iTaskObjArray[i].TimeType;
         resJson.task_status = iTaskObjArray[i].Status;
         if (iTaskObjArray[i].Status == 'Planning' || iTaskObjArray[i].Status == 'Running') {
           resJson.task_plan_mode_btn_enable = true
@@ -768,6 +769,7 @@ function generateTaskInfo (iTask) {
     resJson.task_level = iTask.TaskLevel;
     resJson.task_skill = iTask.Skill
     resJson.task_desc = iTask.Description;
+    resJson.task_time_type = iTask.TimeType;
     resJson.task_type_id = iTask.TaskTypeId;
     resJson.task_type = iTask.task_type.Name;
     resJson.task_creator = iTask.Creator;
@@ -1130,7 +1132,7 @@ async function saveTask(req, res) {
     ParentTaskName: reqTaskParent,
     TaskName: reqTaskName,
     Description: reqTask.task_desc != ''? reqTask.task_desc: null,
-    Priority: null,
+    TimeType: reqTask.task_time_type != ''? reqTask.task_time_type: null,
     Status: reqTask.task_status != ''? reqTask.task_status: null,
     Creator: reqTask.task_creator != ''? reqTask.task_creator: null,
     TaskTypeId: reqTask.task_type_id != ''? Number(reqTask.task_type_id): null,
@@ -1347,7 +1349,7 @@ function updateSubTasksWhenChangeParent (iTaskName, iNewTaskName) {
 }
 
 async function getSubTaskName(iParentTask) {
-  console.log('Start to get Sub task Name!!')
+  console.log('Start to get sub task Name!')
   var subTasks = await getSubTasks(iParentTask);
   var subTaskCount = 0;
   if(subTasks != null && subTasks.length > 0) {
@@ -1368,7 +1370,11 @@ async function getSubTaskName(iParentTask) {
     var subTasksLength = subTasks.length;
     console.log('Sub Task Last Number: ' + max);
     console.log('Sub Task Length: ' + subTasksLength);
-    subTaskCount = max;
+    if(isNaN(max)){
+      subTaskCount = subTasksLength;
+    } else {
+      subTaskCount = max;
+    }
   } else {
     subTaskCount = 0;
   }
@@ -1960,7 +1966,7 @@ function getSubTaskTotalEstimationForPlanTask(iTaskName, iTaskGroupId, iTaskGrou
       }else if(iTaskGroupId.length > 1&&!iTaskGroupId.includes('All') && !iTaskGroupId.includes('null') && !iTaskGroupId.includes('0')){
         criteria = ' where raw_data.TaskGroupId in (' + iTaskGroupId +')'
       }else if(iTaskGroupId.includes('null')|| iTaskGroupId.includes('0')) {
-          criteria = ' where raw_data.TaskGroupId is null'
+        criteria = ' where raw_data.TaskGroupId is null'
       }
       // if (iTaskGroupFlag == 1) {
       //   if(iTaskGroupId.length == 1){
@@ -2527,10 +2533,7 @@ router.get('/getTaskGroup', function(req, res, next) {
   var groupCriteria = {}
   if( req.query.tGroupId != "0"){
     groupCriteria = { 
-      Id: req.query.tGroupId,
-      //RelatedTaskName: req.query.tGroupRelatedTask,
-      //EndTime: {[Op.gt]: req.query.tToday},
-      //RelatedTaskName: { [Op.or]: [null ,'']  },
+      Id: req.query.tGroupId
     };
   } else {
     if(req.query.isShowCurrent === 'true'){
@@ -2538,7 +2541,6 @@ router.get('/getTaskGroup', function(req, res, next) {
         var today = getNowFormatDate ()
         groupCriteria = { 
           Id: { [Op.ne]: null },
-          //RelatedTaskName: req.query.tGroupRelatedTask,
           EndTime: {[Op.lte]: today.EndTime},
           StartTime: {[Op.gte]: today.StartTime}
         };           
@@ -2556,15 +2558,13 @@ router.get('/getTaskGroup', function(req, res, next) {
         var today = year + '-' + month + '-' + strDate 
         groupCriteria = { 
           Id: { [Op.ne]: null },
-          //RelatedTaskName: req.query.tGroupRelatedTask,
           EndTime: {[Op.gte]: today},
           StartTime: {[Op.lte]: today}
         };          
       }
     }else{
       groupCriteria = { 
-        Id: { [Op.ne]: null },
-        RelatedTaskName: { [Op.or]: [null ,'']  },
+        Id: { [Op.ne]: null }
       };         
     }
   }
@@ -2581,6 +2581,7 @@ router.get('/getTaskGroup', function(req, res, next) {
         resJson.group_name = taskGroup[i].Name;
         resJson.group_start_time = taskGroup[i].StartTime;
         resJson.group_end_time = taskGroup[i].EndTime;
+        resJson.group_type = taskGroup[i].GroupType;
         resJson.group_group_dis = false
         var taskCount = await countByTaskGroup(taskGroup[i].Id)
         var taskGroupTasks = await getTaskGroupTask(taskGroup[i].Id);
@@ -2647,6 +2648,7 @@ router.get('/getTaskGroupAll', function(req, res, next) {
         resJson.group_name = taskGroup[i].Name;
         resJson.group_start_time = taskGroup[i].StartTime;
         resJson.group_end_time = taskGroup[i].EndTime;
+        resJson.group_type = taskGroup[i].GroupType;
         rtnResult.push(resJson);
       }
       return res.json(responseMessage(0, rtnResult, ''));
@@ -2665,7 +2667,7 @@ router.post('/addOrUpdateTaskGroup', function(req, res, next) {
       Name: req.body.tGroupName,
       StartTime: req.body.tGroupStartTime,
       EndTime: req.body.tGroupEndTime,
-      RelatedTaskName: req.body.tGroupRelatedTask
+      GroupType: req.body.tGroupTimeType
     }})
   .spread(function(taskGroup, created) {
     if(created) {
@@ -2674,9 +2676,9 @@ router.post('/addOrUpdateTaskGroup', function(req, res, next) {
     else if(taskGroup != null && !created) {
       taskGroup.update({
         Name: req.body.tGroupName,
-      StartTime: req.body.tGroupStartTime,
-      EndTime: req.body.tGroupEndTime,
-      RelatedTaskName: req.body.tGroupRelatedTask
+        StartTime: req.body.tGroupStartTime,
+        EndTime: req.body.tGroupEndTime,
+        GroupType: req.body.tGroupTimeType
       });
       return res.json(responseMessage(0, taskGroup, 'Updated task group successfully!'));
     }
