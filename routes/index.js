@@ -234,6 +234,12 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             if(created){
               console.log('New task of incident is created!');
             } else {
+              if(refTask != null){
+                if(refTask.ParentTaskName != tParentTaskName){
+                  console.log('Need to change task parent task: ' + refTask.ParentTaskName + ' => ' + tParentTaskName);
+                  await refTask.update({ParentTaskName: tParentTaskName});
+                }
+              }
               console.log('No need to create new task of incident!');
             }
           })

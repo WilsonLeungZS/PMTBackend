@@ -2528,7 +2528,7 @@ function getNowFormatDate() {//获取当月时间 yyyy-MM-dd
 }
 
 //Task Group
-router.get('/getTaskGroup', function(req, res, next) {
+router.get('/getTaskGroup', async function(req, res, next) {
   var rtnResult = [];
   var groupCriteria = {}
   if( req.query.tGroupId != "0"){
@@ -2562,10 +2562,25 @@ router.get('/getTaskGroup', function(req, res, next) {
           StartTime: {[Op.lte]: today}
         };          
       }
-    }else{
+    } else {
       groupCriteria = { 
         Id: { [Op.ne]: null }
       };         
+    }
+  }
+  console.log('=======================> ' + req.query.tLv2Task + ' <=============================')
+  if (req.query.tLv2Task != null && req.query.tLv2Task != undefined) {
+    var lv2Task = await getTaskByName(req.query.tLv2Task);
+    console.log('Lv2 Task')
+    console.log(lv2Task)
+    var groupType = null;
+    if (lv2Task != null) {
+      groupType = lv2Task.TimeType;
+    } 
+    console.log('groupType')
+    console.log(groupType)
+    if (groupType != null) {
+      groupCriteria.GroupType = groupType
     }
   }
   TaskGroup.findAll({
