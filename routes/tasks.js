@@ -1493,6 +1493,7 @@ router.post('/getTaskByNameForParentTask', function(req, res, next) {
         {Reference: {[Op.like]:'%' + reqTaskKeyWord + '%'}},
       ],
       TaskName: {[Op.notLike]: 'Dummy - %'},
+      Status: {[Op.ne]: 'Done'},
       TaskLevel: reqTaskLevel,
       Id: { [Op.ne]: null }
     },
@@ -1736,6 +1737,7 @@ router.post('/getTaskByNameForWorklogTask', function(req, res, next) {
       [Op.and]: [
         { Status: {[Op.ne]: 'Drafting'}},
         { Status: {[Op.ne]: 'Planning'}},
+        { Status: {[Op.ne]: 'Done'}},
         { TaskLevel: {[Op.ne]: 1}},
         { TaskLevel: {[Op.ne]: 2}},
         {[Op.or]: [
