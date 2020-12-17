@@ -206,7 +206,7 @@ router.post('/receiveTaskListForSNOW', function(req, res, next) {
             ParentTaskName: tParentTaskName,
             TaskName: tName + ' (' + tTaskGroupName + ')',
             Description: tDescription,
-            Status: tStatus,
+            Status: 'Running',
             Creator: 'PMT:' + tCreator,
             Effort: 0,
             Estimation: 6,

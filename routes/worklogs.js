@@ -472,7 +472,7 @@ router.post('/getWorklogForWeb', function(req, res, next) {
   Worklog.findOne({
     include: [{
         model: Task,
-        attributes: ['Id', 'TaskName', 'Effort', 'Estimation']
+        attributes: ['Id', 'TaskName', 'Status', 'Effort', 'Estimation']
     }],
     where: {
         UserId: reqUserId,
@@ -486,6 +486,7 @@ router.post('/getWorklogForWeb', function(req, res, next) {
         resJson.worklog_id = worklog.Id;
         resJson.worklog_task_id = worklog.task.Id;
         resJson.worklog_task_name = worklog.task.TaskName;
+        resJson.worklog_task_status = worklog.task.Status;
         resJson.worklog_effort = worklog.Effort;
         resJson.worklog_remark = worklog.Remark;
         resJson.worklog_task_effort = worklog.task.Effort == null? 0: worklog.task.Effort;
@@ -496,13 +497,14 @@ router.post('/getWorklogForWeb', function(req, res, next) {
         return res.json(responseMessage(0, rtnResult, ''));
       } else {
         Task.findOne({
-            attributes: ['Id', 'TaskName', 'Effort', 'Estimation'],
+            attributes: ['Id', 'TaskName', 'Status', 'Effort', 'Estimation'],
             where: {
               Id: reqTaskId
           }
         }).then(function(task) {
           if(task != null) {
             var resJson = {};
+            resJson.worklog_task_status = task.Status;
             resJson.worklog_task_effort = task.Effort == null? 0: task.Effort;
             resJson.worklog_task_estimation = task.Estimation == null? 0: task.Estimation;
             var percentage2 =  "" + toPercent(task.Effort, task.Estimation);
