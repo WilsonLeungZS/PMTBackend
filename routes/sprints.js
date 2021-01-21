@@ -71,6 +71,28 @@ async function generateResponseSprintsInfo(sprints) {
   }
 }
 
+// Get Sprint Information 
+router.get('/getSprintById', function(req, res, next) {
+  var reqSprintId = Number(req.query.reqSprintId);
+  Sprint.findOne({
+    include: [{
+      model: User, 
+      attributes: ['Id', 'Name']
+    }],
+    where: {
+      Id: reqSprintId
+    }
+  })
+  .then(async function(sprint) {
+    if (sprint != null) {
+      var sprintArray = [sprint]
+      var responseSprints = await generateResponseSprintsInfo(sprintArray);
+      return res.json(Utils.responseMessage(0, responseSprints[0], ''));
+    } else {
+      return res.json(Utils.responseMessage(1, null, 'No sprint exist'));
+    }
+  })
+});
 
 // Create or update sprint
 router.post('/updateSprint', function(req, res, next) {
