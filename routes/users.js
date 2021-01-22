@@ -119,6 +119,36 @@ router.get('/getActiveUsersListByLevelLimit', function(req, res, next) {
   })
 });
 
+// Get user list by skill
+router.post('/getActiveUsersListBySkill', function(req, res, next) {
+  var reqSkillsArray = req.body.reqSkillsArray;
+  var skillsCriteria = [];
+  if (reqSkillsArray != null && reqSkillsArray != '') {
+    var skillsArray = reqSkillsArray.split(',');
+    for (var i=0; i<skillsArray.length; i++) {
+      skillsCriteria.push({Skills: {[Op.like]:'%#' + skillsArray[i] + '#%'}})
+    }
+  }
+  User.findAll({
+    where: {
+      IsActive: 1,
+      Role: { [Op.ne]: 'Special' },
+      [Op.or]: skillsCriteria
+    },
+    order: [
+      ['Level', 'ASC']
+    ]
+  })
+  .then(async function(users) {
+    if (users != null && users.length > 0) {
+      var responseUsers = await generateResponseUsersInfo(users);
+      return res.json(Utils.responseMessage(0, responseUsers, ''));
+    } else {
+      return res.json(Utils.responseMessage(1, null, 'No user exist'));
+    }
+  })
+});
+
 async function generateResponseUsersInfo(users) {
   if (users != null && users.length > 0) {
     var rtnResult = [];
@@ -128,6 +158,8 @@ async function generateResponseUsersInfo(users) {
       resJson.userId = users[i].Id;
       resJson.userName = users[i].Name;
       resJson.userNickname = users[i].Nickname;
+      resJson.userFullName = users[i].Name + '(' + users[i].Nickname + ')';
+      resJson.userNicknameLong = generateUserFullName(users[i]);
       resJson.userEmployeeNbr = users[i].EmployeeNbr;
       resJson.userEmail = users[i].Email;
       resJson.userRole = users[i].Role;
@@ -135,8 +167,8 @@ async function generateResponseUsersInfo(users) {
       resJson.userNameMappings = users[i].NameMappings;
       resJson.userLevel = users[i].Level;
       resJson.userEmailGroups = users[i].EmailGroups;
-      resJson.userSkills = users[i].Skills.split(',').map(Number);
-      resJson.userSkillsStr = Utils.getSkillsByList(users[i].Skills, skillsList).toString();
+      resJson.userSkills = Utils.handleSkillsArray(users[i].Skills).split(',').map(Number);
+      resJson.userSkillsStr = Utils.getSkillsByList(Utils.handleSkillsArray(users[i].Skills), skillsList).toString();
       resJson.userWorkingHrs = users[i].WorkingHrs;
       resJson.userIsActive = users[i].IsActive;
       rtnResult.push(resJson);
@@ -146,6 +178,20 @@ async function generateResponseUsersInfo(users) {
   } else {
     return null;
   }
+}
+
+function generateUserFullName (iUser) {
+  let userLastname = iUser.Name.split('.').pop();
+  let userNickname = iUser.Nickname;
+  let newName = iUser.Name;
+  if (userLastname != undefined && userLastname != null && userLastname != '') {
+    if (userNickname != undefined && userNickname != null && userNickname != '') {
+      userLastname = userLastname.substring(0, 1).toUpperCase() + userLastname.substring(1);
+      userNickname = userNickname.substring(0, 1).toUpperCase() + userNickname.substring(1);
+      newName = userNickname + '.' + userLastname;
+    }
+  }
+  return newName;
 }
 
 // Handle theme style

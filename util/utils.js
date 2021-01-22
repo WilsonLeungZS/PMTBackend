@@ -49,6 +49,18 @@ function getAllSkillsList() {
   });
 }
 
+function handleSkillsArray (iSkills) {
+  if (iSkills != null && iSkills != '') {
+    var skillsArray = iSkills.split(',');
+    for (var i=0; i<skillsArray.length; i++) {
+      skillsArray[i] = skillsArray[i].replace(new RegExp('#','g'),'');
+    }
+    return skillsArray.toString();
+  } else {
+    return '';
+  }
+}
+
 function getSkillsByList (iSkillsIdArray, iSkillsList) {
   var skills = [];
   var skillsIdArray = iSkillsIdArray.split(',');
@@ -62,6 +74,45 @@ function getSkillsByList (iSkillsIdArray, iSkillsList) {
     }
   }
   return skills;
+}
+
+async function generateResponseTasksInfo (tasks) {
+  if (tasks != null && tasks.length > 0) {
+    var rtnResult = [];
+    var skillsList = await this.getAllSkillsList();
+    for(var i=0; i<tasks.length; i++){
+      var resJson = {};
+      resJson.taskId = tasks[i].Id;
+      resJson.taskHasSubtask = tasks[i].HasSubtask;
+      resJson.taskParentTaskName = tasks[i].ParentTaskName;
+      resJson.taskName = tasks[i].Name;
+      resJson.taskCategory = tasks[i].Category;
+      resJson.taskType = tasks[i].Type;
+      resJson.taskTitle = tasks[i].Title;
+      resJson.taskDescription = tasks[i].Description;
+      resJson.taskReferenceTask = tasks[i].ReferenceTask;
+      resJson.taskTypeTag = tasks[i].TypeTag;
+      resJson.taskDeliverableTag = tasks[i].DeliverableTag;
+      resJson.taskSprintId = tasks[i].SprintId;
+      resJson.taskCreator = tasks[i].Creator;
+      resJson.taskRequiredSkills = this.handleSkillsArray(tasks[i].RequiredSkills).split(',').map(Number);
+      resJson.taskRequiredSkillsStr = this.getSkillsByList(this.handleSkillsArray(tasks[i].RequiredSkills), skillsList).toString();
+      resJson.taskStatus = tasks[i].Status;
+      resJson.taskEffort = tasks[i].Effort;
+      resJson.taskEstimation = tasks[i].Estimation;
+      resJson.taskIssueDate = tasks[i].IssueDate;
+      resJson.taskTargetComplete = tasks[i].TargetComplete;
+      resJson.taskActualComplete = tasks[i].ActualComplete;
+      resJson.taskRespLeaderId = tasks[i].RespLeaderId;
+      resJson.taskAssigneeId = tasks[i].AssigneeId;
+      resJson.taskAssignee = tasks[i].user != null? tasks[i].user.Name: null;
+      rtnResult.push(resJson);
+    }
+    // console.log('Return result -> ', rtnResult);
+    return rtnResult;
+  } else {
+    return null;
+  }
 }
 
 /*
@@ -87,5 +138,7 @@ async function getSkillsStrByIdArray (iSkillsIdArray) {
 module.exports = {
   responseMessage,
   getAllSkillsList,
-  getSkillsByList
+  handleSkillsArray,
+  getSkillsByList,
+  generateResponseTasksInfo
 }

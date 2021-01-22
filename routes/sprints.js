@@ -13,6 +13,8 @@ var Utils = require('../util/utils');
 
 var Sprint = require('../models/sprint');
 var User = require('../models/user');
+var Task = require('../models/task');
+var SprintUserMap = require('../models/sprint_user_map');
 
 const Op = Sequelize.Op;
 
@@ -57,8 +59,8 @@ async function generateResponseSprintsInfo(sprints) {
       resJson.sprintBaseline = sprints[i].Baseline;
       resJson.sprintWorkingDays = sprints[i].WorkingDays;
       resJson.sprintBaseCapacity = sprints[i].BaseCapacity;
-      resJson.sprintRequiredSkills = sprints[i].RequiredSkills.split(',').map(Number);
-      resJson.sprintRequiredSkillsStr = Utils.getSkillsByList(sprints[i].RequiredSkills, skillsList).toString();
+      resJson.sprintRequiredSkills = Utils.handleSkillsArray(sprints[i].RequiredSkills).split(',').map(Number);
+      resJson.sprintRequiredSkillsStr = Utils.getSkillsByList(Utils.handleSkillsArray(sprints[i].RequiredSkills), skillsList).toString();
       resJson.sprintStatus = sprints[i].Status;
       resJson.sprintLeaderId = sprints[i].user.Id;
       resJson.sprintLeader = sprints[i].user.Name;
@@ -93,6 +95,122 @@ router.get('/getSprintById', function(req, res, next) {
     }
   })
 });
+
+// Get Sprint Task Information 
+router.get('/getSprintTasksById', async function(req, res, next) {
+  var reqSprintId = Number(req.query.reqSprintId);
+  var sprintTasks = await getTasksBySprintId(reqSprintId);
+  var sprintEffortAndEstSum = await getTasksEffortAndEstSumBySprintId(reqSprintId);
+  var result = {}
+  result.sprintTasks = sprintTasks
+  result.sprintEffortAndEstSum = sprintEffortAndEstSum
+  if (sprintTasks != null && sprintTasks.length > 0) {
+    return res.json(Utils.responseMessage(0, result, ''));
+  } else {
+    return res.json(Utils.responseMessage(1, null, 'No sprint task exist'));
+  }
+});
+
+async function getTasksBySprintId(iReqSprintId) {
+  return new Promise((resolve,reject) =>{
+    Task.findAll({
+      include: [{
+        model: User, 
+        attributes: ['Id', 'Name', 'Nickname']
+      },
+      {
+        model: Sprint, 
+        attributes: ['Id', 'Name']
+      }],
+      where: {
+        ParentTaskName : null,
+        Status: {[Op.ne]: 'Obsolete'},
+        SprintId: iReqSprintId
+      }
+    }).then(async function(tasks) {
+      var result = await Utils.generateResponseTasksInfo(tasks);
+      resolve(result);
+    })
+  });
+}
+
+async function getTasksEffortAndEstSumBySprintId(iReqSprintId) {
+  return new Promise((resolve,reject) =>{
+    Task.findAll({
+      attributes: [
+        [Sequelize.fn('sum', Sequelize.col('Effort')), 'EffortSum'],
+        [Sequelize.fn('sum', Sequelize.col('Estimation')), 'EstimationSum'],
+      ],
+      where: {
+        SprintId: iReqSprintId
+      }
+    }).then(function(result) {
+      resolve(result);
+    })
+  });
+}
+
+// Get Sprint User Information 
+router.get('/getSprintUsersById', async function(req, res, next) {
+  var reqSprintId = Number(req.query.reqSprintId);
+  var sprintUsers = await getSprintUsersBySprintId(reqSprintId);
+  var sprintUsersCapacitySum = await getSprintUsersCapacitySumBySprintId(reqSprintId);
+  var result = {}
+  result.sprintUsers = sprintUsers
+  result.sprintUsersCapacitySum = sprintUsersCapacitySum
+  if (sprintUsers != null && sprintUsers.length > 0) {
+    return res.json(Utils.responseMessage(0, result, ''));
+  } else {
+    return res.json(Utils.responseMessage(1, null, 'No sprint task exist'));
+  }
+});
+
+async function getSprintUsersBySprintId(iReqSprintId) {
+  return new Promise((resolve, reject) =>{
+    SprintUserMap.findAll({
+      include: [{
+        model: User, 
+        attributes: ['Id', 'Name', 'Nickname', 'WorkingHrs']
+      }],
+      where: {
+        SprintId: iReqSprintId
+      }
+    }).then(function(sprintUsers) {
+      if (sprintUsers != null && sprintUsers.length > 0) {
+        var rtnResult = [];
+        for (var i=0; i<sprintUsers.length; i++) {
+          var resJson = {};
+          resJson.sprintId = sprintUsers[i].SprintId;
+          resJson.sprintUserId = sprintUsers[i].UserId;
+          resJson.sprintUserName = sprintUsers[i].user.Name;
+          resJson.sprintUserNickname = sprintUsers[i].user.Nickname;
+          resJson.sprintUserCapacity = sprintUsers[i].Capacity;
+          resJson.sprintUserMaxCapacity = sprintUsers[i].MaxCapacity;
+          resJson.sprintUserWorkingHrs = sprintUsers[i].user.WorkingHrs;
+          rtnResult.push(resJson);
+        }
+        resolve(rtnResult);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+async function getSprintUsersCapacitySumBySprintId(iReqSprintId) {
+  return new Promise((resolve,reject) =>{
+    SprintUserMap.findAll({
+      attributes: [
+        [Sequelize.fn('sum', Sequelize.col('Capacity')), 'CapacitySum']
+      ],
+      where: {
+        SprintId: iReqSprintId
+      }
+    }).then(function(result) {
+      resolve(result);
+    });
+  });
+}
 
 // Create or update sprint
 router.post('/updateSprint', function(req, res, next) {

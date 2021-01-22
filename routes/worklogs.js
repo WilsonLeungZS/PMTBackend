@@ -849,6 +849,35 @@ router.post('/getWorklogHistoryByTaskId', function(req, res, next) {
   })
 });
 
+// PMT 3.0: Get task worklog history for web PMT
+router.get('/getWorklogHistoriesByTaskId', function(req, res, next) {
+  var reqTaskId = Number(req.body.reqTaskId);
+  var rtnResult = [];
+  Worklog.findAll({
+    include: [{
+      model: User,
+      attributes: ['Name']
+    }],
+    where: {
+      TaskId: Number(reqTaskId),
+      Effort: { [Op.ne]: 0 }
+    }
+  }).then(function(worklogs) {
+    if(worklogs != null && worklogs.length >0){
+      for(var i=0; i<worklogs.length; i++){
+        var resJson = {};
+        resJson.worklogTimestamp = worklogs[i].WorklogMonth + '-' + worklogs[i].WorklogDay
+        resJson.worklogContent = worklogs[i].user.Name + ' recorded ' + worklogs[i].Effort + ' hours'
+        rtnResult.push(resJson)
+      }
+      rtnResult = sortArray(rtnResult, 'worklogTimestamp')
+      return res.json(responseMessage(0, rtnResult, ''));
+    } else {
+      return res.json(responseMessage(1, null, 'No worklog history exist'));
+    }
+  })
+});
+
 router.post('/adjustWorklogForWeb', function(req, res, next) {
   var reqWorklogId = req.body.wWorklogId
   var reqWorklogChangeEffort = Number(req.body.wWorklogChangeEffort)
