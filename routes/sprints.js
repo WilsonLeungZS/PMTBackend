@@ -250,4 +250,36 @@ function generateRequestSprintObject (iRequest) {
   return reqSprintObj;
 }
 
+// Assign user to sprint
+router.post('/assignUserToSprint', function(req, res, next) {
+  var reqSprintId = Number(req.body.reqSprintId);
+  var reqUserId = Number(req.body.reqSprintId);
+  var reqCapacity = Number(req.body.reqCapacity);
+  var reqMaxCapacity = Number(req.body.reqMaxCapacity);
+  var sprintUserMapObj = {
+    SprintId: reqSprintId,
+    UserId: reqUserId,
+    Capacity: reqCapacity,
+    MaxCapacity: reqMaxCapacity
+  }
+  SprintUserMap.findOrCreate({
+    where: {
+      SprintId: reqSprintId,
+      reqUserId: reqUserId
+    }, 
+    defaults: sprintUserMapObj
+  }).spread(async function(sprintUserMap, created) {
+    if(created) {
+      return res.json(Utils.responseMessage(0, sprintUserMap, 'Create sprint user map successfully!'));
+    } 
+    else if(sprintUserMap != null && !created) {
+      await sprintUserMap.update(sprintUserMapObj);
+      return res.json(Utils.responseMessage(0, sprintUserMap, 'Update sprint user map successfully!'));
+    }
+    else {
+      return res.json(Utils.responseMessage(1, null, 'Created or updated sprint user map fail!'));
+    }
+  })
+});
+
 module.exports = router;
