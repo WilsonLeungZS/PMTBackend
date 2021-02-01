@@ -242,6 +242,7 @@ router.post('/updateUser', function(req, res, next) {
     defaults: reqUserObj
   }).spread(async function(user, created) {
     if(created) {
+      console.log('User -> ', user)
       return res.json(Utils.responseMessage(0, user, 'Create user successfully!'));
     } 
     else if(user != null && !created) {

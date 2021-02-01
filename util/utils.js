@@ -92,9 +92,10 @@ async function generateResponseTasksInfo (tasks) {
       resJson.taskDescription = tasks[i].Description;
       resJson.taskReferenceTask = tasks[i].ReferenceTask;
       resJson.taskTypeTag = tasks[i].TypeTag;
-      resJson.taskDeliverableTag = tasks[i].DeliverableTag;
+      resJson.taskDeliverableTag = tasks[i].DeliverableTag != null ? tasks[i].DeliverableTag.split(','): null;
+      resJson.taskCustomer = tasks[i].Customer;
       resJson.taskSprintId = tasks[i].SprintId;
-      resJson.taskCreator = tasks[i].Creator;
+      resJson.taskCreator = tasks[i].Creator.replace('PMT:', '');
       resJson.taskRequiredSkills = this.handleSkillsArray(tasks[i].RequiredSkills).split(',').map(Number);
       resJson.taskRequiredSkillsStr = this.getSkillsByList(this.handleSkillsArray(tasks[i].RequiredSkills), skillsList).toString();
       resJson.taskStatus = tasks[i].Status;

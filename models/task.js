@@ -21,7 +21,7 @@ var Task = sequelize.define('task', {
     HasSubtask: { type: Sequelize.STRING, defaultValue: 'N' },
     ParentTaskName: { type: Sequelize.STRING, defaultValue: null },
     Name: { type: Sequelize.STRING, allowNull: false },
-    Category: { type: Sequelize.STRING, defaultValue: 'PMT' },
+    Category: { type: Sequelize.STRING, defaultValue: 'PMT-TASK' },
     Type: { type: Sequelize.STRING, defaultValue: null },
     Title: { type: Sequelize.STRING, allowNull: false },
     Description: { type: Sequelize.STRING, defaultValue: null },
