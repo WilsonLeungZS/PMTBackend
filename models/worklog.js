@@ -1,8 +1,8 @@
 var Sequelize = require('sequelize');
 var moment = require('moment');
 var sequelize = require('../config/db');
-var Task = require('../model/task/task');
-var User = require('../model/user');
+var Task = require('./task');
+var User = require('./user');
 
 var Worklog = sequelize.define('worklog', {
     Id:{ type:Sequelize.INTEGER, primaryKey: true, autoIncrement:true }, 
