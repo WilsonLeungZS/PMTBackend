@@ -1,17 +1,17 @@
-/*
- * @Description: 
- * @Author: 
- * @Date: 2020-03-26 11:33:17
- * @LastEditTime: 2020-03-26 12:02:35
- * @LastEditors: Wanlin Chen
- */
 var Sequelize = require('sequelize');
 var sequelize = require('../config/db');
 var moment = require('moment');
 
-var TypeTag = sequelize.define('typetag',{
-    Id:{ type:Sequelize.INTEGER,primaryKey: true, autoIncrement:true},
-    TypeTagName :{ type:Sequelize.STRING},
+var Reference = sequelize.define('reference', {
+    Id:{ 
+        type:Sequelize.INTEGER,
+        primaryKey: true,
+        autoIncrement:true
+    },
+    Name: { type: Sequelize.STRING },
+    Type: { type: Sequelize.STRING },
+    Value: { type: Sequelize.STRING },
+    Remark: { type: Sequelize.STRING },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
@@ -28,9 +28,10 @@ var TypeTag = sequelize.define('typetag',{
             return moment(this.getDataValue('updatedAt')).format('YYYY-MM-DD HH:mm:ss');
         }
     }
-},{
+}, {
     freezeTableName: false
 });
 
-TypeTag.sync();
-module.exports = TypeTag; 
+Reference.sync();
+module.exports = Reference;
+

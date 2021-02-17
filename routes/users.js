@@ -1,45 +1,218 @@
+/*
+ * @Description: API route handle user related request
+ * @Author: Wilson Liang
+ * @Date: 2021-01-12
+ * @LastEditTime: 2021-01-12
+ * @LastEditors: Wilson Liang
+ */
+
 var Sequelize = require('sequelize');
 var express = require('express');
 var router = express.Router();
-var User = require('../model/user');
-var Team = require('../model/team/team');
-var Logger  = require("../config/logConfig");
+var Utils = require('../util/utils');
+
+var User = require('../models/user');
+var SprintUserMap = require('../models/sprint_user_map');
 
 const Op = Sequelize.Op;
 
-/* GET users listing. */
 router.get('/', function(req, res, next) {
   return res.json({message: 'Response user resource'});
 });
 
-router.post('/getUserLevelById', function(req, res, next) {
-  var reqUserId = req.body.userId;
+// Get Skills List
+router.get('/getAllSkillsList', async function(req, res, next) {
+  var responseSkillsList = await Utils.getAllSkillsList();
+  if (responseSkillsList == null) {
+    return res.json(Utils.responseMessage(1, null, 'No skills exist'));
+  }
+  return res.json(Utils.responseMessage(0, responseSkillsList, ''));
+})
+
+//Login with user name
+router.get('/login', function(req, res, next) {
+  if (req.query.reqUserName == undefined || req.query.reqUserName == '') {
+    return res.json({status: 1, message: 'User EID is empty'});
+  }
   User.findOne({
-    attributes: ['Name', 'Level'],
     where: {
-      Id: reqUserId
-    }
+      Name: req.query.reqUserName,
+      IsActive: true  
+    },
   }).then(function(user) {
-    if(user != null){
-      return res.json(responseMessage(0, user, ''));
+    if(user != null && user.Name == req.query.reqUserName) {
+      return res.json({status: 0, user, message: ''});
     } else {
-      return res.json(responseMessage(1, null, 'User not exist'));
+      return res.json({status: 1, message: 'No user exist with EID '+ req.query.reqUserName});
+    }
+  })
+});
+
+// Get Single User
+router.post('/getUserById', function(req, res, next) {
+  User.findOne({
+    where: {
+      Id: req.body.reqUserId
+    }
+  }).then(async function(user) {
+    if(user != null){
+      var users = [user]
+      var responseUsers = await generateResponseUsersInfo(users);
+      return res.json(Utils.responseMessage(0, responseUser[0], ''));
+    } else {
+      return res.json(Utils.responseMessage(1, null, 'User not exist'));
     }
   });
 });
 
+router.post('/getUserByName', function(req, res, next) {
+  User.findOne({
+    where: {
+      Name: req.body.reqUserName
+    }
+  }).then(async function(user) {
+    if(user != null){
+      var users = [user]
+      var responseUsers = await generateResponseUsersInfo(users);
+      return res.json(Utils.responseMessage(0, responseUsers[0], ''));
+    } else {
+      return res.json(Utils.responseMessage(1, null, 'User not exist'));
+    }
+  });
+});
+
+// Get user list
+router.get('/getAllUsersList', function(req, res, next) {
+  User.findAll({
+    order: [
+      ['createdAt', 'DESC']
+    ]
+  })
+  .then(async function(users) {
+    if (users != null && users.length > 0) {
+      var responseUsers = await generateResponseUsersInfo(users);
+      return res.json(Utils.responseMessage(0, responseUsers, ''));
+    } else {
+      return res.json(Utils.responseMessage(1, null, 'No user exist'));
+    }
+  })
+});
+
+router.get('/getActiveUsersListByLevelLimit', function(req, res, next) {
+  var reqUserLevelLimit = Number(req.query.reqUserLevelLimit);
+  User.findAll({
+    where: {
+      IsActive: 1,
+      Role: { [Op.ne]: 'Special' },
+      Level: { [Op.lte]: reqUserLevelLimit }
+    },
+    order: [
+      ['Level', 'ASC']
+    ]
+  })
+  .then(async function(users) {
+    if (users != null && users.length > 0) {
+      var responseUsers = await generateResponseUsersInfo(users);
+      return res.json(Utils.responseMessage(0, responseUsers, ''));
+    } else {
+      return res.json(Utils.responseMessage(1, null, 'No user exist'));
+    }
+  })
+});
+
+// Get user list by skill
+router.post('/getActiveUsersListBySkill', function(req, res, next) {
+  var reqSprintStartTime = req.body.reqSprintStartTime;
+  var reqSprintEndTime = req.body.reqSprintEndTime;
+  var reqSkillsArray = req.body.reqSkillsArray;
+  var skillsCriteria = [];
+  if (reqSkillsArray != null && reqSkillsArray != '') {
+    var skillsArray = reqSkillsArray.split(',');
+    for (var i=0; i<skillsArray.length; i++) {
+      skillsCriteria.push({Skills: {[Op.like]:'%#' + skillsArray[i] + '#%'}})
+    }
+  }
+  User.findAll({
+    where: {
+      IsActive: 1,
+      Role: { [Op.ne]: 'Special' },
+      [Op.or]: skillsCriteria
+    },
+    order: [
+      ['Level', 'ASC']
+    ]
+  })
+  .then(async function(users) {
+    if (users != null && users.length > 0) {
+      var responseUsers = await generateResponseUsersInfo(users, reqSprintStartTime, reqSprintEndTime);
+      return res.json(Utils.responseMessage(0, responseUsers, ''));
+    } else {
+      return res.json(Utils.responseMessage(1, null, 'No user exist'));
+    }
+  })
+});
+
+async function generateResponseUsersInfo(users, reqSprintStartTime, reqSprintEndTime) {
+  if (users != null && users.length > 0) {
+    var rtnResult = [];
+    var skillsList = await Utils.getAllSkillsList();
+    for(var i=0; i<users.length; i++){
+      var resJson = {};
+      resJson.userId = users[i].Id;
+      resJson.userName = users[i].Name;
+      resJson.userNickname = users[i].Nickname;
+      resJson.userFullName = users[i].Name + '(' + users[i].Nickname + ')';
+      resJson.userNicknameLong = generateUserFullName(users[i]);
+      resJson.userEmployeeNbr = users[i].EmployeeNbr;
+      resJson.userEmail = users[i].Email;
+      resJson.userRole = users[i].Role;
+      resJson.userThemeStyle = users[i].ThemeStyle;
+      resJson.userNameMappings = users[i].NameMappings;
+      resJson.userLevel = users[i].Level;
+      resJson.userEmailGroups = users[i].EmailGroups;
+      resJson.userSkills = Utils.handleSkillsArray(users[i].Skills).split(',').map(Number);
+      resJson.userSkillsStr = Utils.getSkillsByList(Utils.handleSkillsArray(users[i].Skills), skillsList).toString();
+      resJson.userWorkingHrs = users[i].WorkingHrs;
+      resJson.userIsActive = users[i].IsActive;
+      resJson.userUsedCapacity = await Utils.calculateCapacity(users[i].Id, reqSprintStartTime, reqSprintEndTime);
+      rtnResult.push(resJson);
+    }
+    //console.log('Return result -> ', rtnResult);
+    return rtnResult;
+  } else {
+    return null;
+  }
+}
+
+function generateUserFullName (iUser) {
+  let userLastname = iUser.Name.split('.').pop();
+  let userNickname = iUser.Nickname;
+  let newName = iUser.Name;
+  if (userLastname != undefined && userLastname != null && userLastname != '') {
+    if (userNickname != undefined && userNickname != null && userNickname != '') {
+      userLastname = userLastname.substring(0, 1).toUpperCase() + userLastname.substring(1);
+      userNickname = userNickname.substring(0, 1).toUpperCase() + userNickname.substring(1);
+      newName = userNickname + '.' + userLastname;
+    }
+  }
+  return newName;
+}
+
+
+// Handle theme style
 router.get('/getUserThemeStyle', function(req, res, next) {
   var reqUserName = req.query.userEid;
   User.findOne({
     attributes: ['Name', 'ThemeStyle'],
     where: {
       Name: reqUserName,
-      IsActive: true }
+      IsActive: true 
+    }
   }).then(function(user) {
     if(user != null){
-      return res.json(responseMessage(0, user, ''));
+      return res.json(Utils.responseMessage(0, user, ''));
     } else {
-      return res.json(responseMessage(1, null, 'User not exist'));
+      return res.json(Utils.responseMessage(1, null, 'User not exist'));
     }
   });
 });
@@ -56,436 +229,53 @@ router.get('/setUserThemeStyle', function(req, res, next) {
       user.update({
         ThemeStyle: reqThemeStyle 
       });
-      return res.json(responseMessage(0, user, ''));
+      return res.json(Utils.responseMessage(0, user, ''));
     } else {
-      return res.json(responseMessage(1, null, 'User not exist'));
+      return res.json(Utils.responseMessage(1, null, 'User not exist'));
     }
   });
 });
 
-//Login
-router.get('/login', function(req, res, next) {
-  if (req.query.userEid == undefined || req.query.userEid == '') {
-    return res.json({status: 1, message: 'User EID is empty'});
-  }
-  User.findOne({
-    include: [{
-      model: Team,
-      attributes: ['Name']
-    }],
+// Create or update user
+router.post('/updateUser', function(req, res, next) {
+  console.log('Start to create or update user');
+  var reqUserObj = generateRequestUserObject(req.body);
+  User.findOrCreate({
     where: {
-      Name: req.query.userEid,
-      IsActive: true  
-    },
-  }).then(function(user) {
-    if(user != null && user.Name == req.query.userEid) {
-      return res.json({status: 0, user, message: ''});
-    } else {
-      return res.json({status: 1, message: 'No user exist with EID '+ req.query.userEid});
-    }
-  })
-});
-
-
-router.post('/loginAdmin', function(req, res, next) {
-  var reqAdminPassword = req.body.adminpassword;
-  User.findOne({
-    where: {
-      Name: "Admin",
-      IsActive: false  
-    },
-  }).then(function(user) {
-    console.log("admin: "+ user.Email + " password: "+ reqAdminPassword);
-    if(user != null && user.Email == reqAdminPassword) {
-      return res.json({status: 0, user, message: ''});
-    } else {
-      return res.json({status: 1, message: 'Admin login fail!' });
-    }
-  })
-});
-
-//Add or update User
-router.post('/addOrUpdateUser', function(req, res, next) {
-  var reqUserIsActive = true;
-  var reqData = {}
-  if( req.body.taskTypeId != "0"){
-    reqData = { Id: req.body.reqUserId };
-  } else {
-    reqData = { Name: req.body.reqUserEid };
-  }
-  if ( req.body.reqUserIsActive == null ) {
-    reqUserIsActive = true
-  } else {
-    reqUserIsActive = req.body.reqUserIsActive
-  }
-  Team.findOne({where: {Name: req.body.reqUserTeam}}).then(function(team){
-    var teamId = team.Id;
-    User.findOrCreate({
-      where: reqData, 
-      defaults: {
-        Name: req.body.reqUserEid,
-        Email: req.body.userEmail,
-        TeamId: teamId,
-        Role: req.body.reqUserRole,
-        NameMapping: req.body.reqUserNameMapping,
-        IsActive: reqUserIsActive,
-        Level: req.body.reqUserLevel,
-        EmployeeNumber: req.body.reqUserEmployeeNumber,
-        Assignment: req.body.reqUserAssignment,
-        Nickname : req.body.reqUserNickname,
-        EmailGroups : req.body.reqUserEmailGroups,
-        SkillType : req.body.reqUserSkillType
-      }})
-    .spread(function(user, created) {
-      if(created) {
-        return res.json(responseMessage(0, user, 'Create user successfully!'));
-      } 
-      else if(user != null && !created) {
-        user.update({
-          Name: req.body.reqUserEid,
-          Email: req.body.userEmail,
-          TeamId: teamId,
-          Role: req.body.reqUserRole,
-          NameMapping: req.body.reqUserNameMapping,
-          IsActive: reqUserIsActive,
-          Level: req.body.reqUserLevel,
-          EmployeeNumber: req.body.reqUserEmployeeNumber,
-          Assignment: req.body.reqUserAssignment,
-          Nickname : req.body.reqUserNickname,
-          EmailGroups : req.body.reqUserEmailGroups,
-          SkillType : req.body.reqUserSkillType
-        });
-        return res.json(responseMessage(0, user, 'Update user successfully!'));
-      }
-      else {
-        return res.json(responseMessage(1, null, 'Created or updated user fail!'));
-      }
-    })
-  })
-});
-
-router.post('/inactiveUser', function(req, res, next) {
-  //console.log('Request: ' + JSON.stringify(req.body));
-  User.findOne({where: {Id: req.body.reqUserId}})
-  .then(function(user) {
-    if(user != null) {
-      user.update({
-        IsActive: false
-      });
-      return res.json(responseMessage(0, user, 'Inactive user successfully!'));
-    } else {
-      return res.json(responseMessage(1, null, 'Inactive user fail!'));
-    }
-  })
-});
-
-router.get('/getEmailGroupsAndSkillType',function(req,res,next) {
-  User.findOne({
-    where: {
-      Name : req.query.userEid
-    },
-    include: [{
-      model: Team,
-      attributes: ['Name']
-    }]
-  }).then(function(user){
-    if(user!=null){
-      var resJson = {}
-      resJson.user_team = user.team.Name
-      if(user.EmailGroups!=null){
-        resJson.user_email_groups = user.EmailGroups.split(',')
-      }
-      if(user.SkillType!=null){
-        resJson.user_skill_type = user.SkillType.split(',')
-      }
-      return res.json(responseMessage(0, resJson, ''));
-    }else{
-      return res.json(responseMessage(1, null, 'No User exist'));      
-    }
-  })
-})
-
-router.get('/getUserList', function(req, res, next) {
-  var reqIsActive = Number(req.query.IsActive)
-  var criteria = {}
-  if (reqIsActive === 1) {
-    criteria = {
-      IsActive: 1,
-      Role: {[Op.ne]: 'Special'}
-    }
-  }
-  var rtnResult = [];
-  User.findAll({
-    where: criteria,
-    include: [{
-      model: Team,
-      attributes: ['Id', 'Name']
-    }],
-    order: [
-      ['Level', 'ASC']
-    ]
-  })
-  .then(function(user) {
-    if(user != null && user.length > 0){
-      for(var i=0;i<user.length;i++){
-        var resJson = {};
-        resJson.user_id = user[i].Id;
-        resJson.user_eid = user[i].Name;
-        resJson.user_nickname = user[i].Nickname
-        resJson.user_email = user[i].Email;
-        resJson.user_team = user[i].team.Name;
-        resJson.user_role = user[i].Role;
-        resJson.user_isactive = user[i].IsActive;
-        resJson.user_namemapping = user[i].NameMapping;
-        resJson.user_level = user[i].Level;
-        resJson.user_employee_number = user[i].EmployeeNumber;
-        resJson.user_assignment = user[i].Assignment;
-        if(user[i].EmailGroups!=null){
-          resJson.user_email_groups = user[i].EmailGroups.split(',')
-        }
-        if(user[i].SkillType!=null){
-          resJson.user_skill_type = user[i].SkillType.split(',')
-        }
-        rtnResult.push(resJson);
-      }
-      return res.json(responseMessage(0, rtnResult, ''));
-    } else {
-      return res.json(responseMessage(1, null, 'No active user exist'));
-    }
-  })
-});
-
-router.get('/getUserListOrderByLevelDesc', function(req, res, next) {
-  var reqIsActive = Number(req.query.IsActive)
-  var criteria = {}
-  if (reqIsActive === 1) {
-    criteria = {
-      IsActive: 1,
-      Role: {[Op.ne]: 'Special'}
-    }
-  }
-  var rtnResult = [];
-  User.findAll({
-    where: criteria,
-    include: [{
-      model: Team,
-      attributes: ['Id', 'Name']
-    }],
-    order: [
-      ['Level', 'DESC']
-    ]
-  })
-  .then(function(user) {
-    if(user != null && user.length > 0){
-      for(var i=0;i<user.length;i++){
-        var resJson = {};
-        resJson.user_id = user[i].Id;
-        resJson.user_eid = user[i].Name;
-        resJson.user_nickname = user[i].Nickname
-        resJson.user_email = user[i].Email;
-        resJson.user_team = user[i].team.Name;
-        resJson.user_role = user[i].Role;
-        resJson.user_isactive = user[i].IsActive;
-        resJson.user_namemapping = user[i].NameMapping;
-        resJson.user_level = user[i].Level;
-        resJson.user_employee_number = user[i].EmployeeNumber;
-        resJson.user_assignment = user[i].Assignment;
-        rtnResult.push(resJson);
-      }
-      return res.json(responseMessage(0, rtnResult, ''));
-    } else {
-      return res.json(responseMessage(1, null, 'No active user exist'));
-    }
-  })
-});
-
-router.post('/getUserById', function(req, res, next) {
-  var reqUserId = req.body.userId;
-  var rtnResult = [];
-  User.findOne({
-    where: {
-      Id: reqUserId
-    },
-    include: [{
-      model: Team,
-      attributes: ['Id', 'Name', 'Project']
-    }]
-  })
-  .then(function(user) {
-    console.log(user)
-    Team.findAll({where: {IsActive: true}}).then(function(team){
-      if(user != null){
-        var resJson = {};
-        resJson.user_id = user.Id;
-        resJson.user_eid = user.Name;
-        resJson.user_nickname = user.Nickname
-        resJson.user_email = user.Email;
-        resJson.user_team = user.team.Name;
-        resJson.user_teamproject = user.team.Project;
-        resJson.user_teamid = user.team.Id;
-        resJson.user_role = user.Role;
-        resJson.user_namemapping = user.NameMapping;
-        resJson.user_level = user.Level;
-        resJson.user_employee_number = user.EmployeeNumber;
-        resJson.user_assignment = user.Assignment;
-        if(team != null){
-          var teamArray = [];
-          for(var i=0; i< team.length; i++){
-            teamArray.push(team[i].Name);
-          }
-          resJson.user_team_array = teamArray;
-          resJson.user_team_index = teamArray.indexOf(user.team.Name);
-        } else {
-          resJson.user_team_array = [];
-          resJson.user_team_index = 0;
-        }
-        rtnResult.push(resJson);
-        return res.json(responseMessage(0, rtnResult, ''));
-      } else {
-        return res.json(responseMessage(1, null, 'User not exist'));
-      }
-    });
-  })
-});
-
-router.post('/getUserListByName', function(req, res, next) {
-  var rtnResult = [];
-  User.findAll({
-    where: {
-      Name: {[Op.like]:'%' + req.body.reqUserName + '%'},
-      IsActive: true
-    },
-    include: [{
-      model: Team,
-      attributes: ['Name']
-    }]
-  })
-  .then(function(user) {
-    if(user != null && user.length > 0){
-      for(var i=0;i<user.length;i++){
-        var resJson = {};
-        resJson.user_id = user[i].Id;
-        resJson.user_eid = user[i].Name;
-        resJson.user_nickname = user[i].Nickname
-        resJson.user_team = user[i].team.Name;
-        resJson.user_role = user[i].Role;
-        resJson.user_namemapping = user[i].NameMapping;
-        resJson.user_level = user[i].Level;
-        resJson.user_employee_number = user[i].EmployeeNumber;
-        resJson.user_assignment = user[i].Assignment;
-        rtnResult.push(resJson);
-      }
-      return res.json(responseMessage(0, rtnResult, ''));
-    } else {
-      return res.json(responseMessage(1, null, 'No active user exist'));
-    }
-  })
-});
-
-//Team Method
-router.get('/getTeamList', function(req, res, next) {
-  var reqIsActive = req.query.IsActive
-  var criteria = {}
-  if (reqIsActive === null || reqIsActive === undefined) {
-    criteria = {IsActive: true}
-  }
-  var rtnResult = [];
-  Team.findAll({where: criteria})
-  .then(function(team) {
-    if(team != null && team.length > 0){
-      var teamArray = [];
-      var resJson1 = {};
-      for(var i=0; i< team.length; i++){
-        teamArray.push(team[i].Name);
-      }
-      resJson1.team_array = teamArray;
-      rtnResult.push(resJson1);
-      for(var i=0;i<team.length;i++){
-        var resJson = {};
-        resJson.team_id = team[i].Id;
-        resJson.team_name = team[i].Name;
-        resJson.team_project = team[i].Project;
-        resJson.team_desc = team[i].Description;
-        resJson.team_mapping = team[i].Mapping;
-        resJson.team_isactive = team[i].IsActive;
-        rtnResult.push(resJson);
-      }
-      return res.json(responseMessage(0, rtnResult, ''));
-    } else {
-      return res.json(responseMessage(1, null, 'No active team exist'));
-    }
-  })
-});
-
-//Add or update User
-router.post('/addOrUpdateTeam', function(req, res, next) {
-  var reqData = {};
-  var reqTeamMapping = '';
-  var reqTeamIsActive = true;
-  if( req.body.reqTeamId != "0"){
-    reqData = { Id: req.body.reqTeamId };
-  } else {
-    reqData = { Name: req.body.reqTeamName };
-  }
-  if ( req.body.reqTeamMapping == null ) {
-    reqTeamMapping = ''
-  } else {
-    reqTeamMapping = req.body.reqTeamMapping
-  }
-  if ( req.body.reqTeamIsActive == null ) {
-    reqTeamIsActive = true
-  } else {
-    reqTeamIsActive = req.body.reqTeamIsActive
-  }
-  Team.findOrCreate({
-    where: reqData, 
-    defaults: {
-      Name: req.body.reqTeamName,
-      Project: req.body.reqTeamProject,
-      Description: req.body.reqTeamDesc,
-      Mapping: reqTeamMapping,
-      IsActive: reqTeamIsActive
-    }})
-  .spread(function(team, created) {
+      Name: req.body.reqUserName
+    }, 
+    defaults: reqUserObj
+  }).spread(async function(user, created) {
     if(created) {
-      return res.json(responseMessage(0, team, 'Create team successfully!'));
+      console.log('User -> ', user)
+      return res.json(Utils.responseMessage(0, user, 'Create user successfully!'));
     } 
-    else if(team != null && !created) {
-      team.update({
-        Name: req.body.reqTeamName,
-        Project: req.body.reqTeamProject,
-        Description: req.body.reqTeamDesc,
-        Mapping: reqTeamMapping,
-        IsActive: reqTeamIsActive,
-      });
-      return res.json(responseMessage(0, team, 'Update team successfully!'));
+    else if(user != null && !created) {
+      await user.update(reqUserObj);
+      return res.json(Utils.responseMessage(0, user, 'Update user successfully!'));
     }
     else {
-      return res.json(responseMessage(1, null, 'Created or updated team fail!'));
+      return res.json(Utils.responseMessage(1, null, 'Created or updated user fail!'));
     }
   })
 });
 
-router.post('/inactiveTeam', function(req, res, next) {
-  //console.log('Request: ' + JSON.stringify(req.body));
-  Team.findOne({where: {Id: req.body.reqTeamId}})
-  .then(function(team) {
-    if(team != null) {
-      team.update({
-        IsActive: false
-      });
-      return res.json(responseMessage(0, team, 'Inactive team successfully!'));
-    } else {
-      return res.json(responseMessage(1, null, 'Inactive team fail!'));
-    }
-  })
-});
-
-
-function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
-  var resJson = {}; 
-  resJson = {status: iStatusCode, data: iDataArray, message: iErrorMessage};
-  return resJson;
+function generateRequestUserObject (iRequest) {
+  var reqUserObj = {
+    Name: iRequest.reqUserName != ''? iRequest.reqUserName: null,
+    Nickname: iRequest.reqUserNickname != ''? iRequest.reqUserNickname: null,
+    EmployeeNbr: iRequest.reqUserEmployeeNbr != ''? iRequest.reqUserEmployeeNbr: null,
+    Email: iRequest.reqUserEmail != ''? iRequest.reqUserEmail: null,
+    Role: iRequest.reqUserRols != ''? iRequest.reqUserRole: 'General',
+    ThemeStyle: iRequest.reqUserThemeStyle != ''? iRequest.reqUserThemeStyle: 0,
+    NameMappings: iRequest.reqUserNameMappings != ''? iRequest.reqUserNameMappings: null,
+    Level: iRequest.reqUserLevel != ''? iRequest.reqUserLevel: -1,
+    EmailGroups: iRequest.reqUserEmailGroups != ''? iRequest.reqUserEmailGroups: null,
+    Skills: iRequest.reqUserSkills != ''? iRequest.reqUserSkills: null,
+    WorkingHrs: iRequest.reqUserWorkingHrs != ''? iRequest.reqUserWorkingHrs: 0,
+    IsActive: iRequest.reqUserIsActive != null? iRequest.reqUserIsActive: 0
+  }
+  return reqUserObj;
 }
 
 module.exports = router;

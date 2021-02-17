@@ -11,6 +11,12 @@ var taskService = require('../services/taskService');
 var TaskGroup = require('../model/task/task_group');
 const Op = Sequelize.Op;
 
+
+/*
+Prod: https://pmt.getsvc.com:3000/schedules/startBackgroundJob
+UAT: https://pmtdev.getsvc.com:4000/schedules/startBackgroundJob
+*/
+
 router.get('/', function(req, res, next) {
   var cronExp = req.query.CronExp;
   cronExp = cronExp.replace('+', ' ')
