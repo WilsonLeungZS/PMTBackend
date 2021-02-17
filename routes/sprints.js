@@ -46,6 +46,17 @@ router.get('/getActiveSprintsList', function(req, res, next) {
   })
 });
 
+router.get('/getActiveSprintsListBySkills', async function(req, res, next) {
+  var reqRequiredSkills = req.query.reqRequiredSkills;
+  var sprints = await Utils.getSprintsByRequiredSkills(reqRequiredSkills, null);
+  if (sprints != null && sprints.length > 0) {
+    var responseSprints = await generateResponseSprintsInfo(sprints);
+    return res.json(Utils.responseMessage(0, responseSprints, ''));
+  } else {
+    return res.json(Utils.responseMessage(1, null, 'No sprint exist'));
+  }
+});
+
 async function generateResponseSprintsInfo(sprints) {
   if (sprints != null && sprints.length > 0) {
     var rtnResult = [];
@@ -99,11 +110,14 @@ router.get('/getSprintById', function(req, res, next) {
 // Get Sprint Task Information 
 router.get('/getSprintTasksById', async function(req, res, next) {
   var reqSprintId = Number(req.query.reqSprintId);
-  var sprintTasks = await getTasksBySprintId(reqSprintId);
-  var sprintEffortAndEstSum = await getTasksEffortAndEstSumBySprintId(reqSprintId);
+  var reqSprintIndicator = req.query.reqSprintIndicator;
+  var sprintTasks = await getTasksBySprintId(reqSprintId, reqSprintIndicator);
+  var sprintEffortSum = await getTasksEffortSumBySprintId(reqSprintId, reqSprintIndicator);
+  var sprintEstimationSum = await getTasksEstimationSumBySprintId(reqSprintId, reqSprintIndicator);
   var result = {}
   result.sprintTasks = sprintTasks
-  result.sprintEffortAndEstSum = sprintEffortAndEstSum
+  result.sprintEffortSum = sprintEffortSum
+  result.sprintEstimationSum = sprintEstimationSum
   if (sprintTasks != null && sprintTasks.length > 0) {
     return res.json(Utils.responseMessage(0, result, ''));
   } else {
@@ -111,7 +125,7 @@ router.get('/getSprintTasksById', async function(req, res, next) {
   }
 });
 
-async function getTasksBySprintId(iReqSprintId) {
+async function getTasksBySprintId(iReqSprintId, iReqSprintIndicator) {
   return new Promise((resolve,reject) =>{
     Task.findAll({
       include: [{
@@ -125,8 +139,12 @@ async function getTasksBySprintId(iReqSprintId) {
       where: {
         ParentTaskName : null,
         Status: {[Op.ne]: 'Obsolete'},
-        SprintId: iReqSprintId
-      }
+        SprintId: iReqSprintId,
+        SprintIndicator: iReqSprintIndicator
+      },
+      order: [
+        ['IssueDate', 'ASC']
+      ]
     }).then(async function(tasks) {
       var result = await Utils.generateResponseTasksInfo(tasks);
       resolve(result);
@@ -134,15 +152,32 @@ async function getTasksBySprintId(iReqSprintId) {
   });
 }
 
-async function getTasksEffortAndEstSumBySprintId(iReqSprintId) {
+async function getTasksEffortSumBySprintId(iReqSprintId, iReqSprintIndicator) {
   return new Promise((resolve,reject) =>{
     Task.findAll({
       attributes: [
-        [Sequelize.fn('sum', Sequelize.col('Effort')), 'EffortSum'],
-        [Sequelize.fn('sum', Sequelize.col('Estimation')), 'EstimationSum'],
+        [Sequelize.fn('sum', Sequelize.col('Effort')), 'EffortSum']
       ],
       where: {
-        SprintId: iReqSprintId
+        SprintId: iReqSprintId,
+        SprintIndicator: iReqSprintIndicator
+      }
+    }).then(function(result) {
+      resolve(result);
+    })
+  });
+}
+
+async function getTasksEstimationSumBySprintId(iReqSprintId, iReqSprintIndicator) {
+  return new Promise((resolve,reject) =>{
+    Task.findAll({
+      attributes: [
+        [Sequelize.fn('sum', Sequelize.col('Estimation')), 'EstimationSum']
+      ],
+      where: {
+        ParentTaskName : null,
+        SprintId: iReqSprintId,
+        SprintIndicator: 'PLANNED'
       }
     }).then(function(result) {
       resolve(result);
@@ -170,7 +205,7 @@ async function getSprintUsersBySprintId(iReqSprintId) {
     SprintUserMap.findAll({
       include: [{
         model: User, 
-        attributes: ['Id', 'Name', 'Nickname', 'WorkingHrs']
+        attributes: ['Id', 'Name', 'Nickname', 'WorkingHrs', 'Level']
       }],
       where: {
         SprintId: iReqSprintId
@@ -183,6 +218,7 @@ async function getSprintUsersBySprintId(iReqSprintId) {
           resJson.sprintId = sprintUsers[i].SprintId;
           resJson.sprintUserId = sprintUsers[i].UserId;
           resJson.sprintUserName = sprintUsers[i].user.Name;
+          resJson.sprintUserLevel = sprintUsers[i].user.Level;
           resJson.sprintUserNickname = sprintUsers[i].user.Nickname;
           resJson.sprintUserCapacity = sprintUsers[i].Capacity;
           resJson.sprintUserMaxCapacity = sprintUsers[i].MaxCapacity;
@@ -250,10 +286,30 @@ function generateRequestSprintObject (iRequest) {
   return reqSprintObj;
 }
 
+router.post('/updateSprintStatus', function(req, res, next) {
+  console.log('Start to update sprint status');
+  Sprint.findOne({
+    where: {
+      Id: req.body.reqSprintId
+    }
+  }).then(async function(sprint) {
+    if(sprint != null) {
+      await sprint.update({
+        Status: req.body.reqSprintStatus,
+        BaseCapacity: req.body.reqSprintCapacity
+      });
+      return res.json(Utils.responseMessage(0, sprint, 'Update sprint status successfully!'));
+    }
+    else {
+      return res.json(Utils.responseMessage(1, null, 'Updated sprint status fail!'));
+    }
+  })
+});
+
 // Assign user to sprint
 router.post('/assignUserToSprint', function(req, res, next) {
   var reqSprintId = Number(req.body.reqSprintId);
-  var reqUserId = Number(req.body.reqSprintId);
+  var reqUserId = Number(req.body.reqUserId);
   var reqCapacity = Number(req.body.reqCapacity);
   var reqMaxCapacity = Number(req.body.reqMaxCapacity);
   var sprintUserMapObj = {
@@ -265,19 +321,42 @@ router.post('/assignUserToSprint', function(req, res, next) {
   SprintUserMap.findOrCreate({
     where: {
       SprintId: reqSprintId,
-      reqUserId: reqUserId
+      UserId: reqUserId
     }, 
     defaults: sprintUserMapObj
   }).spread(async function(sprintUserMap, created) {
     if(created) {
+      console.log('Create user map');
       return res.json(Utils.responseMessage(0, sprintUserMap, 'Create sprint user map successfully!'));
     } 
     else if(sprintUserMap != null && !created) {
+      console.log('Find user map, start to update');
+      sprintUserMapObj.Capacity = sprintUserMapObj.Capacity + sprintUserMap.Capacity;
       await sprintUserMap.update(sprintUserMapObj);
       return res.json(Utils.responseMessage(0, sprintUserMap, 'Update sprint user map successfully!'));
     }
     else {
       return res.json(Utils.responseMessage(1, null, 'Created or updated sprint user map fail!'));
+    }
+  })
+});
+
+router.post('/removeUserFromSprint', function(req, res, next) {
+  var reqSprintId = Number(req.body.reqSprintId);
+  var reqUserId = Number(req.body.reqUserId);
+  SprintUserMap.findOne({
+    where: {
+      SprintId: reqSprintId,
+      UserId: reqUserId
+    }
+  }).then(async function(sprintUserMap) {
+    if(sprintUserMap != null) {
+      console.log('Find user map, start to delete');
+      await sprintUserMap.destroy();
+      return res.json(Utils.responseMessage(0, null, 'Remove sprint user map successfully!'));
+    }
+    else {
+      return res.json(Utils.responseMessage(1, null, 'Remove sprint user map fail!'));
     }
   })
 });

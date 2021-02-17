@@ -12,11 +12,11 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 
-//var indexRouter = require('./routes/index');
+var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var sprintsRouter = require('./routes/sprints')
 var tasksRouter = require('./routes/tasks');
-//var worklogRouter = require('./routes/worklogs');
+var worklogRouter = require('./routes/worklogs');
 //var formatRouter = require('./routes/formats');
 //var scheduleRouter = require('./routes/schedules')
 
@@ -37,11 +37,11 @@ app.all('*', function(req, res, next) {
   next();
 });
 
-//app.use('/', indexRouter);
+app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/sprints', sprintsRouter);
 app.use('/tasks', tasksRouter);
-//app.use('/worklogs', worklogRouter);
+app.use('/worklogs', worklogRouter);
 //app.use('/schedules', scheduleRouter);
 //app.use('/formats', formatRouter);
 

@@ -12,6 +12,7 @@ var router = express.Router();
 var Utils = require('../util/utils');
 
 var User = require('../models/user');
+var SprintUserMap = require('../models/sprint_user_map');
 
 const Op = Sequelize.Op;
 
@@ -121,6 +122,8 @@ router.get('/getActiveUsersListByLevelLimit', function(req, res, next) {
 
 // Get user list by skill
 router.post('/getActiveUsersListBySkill', function(req, res, next) {
+  var reqSprintStartTime = req.body.reqSprintStartTime;
+  var reqSprintEndTime = req.body.reqSprintEndTime;
   var reqSkillsArray = req.body.reqSkillsArray;
   var skillsCriteria = [];
   if (reqSkillsArray != null && reqSkillsArray != '') {
@@ -141,7 +144,7 @@ router.post('/getActiveUsersListBySkill', function(req, res, next) {
   })
   .then(async function(users) {
     if (users != null && users.length > 0) {
-      var responseUsers = await generateResponseUsersInfo(users);
+      var responseUsers = await generateResponseUsersInfo(users, reqSprintStartTime, reqSprintEndTime);
       return res.json(Utils.responseMessage(0, responseUsers, ''));
     } else {
       return res.json(Utils.responseMessage(1, null, 'No user exist'));
@@ -149,7 +152,7 @@ router.post('/getActiveUsersListBySkill', function(req, res, next) {
   })
 });
 
-async function generateResponseUsersInfo(users) {
+async function generateResponseUsersInfo(users, reqSprintStartTime, reqSprintEndTime) {
   if (users != null && users.length > 0) {
     var rtnResult = [];
     var skillsList = await Utils.getAllSkillsList();
@@ -171,6 +174,7 @@ async function generateResponseUsersInfo(users) {
       resJson.userSkillsStr = Utils.getSkillsByList(Utils.handleSkillsArray(users[i].Skills), skillsList).toString();
       resJson.userWorkingHrs = users[i].WorkingHrs;
       resJson.userIsActive = users[i].IsActive;
+      resJson.userUsedCapacity = await Utils.calculateCapacity(users[i].Id, reqSprintStartTime, reqSprintEndTime);
       rtnResult.push(resJson);
     }
     //console.log('Return result -> ', rtnResult);
@@ -193,6 +197,7 @@ function generateUserFullName (iUser) {
   }
   return newName;
 }
+
 
 // Handle theme style
 router.get('/getUserThemeStyle', function(req, res, next) {

@@ -13,6 +13,7 @@ var Utils = require('../util/utils');
 
 var Task = require('../models/task');
 var User = require('../models/user');
+var Sprint = require('../models/sprint');
 var Reference = require('../models/reference');
 
 const Op = Sequelize.Op;
@@ -23,21 +24,42 @@ router.get('/', function(req, res, next) {
 
 // Get task list count by skill
 router.post('/getTasksListCountBySkill', function(req, res, next) {
+  var criteria = {
+    Status: {[Op.ne]: 'Obsolete'},
+    SprintId: null
+  }
+  // Skill criteria
   var reqSkillsArray = req.body.reqSkillsArray;
-  var skillsCriteria = [];
   if (reqSkillsArray != null && reqSkillsArray != '') {
+    var skills = [];
     var skillsArray = reqSkillsArray.split(',');
     for (var i=0; i<skillsArray.length; i++) {
-      skillsCriteria.push({RequiredSkills: {[Op.like]:'%#' + skillsArray[i] + '#%'}})
+      skills.push({RequiredSkills: {[Op.like]:'%#' + skillsArray[i] + '#%'}})
     }
+    var skillsCriteria = {
+      [Op.or]: skills
+    }
+    Object.assign(criteria, skillsCriteria);
+  }
+  // Customer criteria
+  var reqTaskCustomer = req.body.reqTaskCustomer;
+  if (reqTaskCustomer != null && reqTaskCustomer != '') {
+    criteria.Customer = {[Op.like]: '%' + reqTaskCustomer + '%'}
+  }
+  // Keyword criteria
+  var reqTaskKeyword = req.body.reqTaskKeyword;
+  if (reqTaskKeyword != null && reqTaskKeyword != '') {
+    var taskKeywordCriteria = {
+      [Op.or]: [
+        {Name: {[Op.like]:'%' + reqTaskKeyword + '%'}},
+        {Title: {[Op.like]:'%' + reqTaskKeyword + '%'}},
+        {Description: {[Op.like]:'%' + reqTaskKeyword + '%'}},
+      ]
+    }
+    Object.assign(criteria, taskKeywordCriteria);
   }
   Task.count({
-    where: {
-      Status: {[Op.ne]: 'Done'},
-      Status: {[Op.ne]: 'Obsolete'},
-      SprintId: null,
-      [Op.or]: skillsCriteria
-    }
+    where: criteria
   }).then(async function(result) {
     return res.json(Utils.responseMessage(0, result, ''));
   })
@@ -45,23 +67,44 @@ router.post('/getTasksListCountBySkill', function(req, res, next) {
 
 // Get task list by skill
 router.post('/getTasksListBySkill', function(req, res, next) {
-  var reqSkillsArray = req.body.reqSkillsArray;
   var reqSize = Number(req.body.reqSize);
   var reqPage = Number(req.body.reqPage);
-  var skillsCriteria = [];
+  var criteria = {
+    Status: {[Op.ne]: 'Obsolete'},
+    SprintId: null
+  }
+  // Skill criteria
+  var reqSkillsArray = req.body.reqSkillsArray;
   if (reqSkillsArray != null && reqSkillsArray != '') {
+    var skills = [];
     var skillsArray = reqSkillsArray.split(',');
     for (var i=0; i<skillsArray.length; i++) {
-      skillsCriteria.push({RequiredSkills: {[Op.like]:'%#' + skillsArray[i] + '#%'}})
+      skills.push({RequiredSkills: {[Op.like]:'%#' + skillsArray[i] + '#%'}})
     }
+    var skillsCriteria = {
+      [Op.or]: skills
+    }
+    Object.assign(criteria, skillsCriteria);
+  }
+  // Customer criteria
+  var reqTaskCustomer = req.body.reqTaskCustomer;
+  if (reqTaskCustomer != null && reqTaskCustomer != '') {
+    criteria.Customer = {[Op.like]: '%' + reqTaskCustomer + '%'}
+  }
+  // Keyword criteria
+  var reqTaskKeyword = req.body.reqTaskKeyword;
+  if (reqTaskKeyword != null && reqTaskKeyword != '') {
+    var taskKeywordCriteria = {
+      [Op.or]: [
+        {Name: {[Op.like]:'%' + reqTaskKeyword + '%'}},
+        {Title: {[Op.like]:'%' + reqTaskKeyword + '%'}},
+        {Description: {[Op.like]:'%' + reqTaskKeyword + '%'}},
+      ]
+    }
+    Object.assign(criteria, taskKeywordCriteria);
   }
   Task.findAll({
-    where: {
-      Status: {[Op.ne]: 'Done'},
-      Status: {[Op.ne]: 'Obsolete'},
-      SprintId: null,
-      [Op.or]: skillsCriteria
-    },
+    where: criteria,
     limit: reqSize,
     offset: reqSize * (reqPage - 1),
     order: [
@@ -137,6 +180,7 @@ router.get('/getSubtasksListByName', function(req, res, next) {
       for (var i=0; i<tasks.length; i++) {
         var resJson = {}
         resJson.subtaskId = tasks[i].Id;
+        resJson.subtaskParentTaskName = tasks[i].ParentTaskName;
         resJson.subtaskName = tasks[i].Name;
         resJson.subtaskCategory = tasks[i].Category;
         resJson.subtaskTitle = tasks[i].Title;
@@ -145,6 +189,7 @@ router.get('/getSubtasksListByName', function(req, res, next) {
         resJson.subtaskEstimation = tasks[i].Estimation;
         resJson.subtaskAssigneeId = tasks[i].AssigneeId;
         resJson.subtaskAssignee = tasks[i].user != null ? tasks[i].user.Name: null;
+        resJson.subtaskRequiredSkills = Utils.handleSkillsArray(tasks[i].RequiredSkills).split(',').map(Number);
         responseTasks.push(resJson);
       }
       return res.json(Utils.responseMessage(0, responseTasks, ''));
@@ -154,11 +199,43 @@ router.get('/getSubtasksListByName', function(req, res, next) {
   })
 });
 
-// Create or update task
+// Remove Task
+router.post('/removeTask', async function(req, res, next) {
+  var reqTaskId = req.body.reqTaskId;
+  var reqTaskParentTaskName = req.body.reqTaskParentTaskName;
+  Task.findOne({
+    where: {
+      Id: reqTaskId,
+      Effort: 0
+    }
+  }).then(async function(task) {
+    if (task != null) {
+      await task.destroy();
+      var hasSubtask = false;
+      if (reqTaskParentTaskName != null && reqTaskParentTaskName != '') {
+        hasSubtask = await updateTaskhasSubtaskInd(reqTaskParentTaskName);
+      }
+      if (hasSubtask) {
+        return res.json(Utils.responseMessage(0, {hasSubtask: true}, 'Remove task successfully'));
+      } else {
+        return res.json(Utils.responseMessage(0, {hasSubtask: false}, 'Remove task successfully'));
+      }
+    } else {
+      return res.json(Utils.responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
+
+// Create or update task assignee
 router.post('/updateTaskAssignee', async function(req, res, next) {
   console.log('Start to create or update task');
+  var reqTaskAssigneeId = null;
+  if (req.body.reqTaskAssigneeId != '' && req.body.reqTaskAssigneeId != null) {
+    reqTaskAssigneeId = req.body.reqTaskAssigneeId
+  }
   Task.update({
-    AssigneeId: req.body.reqTaskAssigneeId
+    AssigneeId: reqTaskAssigneeId
   }, {
     where: {
       Id: req.body.reqTaskId
@@ -184,10 +261,12 @@ router.post('/updateTask', async function(req, res, next) {
     defaults: reqTaskObj
   }).spread(async function(task, created) {
     if(created) {
+      await updateTaskhasSubtaskInd(reqTaskObj.ParentTaskName);
       return res.json(Utils.responseMessage(0, task, 'Create task successfully!'));
     } 
     else if(task != null && !created) {
       await task.update(reqTaskObj);
+      await updateTaskhasSubtaskInd(reqTaskObj.ParentTaskName);
       return res.json(Utils.responseMessage(0, task, 'Update task successfully!'));
     }
     else {
@@ -205,13 +284,12 @@ async function generateRequestTaskObject (iRequest) {
     if (iRequest.reqTaskParentTaskName != '' && iRequest.reqTaskParentTaskName != null) {
       // For PMT sub task
       console.log('Create task name by task parent name');
-      taskName = await getTaskName(iRequest.reqTaskParentTaskName, 'SUB');
-      await updateTaskHasSubtaskInd(iRequest.reqTaskParentTaskName);
+      taskName = await Utils.getSubtaskName(iRequest.reqTaskParentTaskName, 'SUB');
     } 
     else if (iRequest.reqTaskReferenceTask != '' && iRequest.reqTaskReferenceTask != null) {
       // For PMT reference task
       console.log('Create task name by task reference name');
-      taskName = await getTaskName(iRequest.reqTaskReferenceTask, 'REF');
+      taskName = await Utils.getSubtaskName(iRequest.reqTaskReferenceTask, 'REF');
     } 
     else {
       // For PMT task
@@ -245,25 +323,31 @@ async function generateRequestTaskObject (iRequest) {
     ActualComplete: iRequest.reqTaskActualComplete != ''? iRequest.reqTaskActualComplete: null,
     RespLeaderId: iRequest.reqTaskRespLeaderId != ''? iRequest.reqTaskRespLeaderId: null, 
     AssigneeId: iRequest.reqTaskAssigneeId != ''? iRequest.reqTaskAssigneeId: null,
-    SprintId: iRequest.reqTaskSprintId != ''? iRequest.reqTaskSprintId: null
+    SprintId: iRequest.reqTaskSprintId != ''? iRequest.reqTaskSprintId: null,
+    SprintIndicator: iRequest.reqTaskSprintIndicator != ''? iRequest.reqTaskSprintIndicator: null
   }
   console.log('Task Object => ', reqTaskObj);
   return reqTaskObj;
 }
 
-function updateTaskHasSubtaskInd (iTaskName) {
+function updateTaskhasSubtaskInd(iTaskName) {
   return new Promise((resolve, reject) => {
-    Task.update({
-      HasSubtask: 'Y'
-    },{
+    Task.count({
       where: {
-        Name: iTaskName
+        ParentTaskName: iTaskName
       }
-    }).then(async function(task) {
-      if (task != null) {
-        resolve(task);
+    }).then(async function (count) {
+      console.log('Parent task ['+iTaskName+'] sub task count -> ', count);
+      if (Number(count) > 0) {
+        // Has sub task, update indicator to "Y"
+        console.log('Update to Y')
+        await Task.update({HasSubtask: 'Y'}, {where: { Name: iTaskName }});
+        resolve(true);
       } else {
-        resolve(null);
+        // No sub task, update indicator to "N"
+        console.log('Update to N')
+        await Task.update({HasSubtask: 'N'}, {where: { Name: iTaskName }});
+        resolve(false);
       }
     })
   });
@@ -289,86 +373,58 @@ function getPMTTaskSequenceNumber () {
   });
 }
 
-async function getTaskName(iTaskName, iFlage) {
-  console.log('Start to get sub task Name!');
-  var subTasks = [];
-  if (iFlage == 'SUB') {
-    subTasks = await getSubTasks(iTaskName);
-  }
-  if (iFlage == 'REF') {
-    subTasks = await getReferenceTasks(iTaskName);
-  }
-  var subTaskCount = 0;
-  if(subTasks != null && subTasks.length > 0) {
-    var taskLastNumberArray = [];
-    for (var i=0; i<subTasks.length; i++) {
-      var lastSubTaskName = subTasks[i].Name;
-      var nameArr = lastSubTaskName.split('-');
-      var lastNameNum = nameArr[nameArr.length-1] + '';
-      if (lastNameNum.indexOf('(') != -1) {
-        let index = lastNameNum.indexOf('(');
-        lastNameNum = lastNameNum.substring(0, index);
+// Get task list for worklog
+router.post('/getTasksByWorklogKeyword', function(req, res, next) {
+  var rtnResult = [];
+  var reqKeyword = req.body.reqKeyword.trim();
+  var reqTaskAssigneeId = Number(req.body.reqTaskAssigneeId);
+  console.log('Search task by keyword: ' + reqKeyword + ' for user ' + reqTaskAssigneeId);
+  Task.findAll({
+    include: [{
+      model: Sprint
+    }],
+    where: {
+      Name: {[Op.notLike]: 'Dummy - %'},
+      [Op.or]: [
+        {Name: {[Op.like]:'%' + reqKeyword + '%'}},
+        {Title: {[Op.like]:'%' + reqKeyword + '%'}},
+        {Description: {[Op.like]:'%' + reqKeyword + '%'}},
+        {ReferenceTask: {[Op.like]:'%' + reqKeyword + '%'}}
+      ],
+      [Op.and]: [
+        { Status: {[Op.ne]: 'Drafting'}},
+        { Status: {[Op.ne]: 'Planning'}},
+        { Status: {[Op.ne]: 'Done'}},
+        {[Op.or]: [
+          {[Op.and]: [
+              { TypeTag: 'One-Off Task' },
+              { SprintId: {[Op.ne]: null}},
+              { AssigneeId: reqTaskAssigneeId },
+          ]},
+          { TypeTag: 'Public Task' }
+        ]}
+      ],
+      Id: { [Op.ne]: null }
+    },
+    limit: 100,
+    order: [
+      ['IssueDate', 'DESC']
+    ]
+  }).then(async function(tasks) {
+    if(tasks != null && tasks.length > 0) {
+      for(var i=0; i<tasks.length; i++){
+        var resJson = {};
+        resJson.taskId = tasks[i].Id;
+        resJson.taskName = tasks[i].Name;
+        resJson.taskTitle = tasks[i].Title;
+        resJson.taskSprintName = tasks[i].sprint != null? tasks[i].sprint.Name: null;
+        rtnResult.push(resJson);
       }
-      lastNameNum = Number(lastNameNum);
-      taskLastNumberArray.push(lastNameNum);
-    }
-    let max = taskLastNumberArray[0]
-    taskLastNumberArray.forEach(item => max = item > max ? item : max)
-    var subTasksLength = subTasks.length;
-    console.log('Sub Task Last Number: ' + max);
-    console.log('Sub Task Length: ' + subTasksLength);
-    if(isNaN(max)){
-      subTaskCount = subTasksLength;
+      return res.json(Utils.responseMessage(0, rtnResult, ''));
     } else {
-      subTaskCount = max;
+      return res.json(Utils.responseMessage(1, null, 'No task exist'));
     }
-  } else {
-    subTaskCount = 0;
-  }
-  subTaskCount = Number(subTaskCount) + 1;
-  var taskName = iTaskName + '-' + subTaskCount;
-  console.log('Sub Task Name: ' + taskName);
-  return taskName;
-}
-
-function getSubTasks (iTaskName) {
-  return new Promise((resolve, reject) => {
-    Task.findAll({
-      where: {
-        ParentTaskName: iTaskName
-      },
-      order: [
-        ['IssueDate', 'DESC']
-      ]
-    }).then(function(task) {
-      if(task != null && task.length > 0){
-        resolve(task);
-      } else {
-        resolve(null)
-      }
-    })
-  });
-}
-
-function getReferenceTasks (iTaskName) {
-  return new Promise((resolve, reject) => {
-    Task.findAll({
-      where: {
-        ReferenceTask: iTaskName,
-        ParentTaskName: null
-      },
-      order: [
-        ['IssueDate', 'DESC']
-      ]
-    }).then(function(task) {
-      if(task != null && task.length > 0){
-        resolve(task);
-      } else {
-        resolve(null)
-      }
-    })
-  });
-}
-
+  })
+});
 
 module.exports = router;

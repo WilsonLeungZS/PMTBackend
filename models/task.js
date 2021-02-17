@@ -23,8 +23,8 @@ var Task = sequelize.define('task', {
     Name: { type: Sequelize.STRING, allowNull: false },
     Category: { type: Sequelize.STRING, defaultValue: 'PMT-TASK' },
     Type: { type: Sequelize.STRING, defaultValue: null },
-    Title: { type: Sequelize.STRING, allowNull: false },
-    Description: { type: Sequelize.STRING, defaultValue: null },
+    Title: { type: Sequelize.STRING(3000), allowNull: false },
+    Description: { type: Sequelize.STRING(3000), defaultValue: null },
     ReferenceTask: { type: Sequelize.STRING, defaultValue: null },
     TypeTag: { type: Sequelize.STRING, defaultValue: null },
     DeliverableTag: { type: Sequelize.STRING, defaultValue: null },
@@ -37,6 +37,7 @@ var Task = sequelize.define('task', {
     IssueDate: { type: Sequelize.STRING, defaultValue: null },
     TargetComplete: { type: Sequelize.STRING, defaultValue: null },
     ActualComplete: { type: Sequelize.STRING, defaultValue: null },
+    SprintIndicator: { type: Sequelize.STRING(45), defaultValue: null },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,

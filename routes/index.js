@@ -1,16 +1,23 @@
+var Sequelize = require('sequelize');
 var async = require('async');
 var Logger  = require("../config/logConfig");
 var express = require('express');
 var router = express.Router();
-var Reference = require('../model/reference');
-var Task = require('../model/task/task');
-var User = require('../model/user');
-var Team = require('../model//team/team');
-var TaskType = require('../model/task/task_type');
-var Worklog = require('../model/worklog');
-var TaskGroup = require('../model/task/task_group');
-var Sequelize = require('sequelize');
+
+var Task = require('../models/task');
+var User = require('../models/user');
+var Sprint = require('../models/sprint');
+var SprintUserMap = require('../models/sprint_user_map');
+var Reference = require('../models/reference');
+
+var Utils = require('../util/utils');
+
+
 const Op = Sequelize.Op;
+
+router.get('/', function(req, res, next) {
+  return res.json({message: 'Response index resource'});
+});
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -18,461 +25,284 @@ router.get('/', function(req, res, next) {
   Reference.findOne({where: {Name: 'Environment'}}).then(function(reference){
     if (reference != null) {
       var env = reference.Value;
-      return res.json({message: 'Get Response index resource: PMT Version 3.1 ' + env});
+      return res.json({message: 'Get Response index resource: PMT Version 3.0 - ' + env});
     } else {
-      return res.json({message: 'Get Response index resource: PMT Version 3.1'});
+      return res.json({message: 'Get Response index resource: PMT Version 3.0'});
     }
   })
 });
 
-router.post('/', function(req, res, next) {
-  var request = req.body.requestValue;
-  console.log(request);
-  Logger.info('Index log');
-  return res.json({message: 'Post Response index resource'});
-});
-
-router.get('/getInfo', function(req, res, next) {
-  Logger.info('Start to get Information');
-  var rtnResult = [];
-  var resJson = {}
-  Reference.findOne({where: {Name: 'ProjectName'}}).then(function(reference){
-    resJson.project_name = reference.Value;
-    Task.findAndCountAll().then(function(task){
-      resJson.task_count = task.count;
-      User.findAndCountAll({where: {IsActive: true}}).then(function(user){
-        resJson.user_count = user.count;
-        Team.findAndCountAll({where: {IsActive: true}}).then(function(team){
-          resJson.team_count = team.count;
-          rtnResult.push(resJson);
-          return res.json(responseMessage(0, rtnResult, ''));
-        });
-      });
-    });
-  });
-});
-
 //External interface
 //Spider job to receive task list for service now
-router.post('/receiveTaskListForSNOW', function(req, res, next) {
-  Logger.info('Request: \n' + JSON.stringify(req.body))
-  //console.log('Request: \n' + JSON.stringify(req.body))
-  var taskCollection = processRequest(req);
-  //console.log('Task Collection: ' + JSON.stringify(taskCollection));
-
-  async.eachSeries(taskCollection, function(taskObj, callback) {
-    createTask(taskObj, function(err){
-        callback(err);
-    });
-  }, function(err){
-    if(err != null && err != ''){
-      console.log("Create task err is:" + err);
-      return res.json({result: false, error: err});
+router.post('/receiveTaskListForSNOW', async function(req, res, next) {
+  Logger.info('Request: ServiceNow \n' + JSON.stringify(req.body));
+  // console.log('Request: ServiceNow \n' + JSON.stringify(req.body));
+  var taskCollection = processRequest(req.body);
+  // console.log('Request process: \n', taskCollection);
+  if (taskCollection != null && taskCollection.length > 0) {
+    for (var i=0; i<taskCollection.length; i++) {
+      var result = await createSNOWTask(taskCollection[i]);
+      console.log('Task [' + taskCollection[i].taskName + '] result -> ', result);
+      Logger.info('Task [' + taskCollection[i].taskName + '] result -> ', result);
     }
-    return res.json({result: true, error: ""});
-  });
+  }
+  return res.json({result: true, error: ""});    
+});
 
-  async function createTask(taskObj, cb){
-    //console.log('Start to create task: ' + taskObj.TaskName);
-    Logger.info('Start to create task: ' + taskObj.TaskName);
+async function createSNOWTask(taskObj) {
+  return new Promise(async (resolve, reject) => {
+    console.log('Start to create task: ', taskObj);
+    Logger.info('Start to create task(Service Now): ', taskObj);
     var needCreateRefTask = false;
     try {
       var errMsg = '';
       //Default task field
-      var tParentTaskName = 'N/A';
-      var tName = taskObj.TaskName;
-      var tDescription = taskObj.Description;
-      var tStatus = taskObj.Status;
-      var tCreator = 'ServiceNow';
-      var tEffort = 0;
-      var tEstimation = taskObj.Estimation;
-      var tTaskType = taskObj.TaskType;
-      var tTaskTypeId = 0;
-      var taskPoolRef = await getReference('TaskPool', tTaskType);
-      var taskTypeTag = 'One-Off Task';
-      if (taskPoolRef != null) {
-        if (taskPoolRef.Value != null && taskPoolRef.Value != '') {
-          tParentTaskName = taskPoolRef.Value;
-        }
+      var taskNewObj = {
+        HasSubtask: 'N',
+        Name: taskObj.taskName,
+        Category: 'EXTERNAL',
+        Type: 'Maintenance',
+        Title: taskObj.taskTitle,
+        Description: taskObj.taskTitle,
+        Customer: taskObj.taskCustomer,
+        Creator: 'ServiceNow',
+        IssueDate: taskObj.taskIssueDate
       }
-      var tAssignee = taskObj.TaskAssignee;
-      var tAssigneeId = await getUserMapping(tAssignee);
-      /*var tTaskIssueDate = taskObj.TaskIssueDate;
-      if(tTaskIssueDate == null) {
-        tTaskIssueDate = dateToString(new Date());
-      }*/
-      var tTaskIssueDate = dateToString(new Date());
-      var taskAssignTeam = taskObj.AssignTeam;
-      var userAssignmentList = await getAssignmentUser(taskAssignTeam);
-      console.log('User assignment list: ' + userAssignmentList);
-      var autoAssignToTaskType = null;
-      var tTaskGroupId = null;
-      var tTaskGroupName = '';
-      var tRespLeaderId = null
-      if(tTaskIssueDate != null){
-        // Auto assign Service now task to task group
-        var issueDateArray = tTaskIssueDate.split(" ");
-        var issueDateStr = issueDateArray[0];
-        console.log('Issue date: ' + issueDateStr);
-        var autoAssignToTaskKeyWord = null;
-        var autoAssignToTaskRef = await getReference('AutoAssignToTask', tTaskType);
-        console.log('Auto assign to task type: ' + tTaskType);
-        if (autoAssignToTaskRef != null) {
-          autoAssignToTaskKeyWord = autoAssignToTaskRef.Value;
-          console.log('Auto assign to task value: ' + autoAssignToTaskKeyWord);
-          var autoAssignToTask = await getTaskByDescriptionKeyWord(autoAssignToTaskKeyWord, userAssignmentList);
-          if(autoAssignToTask != null) {
-            tRespLeaderId = autoAssignToTask.RespLeaderId;
-            tParentTaskName = autoAssignToTask.TaskName;
-            autoAssignToTaskType = autoAssignToTask.task_type.Name;
-            var autoAssignToTaskTimeType = autoAssignToTask.TimeType;
-            if(issueDateStr != null && issueDateStr != '') {
-              var taskGroup = await getTaskGroupByDateAndRelateTask(issueDateStr, autoAssignToTaskTimeType);
-              if(taskGroup != null) {
-                // Get time Group Id
-                tTaskGroupId = taskGroup.Id;
-                tTaskGroupName = taskGroup.Name;
-                needCreateRefTask = true;
-              }
-            }
-            // End to find task group
-          }
-        }
-      }
-      if (tTaskType == 'Problem') {
-        needCreateRefTask = false;
-      }
-      //Get task type info
-      var inTaskStatus = await getStatusMapping(tTaskType, tStatus);
-      if(inTaskStatus != null){
-        tStatus = inTaskStatus;
-        console.log('Status: ' + tStatus);
-      }
-      var inTaskType = await getTaskTypeInfo('Pool');
-      console.log('Type --> ' + JSON.stringify(inTaskType));
-      if(inTaskType != null){
-        tTaskTypeId = inTaskType.Id;
-        if(tEstimation == 0 && inTaskType.Value > 0){
-          tEstimation = Number(inTaskType.Value);
-        }
-      } else {
-        errMsg = 'Task [' + taskObj.TaskName + ']: Task type [' + taskObj.TaskType + '] is not exist'
-        console.log(errMsg)
-      }
-      console.log("Type = " + tTaskType + ', Status = ' + tStatus);
+      taskNewObj.Status = await getStatusMapping(taskObj.taskCategorization, taskObj.taskStatus);
+      taskNewObj.RequiredSkills = await getGroupSkillsMapping(taskObj.taskAssignment);
       console.log('Start to create/Update task');
       Task.findOrCreate({
-        where: {TaskName: tName}, 
-        defaults: {
-            ParentTaskName: 'N/A',
-            TaskName: tName,
-            Description: tDescription,
-            Status: tStatus,
-            Creator: tCreator,
-            Effort: 0,
-            Estimation: 0,
-            TaskTypeId: tTaskTypeId,
-            TaskLevel: 3, 
-            IssueDate: tTaskIssueDate
-        }
-      })
-      .spread(async function(task, created) {
+        where: {
+          Name: taskObj.taskName
+        }, 
+        defaults: taskNewObj
+      }).spread(async function(task, created) {
         if(created) {
           console.log('Task created');
           Logger.info('Task created');
+          needCreateRefTask = true;
         }
         else if(task != null && !created){ 
-          await task.update({
-            Description: tDescription,
-            Status: tStatus,
-            IssueDate: tTaskIssueDate
-          });
+          await task.update(taskNewObj);
           console.log('Task updated');
           Logger.info('Task updated');
+          needCreateRefTask = true;
         } 
         else {
           console.log('Task create fail');
-          errMsg = 'Task [' + taskObj.TaskName + ']: create or update failed!'
+          errMsg = 'Task [' + taskObj.taskName + ']: create or update failed!'
           needCreateRefTask = false;
         }
-        if (tStatus == 'Drafting' || tStatus == 'Planning') {
+        // Create reference task for running task
+        if (taskNewObj.Status == 'Drafting' || taskNewObj.Status == 'Planning') {
           needCreateRefTask = false;
         }
-        console.log('Create reference task: ' + needCreateRefTask)
+        if (taskObj.taskCategorization == 'Problem') {
+          needCreateRefTask = false;
+        }
+        console.log('Create reference task: ' + needCreateRefTask);
+        Logger.info('Create reference task: ' + needCreateRefTask);
         // Start to create ref task
         if(needCreateRefTask) {
-          var refTaskType = await getTaskTypeInfo(autoAssignToTaskType);
-          var refTask = {
-            ParentTaskName: tParentTaskName,
-            TaskName: tName + ' (' + tTaskGroupName + ')',
-            Description: tDescription,
-            Status: 'Running',
-            Creator: 'PMT:' + tCreator,
-            Effort: 0,
-            Estimation: 6,
-            TaskTypeId: refTaskType.Id,
-            TaskLevel: 3, 
-            IssueDate: tTaskIssueDate,
-            RespLeaderId: tRespLeaderId,
-            TaskGroupId: tTaskGroupId,
-            TypeTag: taskTypeTag,
-            Reference: tName,
+          taskNewObj.Name = await Utils.getSubtaskName(taskObj.taskName, 'REF');
+          taskNewObj.Category = 'PMT-TASK-REF';
+          taskNewObj.ReferenceTask = taskObj.taskName;
+          taskNewObj.TypeTag = 'One-Off Task';
+          taskNewObj.SprintIndicator = 'UNPLAN';
+          taskNewObj.Creator = 'PMT:System';
+          taskNewObj.Estimation = 6;
+          taskNewObj.AssigneeId = await getUserMapping(taskObj.taskAssignee);
+          // Get Sprint/Leader
+          var issueDateStrArray = taskNewObj.IssueDate.split(' ');
+          console.log('Task issue date -> ', issueDateStrArray[0]);
+          console.log('Task required skills -> ', taskNewObj.RequiredSkills);
+          var sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0]);
+          console.log('Sprints -> ', sprints);
+          if (sprints != null && sprints.length > 0) {
+            taskNewObj.SprintId = sprints[0].Id;
+            taskNewObj.RespLeaderId = sprints[0].LeaderId;
           }
-          if (tAssigneeId != null && tAssigneeId != '') {
-            refTask.AssigneeId = tAssigneeId
-          }
-          await Task.findOrCreate({
-            where: {
-              [Op.or]: [
-                {TaskName: refTask.TaskName},
-                {Reference: refTask.Reference}
-              ],
-              TaskGroupId: refTask.TaskGroupId
-            },
-            defaults: refTask
-          }).spread(async function(refTask, created) {
-            if(created){
-              console.log('New task of incident is created!');
-            } else {
-              if(refTask != null){
-                if(refTask.ParentTaskName != tParentTaskName){
-                  console.log('Need to change task parent task: ' + refTask.ParentTaskName + ' => ' + tParentTaskName);
-                  await refTask.update({ParentTaskName: tParentTaskName});
-                }
+          console.log('Sprint -> ', taskNewObj.SprintId);
+          // End
+          if (taskNewObj.SprintId != null && taskNewObj.SprintId != '' && taskNewObj.SprintId != undefined) {
+            await Task.findOrCreate({
+              where: {
+                ReferenceTask: taskNewObj.ReferenceTask,
+                SprintId: taskNewObj.SprintId,
+                Creator: 'PMT:System'
+              },
+              defaults: taskNewObj
+            }).spread(async function(refTask, created) {
+              if (created){
+                console.log('New reference task is created!');
+                Logger.info('New reference task is created!');
+              } 
+              else if (refTask != null && !created) {
+                delete taskNewObj.Name
+                await refTask.update(taskNewObj);
+                console.log('Reference task is updated!');
+                Logger.info('Reference task is updated!');
               }
-              console.log('No need to create new task of incident!');
-            }
-          })
+              else {
+                errMsg = 'Fail to create / update reference task'
+                resolve(false);
+              }
+            });
+          }
+          resolve(true);
         }
-        cb(errMsg, taskObj);
+        resolve(false);
       }); 
     } catch(exception) {
       var exMsg = 'Exception occurred: ' + exception;
-      console.error(exMsg);
+      console.log(exMsg);
       Logger.info(exMsg);
-      cb(exMsg, taskObj);
+      resolve(false);
     }
-  }
-});
+  });
+}
 
 //Spider job to receive task list for TRLS
-router.post('/receiveTaskListForTRLS', function(req, res, next) {
-  Logger.info('Request: \n' + JSON.stringify(req.body))
-  //console.log('Request: \n' + JSON.stringify(req.body))
-  var taskCollection = processRequest(req);
-  //console.log('Task Collection: ' + JSON.stringify(taskCollection));
-
-  async.eachSeries(taskCollection, function(taskObj, callback) {
-    createTask(taskObj, function(err){
-        callback(err);
-    });
-  }, function(err){
-    if(err != null && err != ''){
-      console.log("Create task err is:" + err);
-      return res.json({result: false, error: err});
+router.post('/receiveTaskListForTRLS', async function(req, res, next) {
+  Logger.info('Request: TRLS \n' + JSON.stringify(req.body));
+  // console.log('Request TRLS \n' + JSON.stringify(req.body));
+  var taskCollection = processRequest(req.body);
+  // console.log('Request process: \n', taskCollection);
+  if (taskCollection != null && taskCollection.length > 0) {
+    for (var i=0; i<taskCollection.length; i++) {
+      var result = await createTRLSTask(taskCollection[i]);
+      console.log('Task [' + taskCollection[i].taskName + '] result -> ', result);
     }
-    return res.json({result: true, error: ""});
-  });
+  }
+  return res.json({result: true, error: ""});    
+});
 
-  async function createTask(taskObj, cb){
-    //console.log('Start to create task: ' + taskObj.TaskName);
-    Logger.info('Start to create task: ' + taskObj.TaskName);
+async function createTRLSTask(taskObj) {
+  return new Promise(async (resolve, reject) => {
+    console.log('Start to create task: ', taskObj);
+    Logger.info('Start to create task(Service Now): ', taskObj);
     try {
       var errMsg = '';
       //Default task field
-      var tParentTaskName = 'N/A';
-      var tName = taskObj.TaskName;
-      var tDescription = taskObj.Description;
-      var tStatus = taskObj.Status;
-      var tCreator = 'TRLS';
-      var tEffort = 0;
-      var tEstimation = taskObj.Estimation;
-      var tTaskType = taskObj.TaskType;
-      var tTaskTypeId = 0;
-      var taskPoolRef = await getReference('TaskPool', tTaskType);
-      var taskTypeTag = 'One-Off Task';
-      
-      Logger.info('Debug 1');
-      if (taskPoolRef != null) {
-        if (taskPoolRef.Value != null && taskPoolRef.Value != '') {
-          tParentTaskName = taskPoolRef.Value;
-        }
+      var taskNewObj = {
+        HasSubtask: 'N',
+        Name: taskObj.taskName,
+        Category: 'EXTERNAL',
+        Type: 'Development',
+        Title: taskObj.taskTitle,
+        Description: taskObj.taskTitle,
+        Customer: taskObj.taskCustomer,
+        Creator: 'TRLS',
+        IssueDate: taskObj.taskIssueDate,
+        Estimation: taskObj.taskEstimation
       }
-      var tTaskBizProject = taskObj.BizProject;
-      var tBusinessArea = '';
-      var tTaskIssueDate = taskObj.TaskIssueDate;
-      if(tTaskIssueDate == null) {
-        tTaskIssueDate = dateToString(new Date());
-      }
-      //Get task type info
-      Logger.info('Debug 2 Start');
-      var inTaskStatus = await getStatusMapping(tTaskType, tStatus);
-      Logger.info('Debug 2 End');
-      Logger.info('Status: ' + inTaskStatus);
-      if(inTaskStatus != null){
-        tStatus = inTaskStatus;
-      }
-      Logger.info('Debug 3 Start');
-      var inTaskType = await getTaskTypeInfo('Pool');
-      Logger.info('Type --> ' + JSON.stringify(inTaskType));
-      if(inTaskType != null){
-        tTaskTypeId = inTaskType.Id;
-      } else {
-        errMsg = 'Task [' + taskObj.TaskName + ']: Task type [' + taskObj.TaskType + '] is not exist'
-        Logger.info(errMsg)
-      }
-      Logger.info('Start to create/Update task');
+      taskNewObj.Status = await getStatusMapping(taskObj.taskCategorization, taskObj.taskStatus);
+      taskNewObj.RequiredSkills = await getGroupSkillsMapping(taskObj.taskAssignment);
+      console.log('Start to create/Update task');
       Task.findOrCreate({
-        where: {TaskName: tName}, 
-        defaults: {
-            ParentTaskName: tParentTaskName,
-            TaskName: tName,
-            Description: tDescription,
-            Status: tStatus,
-            Creator: tCreator,
-            Effort: tEffort,
-            Estimation: tEstimation,
-            TaskTypeId: tTaskTypeId,
-            BizProject: tTaskBizProject,
-            BusinessArea: tBusinessArea,
-            TaskLevel: 3,
-            IssueDate: tTaskIssueDate,
-            TypeTag: taskTypeTag
-        }
-      })
-      .spread(function(task, created) {
+        where: {
+          Name: taskObj.taskName
+        }, 
+        defaults: taskNewObj
+      }).spread(async function(task, created) {
         if(created) {
           console.log('Task created');
           Logger.info('Task created');
         }
         else if(task != null && !created){ 
-          var parentTask = 'N/A';
-          if (task.ParentTaskName == 'N/A') {
-            parentTask = tParentTaskName;
-          }
-          task.update({
-            ParentTaskName: parentTask,
-            Description: tDescription,
-            Status: tStatus,
-            Estimation: tEstimation,
-            TaskTypeId: tTaskTypeId,
-            Creator: tCreator,
-            BizProject: tTaskBizProject,
-            BusinessArea: tBusinessArea,
-            TaskLevel: 3
-          });
+          await task.update(taskNewObj);
           console.log('Task updated');
           Logger.info('Task updated');
         } 
         else {
           console.log('Task create fail');
-          errMsg = 'Task [' + taskObj.TaskName + ']: create or update failed!'
+          errMsg = 'Task [' + taskObj.taskName + ']: create or update failed!'
+          resolve(false);
         }
-        cb(errMsg, taskObj);
+        resolve(true);
       }); 
     } catch(exception) {
       var exMsg = 'Exception occurred: ' + exception;
-      console.error(exMsg);
+      console.log(exMsg);
       Logger.info(exMsg);
-      cb(exMsg, taskObj);
+      resolve(false);
     }
-  }
-});
-
-function processRequest(req){
-  //Get request params
-  var taskNumber = req.body.number;
-  var taskdesc = req.body.short_description;
-  var taskStatus = req.body.state;
-  var taskAssignTeam = req.body.assignment_group;
-  var taskEstimation = req.body.task_effort;
-  var taskBizProject = req.body.bizProject;
-  var taskCategorization = req.body.path;
-  var taskAssignee = req.body.assigned_to;
-  var taskReportedDate = req.body.created;
-  var taskCollection = [];
-  for(var i=0; i<taskNumber.length; i++){
-    var taskJson = {};
-    //Not Null: Task Number/Description/Status
-    taskJson.TaskName = taskNumber[i];
-    taskJson.Description = taskdesc[i];
-    taskJson.Status = taskStatus[i];
-    taskJson.AssignTeam = taskAssignTeam[i].toUpperCase();
-    //Task Biz Project
-    if (taskBizProject != null && taskEstimation != undefined) {
-      taskJson.BizProject = taskBizProject[i];
-    } else {
-      taskJson.BizProject = ''
-    }
-    //Task Estimation
-    var taskEstimationNum = 0;
-    if(taskEstimation != null && taskEstimation != undefined){
-      taskEstimationNum = Number(taskEstimation[i]) * 8;
-    }
-    taskJson.Estimation = taskEstimationNum;
-    //Task Category
-    if(taskNumber[i].toUpperCase().startsWith('CG')){
-      taskJson.TaskType = 'Change';
-    }
-    else if(taskNumber[i].toUpperCase().startsWith('PRB')){
-      taskJson.TaskType = 'Problem';
-    }
-    else if(taskNumber[i].toUpperCase().startsWith('INCTASK')){
-      taskJson.TaskType = 'ITSR';
-    }
-    else if(taskCategorization != null && taskCategorization != undefined ){
-      if(taskCategorization[i].toUpperCase().startsWith("SERVICE")){
-        taskJson.TaskType = 'Service Request';
-      }
-      else if(taskCategorization[i].toUpperCase().startsWith("STP")){
-        taskJson.TaskType = 'STP';
-      }
-      else {
-        taskJson.TaskType = 'Incident';
-      }
-    }
-    else {
-      taskJson.TaskType = 'Sponsor Task';
-    }
-    //Task Assignee
-    if (taskAssignee != null && taskAssignee.length > 0) {
-      taskJson.TaskAssignee = taskAssignee[i];
-    } else {
-      taskJson.TaskAssignee = null;
-    }
-    //Task Issue date
-    if (taskReportedDate != null && taskReportedDate.length > 0) {
-      taskJson.TaskIssueDate = taskReportedDate[i];
-    } else {
-      taskJson.TaskIssueDate = null;
-    }
-    taskCollection.push(taskJson);
-  }
-  return taskCollection;
-}
-
-function getTaskTypeInfo(iTaskType){
-  return new Promise((resolve, reject) => {
-    TaskType.findOne({
-      where: {
-        Name: iTaskType
-    }}).then(function(taskType) {
-      console.log('Find task type: ' + iTaskType);
-      if(taskType != null) {
-        resolve(taskType);
-      } else {
-        resolve(null);
-      }
-    });
   });
 }
 
-function getStatusMapping(iTaskType, iStatus) {
+function processRequest(Request) {
+  var nameArray = Request.number;
+  var titleArray = Request.short_description;
+  var categorizationPathArray = Request.path;
+  // var priorityArray = Request.priority;
+  var statusArray = Request.state;
+  var assignmentArray = Request.assignment_group;
+  var assigneeArray = Request.assigned_to;
+  var issueDateArray = Request.created;
+  var bizProjectArray = Request.bizProject;
+  var estimationArray = Request.task_effort;
+  var customerArray = Request.location;
+  var businessAreaArray = Request.business_area;
+  var taskArray = [];
+  for(var i=0; i<nameArray.length; i++){
+    var taskJson = {};
+    taskJson.taskName = nameArray != null? nameArray[i]: null;
+    taskJson.taskTitle = titleArray != null? titleArray[i]: null;
+    taskJson.taskDescription = titleArray != null? titleArray[i]: null;  
+    taskJson.taskStatus = statusArray != null? statusArray[i]: null;
+    taskJson.taskAssignment = assignmentArray != null? assignmentArray[i].toUpperCase(): null;
+    taskJson.taskAssignee = assigneeArray != null? assigneeArray[i]: null;
+    taskJson.taskIssueDate = issueDateArray != null? issueDateArray[i]: null;
+    taskJson.taskBizProject = bizProjectArray != null? bizProjectArray[i]: null;
+    taskJson.taskEstimation = estimationArray != null? estimationArray[i]: null;
+    taskJson.taskBusinessArea = businessAreaArray != null? businessAreaArray[i]: null;
+    taskJson.taskCustomer = customerArray != null? customerArray[i]: null;
+    if (taskJson.taskCustomer == 'MTL HK') {
+      taskJson.taskCustomer = 'MTL'
+    }
+    if (taskJson.taskCustomer == 'MTL DCB') {
+      taskJson.taskCustomer = 'DCB'
+    }
+    //Task Categorization Validation
+    var taskCategorizationPath = categorizationPathArray != null? categorizationPathArray[i]: null;
+    var taskCategorization = '';
+    if(taskJson.taskName.toUpperCase().startsWith('CG')){
+      taskCategorization = 'Change';
+    }
+    else if(taskJson.taskName.toUpperCase().startsWith('PRB')){
+      taskCategorization = 'Problem';
+    }
+    else if(taskJson.taskName.toUpperCase().startsWith('INCTASK')){
+      taskCategorization = 'ITSR';
+    }
+    else if(taskCategorizationPath != null && taskCategorizationPath != undefined && taskCategorizationPath != ''){
+      if(taskCategorizationPath[i].toUpperCase().startsWith("SERVICE")){
+        taskCategorization = 'Service Request';
+      }
+      else if(taskCategorizationPath[i].toUpperCase().startsWith("STP")){
+        taskCategorization = 'STP';
+      }
+      else {
+        taskCategorization = 'Incident';
+      }
+    }
+    else {
+      taskCategorization = 'Task';
+    }
+    //End of Task Categorization Validation
+    taskJson.taskCategorization = taskCategorization;
+    taskArray.push(taskJson);
+  }
+  //console.log('Result ', taskArray);
+  return taskArray;
+}
+
+function getStatusMapping(iTaskCategorization, iStatus) {
   return new Promise((resolve, reject) => {
     Reference.findOne({
       where: {
         Name: 'TaskTypeMapping',
-        Type: iTaskType
+        Type: iTaskCategorization
     }}).then(function(reference) {
       if(reference != null){
         var statusMapping = reference.Value;
@@ -484,6 +314,28 @@ function getStatusMapping(iTaskType, iStatus) {
             resolve(statusMappingJson[i].Status); 
           }
         }//End of find task type mapping
+      }
+      resolve(null);
+    });
+  });
+}
+
+function getGroupSkillsMapping (iGroup) {
+  return new Promise((resolve, reject) => {
+    Reference.findOne({
+      where: {
+        Name: 'GroupSkillsMapping'
+    }}).then(function(reference) {
+      if(reference != null){
+        var groupSkillsMapping = reference.Value;
+        var groupSkillsMappingJson = JSON.parse(groupSkillsMapping);
+        for(var i=0;i<groupSkillsMappingJson.length;i++){
+          var mappingGroup = groupSkillsMappingJson[i].Group;
+          if(mappingGroup == iGroup){
+            console.log('Group Skills Mapping:' + iGroup + ' => ' + groupSkillsMappingJson[i].Skills);
+            resolve(groupSkillsMappingJson[i].Skills); 
+          }
+        }//End of find group skills mapping
       }
       resolve(null);
     });
@@ -504,9 +356,9 @@ function getUserMapping (iUser) {
       if(user != null){
         var flag = false;
         for(var i=0; i< user.length; i++){
-          if(user[i].NameMapping != null){
-            var userMappingArray = user[i].NameMapping.split(';');
-            if(getIndexOfValueInArr(userMappingArray, null, iUser) != -1){
+          if(user[i].NameMappings != null){
+            var userMappingArray = user[i].NameMappings.split(';');
+            if(Utils.getIndexOfValueInArr(userMappingArray, null, iUser) != -1){
               flag = true;
               resolve(user[i].Id);
             }
@@ -710,22 +562,7 @@ function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
   return resJson;
 }
 
-function getIndexOfValueInArr(iArray, iKey, iValue) {
-  for(var i=0; i<iArray.length;i++) {
-    var item = iArray[i];
-    if(iKey != null){
-      if(item[iKey] == iValue){
-        return i;
-      }
-    } 
-    if(iKey == null){
-      if(item == iValue){
-        return i;
-      }
-    }
-  }
-  return -1;
-}
+
 
 module.exports = router;
 
