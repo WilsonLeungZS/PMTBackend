@@ -12,7 +12,6 @@ var Reference = require('../models/reference');
 
 var Utils = require('../util/utils');
 
-
 const Op = Sequelize.Op;
 
 /* GET home page. */
@@ -250,7 +249,7 @@ function processRequest(Request) {
     taskJson.taskAssignee = assigneeArray != null? assigneeArray[i]: null;
     taskJson.taskIssueDate = issueDateArray != null? issueDateArray[i]: null;
     taskJson.taskBizProject = bizProjectArray != null? bizProjectArray[i]: null;
-    taskJson.taskEstimation = estimationArray != null? estimationArray[i]: null;
+    taskJson.taskEstimation = estimationArray != null? estimationArray[i] != ''? Number(estimationArray[i]) * 8: 0: 0;
     taskJson.taskBusinessArea = businessAreaArray != null? businessAreaArray[i]: null;
     taskJson.taskCustomer = customerArray != null? customerArray[i]: null;
     if (taskJson.taskCustomer == 'MTL HK') {
@@ -261,6 +260,7 @@ function processRequest(Request) {
     }
     //Task Categorization Validation
     var taskCategorizationPath = categorizationPathArray != null? categorizationPathArray[i]: null;
+    console.log('taskCategorizationPath -> ', taskCategorizationPath);
     var taskCategorization = '';
     if(taskJson.taskName.toUpperCase().startsWith('CG')){
       taskCategorization = 'Change';
@@ -272,10 +272,10 @@ function processRequest(Request) {
       taskCategorization = 'ITSR';
     }
     else if(taskCategorizationPath != null && taskCategorizationPath != undefined && taskCategorizationPath != ''){
-      if(taskCategorizationPath[i].toUpperCase().startsWith("SERVICE")){
+      if(taskCategorizationPath.toUpperCase().startsWith("SERVICE")){
         taskCategorization = 'Service Request';
       }
-      else if(taskCategorizationPath[i].toUpperCase().startsWith("STP")){
+      else if(taskCategorizationPath.toUpperCase().startsWith("STP")){
         taskCategorization = 'STP';
       }
       else {
