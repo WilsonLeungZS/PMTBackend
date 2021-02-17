@@ -15,10 +15,6 @@ var Utils = require('../util/utils');
 
 const Op = Sequelize.Op;
 
-router.get('/', function(req, res, next) {
-  return res.json({message: 'Response index resource'});
-});
-
 /* GET home page. */
 router.get('/', function(req, res, next) {
   Logger.info('Index log');
