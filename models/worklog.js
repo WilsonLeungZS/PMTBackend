@@ -6,8 +6,8 @@ var User = require('./user');
 
 var Worklog = sequelize.define('worklog', {
     Id:{ type:Sequelize.INTEGER, primaryKey: true, autoIncrement:true }, 
-    Remark: { type: Sequelize.STRING },
-    Effort: { type: Sequelize.INTEGER, defaultValue: 0},
+    Remark: { type: Sequelize.STRING(1000) },
+    Effort: { type: Sequelize.FLOAT(11,1), defaultValue: 0 },
     WorklogMonth: { type: Sequelize.STRING},
     WorklogDay: { type: Sequelize.STRING },
     createdAt: {
@@ -33,6 +33,5 @@ var Worklog = sequelize.define('worklog', {
 Worklog.belongsTo(Task, {foreignKey: 'TaskId'});
 Worklog.belongsTo(User, {foreignKey: 'UserId'});
 
-//Worklog.sync({force: true});
 Worklog.sync();
 module.exports = Worklog;
