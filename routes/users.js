@@ -104,7 +104,8 @@ router.get('/getActiveUsersListByLevelLimit', function(req, res, next) {
     where: {
       IsActive: 1,
       Role: { [Op.ne]: 'Special' },
-      Level: { [Op.lte]: reqUserLevelLimit }
+      Level: { [Op.lte]: reqUserLevelLimit },
+      Level: { [Op.ne]: -1 }
     },
     order: [
       ['Level', 'ASC']
@@ -136,6 +137,7 @@ router.post('/getActiveUsersListBySkill', function(req, res, next) {
     where: {
       IsActive: 1,
       Role: { [Op.ne]: 'Special' },
+      Level: { [Op.ne]: -1 },
       [Op.or]: skillsCriteria
     },
     order: [
