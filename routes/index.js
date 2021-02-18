@@ -1,5 +1,6 @@
 var Sequelize = require('sequelize');
 var async = require('async');
+var db = require('../config/db');
 var Logger  = require("../config/logConfig");
 var express = require('express');
 var router = express.Router();
@@ -23,6 +24,28 @@ router.get('/', function(req, res, next) {
       return res.json({message: 'Get Response index resource: PMT Version 3.0 - ' + env});
     } else {
       return res.json({message: 'Get Response index resource: PMT Version 3.0'});
+    }
+  })
+});
+
+// Sync PMT Task Effort
+router.get('/syncTaskEffort', async function(req, res, next) {
+  var sql = 'select TaskName, Effort, Estimation from tasks_obs where TaskName like "CG%" and ParentTaskName = "N/A" and Creator = "TRLS" and Effort != 0'
+  db.query(sql).then(async (result) => {
+    var obsTasks = result[0];
+    for(var i=0; i<obsTasks.length; i++) {
+      console.log(obsTasks[i]);
+      await Task.findOne({
+        where: {
+          Creator: 'TRLS',
+          Name: obsTasks[i].TaskName
+        }
+      }).then(async function(task) {
+        if (task != null) {
+          await task.update({Effort: obsTasks[i].Effort + task.Effort});
+          console.log(task.Name + ' update Effort');
+        }
+      })
     }
   })
 });
@@ -57,6 +80,7 @@ async function createSNOWTask(taskObj) {
         Name: taskObj.taskName,
         Category: 'EXTERNAL',
         Type: 'Maintenance',
+        TypeTag: 'One-Off Task',
         Title: taskObj.taskTitle,
         Description: taskObj.taskTitle,
         Customer: taskObj.taskCustomer,
@@ -95,6 +119,9 @@ async function createSNOWTask(taskObj) {
         if (taskObj.taskCategorization == 'Problem') {
           needCreateRefTask = false;
         }
+        if (taskNewObj.RequiredSkills == null || taskNewObj.RequiredSkills == '') {
+          needCreateRefTask = false;
+        }
         console.log('Create reference task: ' + needCreateRefTask);
         Logger.info('Create reference task: ' + needCreateRefTask);
         // Start to create ref task
@@ -112,7 +139,7 @@ async function createSNOWTask(taskObj) {
           console.log('Task issue date -> ', issueDateStrArray[0]);
           console.log('Task required skills -> ', taskNewObj.RequiredSkills);
           var sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0]);
-          console.log('Sprints -> ', sprints);
+          // console.log('Sprints -> ', sprints);
           if (sprints != null && sprints.length > 0) {
             taskNewObj.SprintId = sprints[0].Id;
             taskNewObj.RespLeaderId = sprints[0].LeaderId;
@@ -184,6 +211,7 @@ async function createTRLSTask(taskObj) {
         Name: taskObj.taskName,
         Category: 'EXTERNAL',
         Type: 'Development',
+        TypeTag: 'One-Off Task',
         Title: taskObj.taskTitle,
         Description: taskObj.taskTitle,
         Customer: taskObj.taskCustomer,
@@ -325,10 +353,9 @@ function getGroupSkillsMapping (iGroup) {
       if(reference != null){
         var groupSkillsMapping = reference.Value;
         var groupSkillsMappingJson = JSON.parse(groupSkillsMapping);
-        for(var i=0;i<groupSkillsMappingJson.length;i++){
+        for(var i=0;i<groupSkillsMappingJson.length; i++){
           var mappingGroup = groupSkillsMappingJson[i].Group;
           if(mappingGroup == iGroup){
-            console.log('Group Skills Mapping:' + iGroup + ' => ' + groupSkillsMappingJson[i].Skills);
             resolve(groupSkillsMappingJson[i].Skills); 
           }
         }//End of find group skills mapping

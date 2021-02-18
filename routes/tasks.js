@@ -73,6 +73,8 @@ router.post('/getTasksListBySkill', function(req, res, next) {
     Status: {[Op.ne]: 'Obsolete'},
     SprintId: null
   }
+  var andCriteria = {}
+  var andCriteriaArray = []
   // Skill criteria
   var reqSkillsArray = req.body.reqSkillsArray;
   if (reqSkillsArray != null && reqSkillsArray != '') {
@@ -84,7 +86,7 @@ router.post('/getTasksListBySkill', function(req, res, next) {
     var skillsCriteria = {
       [Op.or]: skills
     }
-    Object.assign(criteria, skillsCriteria);
+    andCriteriaArray.push(skillsCriteria);
   }
   // Customer criteria
   var reqTaskCustomer = req.body.reqTaskCustomer;
@@ -101,7 +103,13 @@ router.post('/getTasksListBySkill', function(req, res, next) {
         {Description: {[Op.like]:'%' + reqTaskKeyword + '%'}},
       ]
     }
-    Object.assign(criteria, taskKeywordCriteria);
+    andCriteriaArray.push(taskKeywordCriteria);
+  }
+  if (andCriteriaArray != null && andCriteriaArray.length > 0) {
+    andCriteria = {
+      [Op.and]: andCriteriaArray
+    }
+    Object.assign(criteria, andCriteria);
   }
   Task.findAll({
     where: criteria,
@@ -221,7 +229,7 @@ router.post('/removeTask', async function(req, res, next) {
         return res.json(Utils.responseMessage(0, {hasSubtask: false}, 'Remove task successfully'));
       }
     } else {
-      return res.json(Utils.responseMessage(1, null, 'No task exist'));
+      return res.json(Utils.responseMessage(1, null, 'No task exist/ Task has effort'));
     }
   })
 });
