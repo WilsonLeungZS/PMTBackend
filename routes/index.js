@@ -46,6 +46,7 @@ router.get('/syncTaskEffort', async function(req, res, next) {
           console.log(task.Name + ' update Effort');
         }
       })
+      return res.json({result: 'Done', error: ''});
     }
   })
 });
@@ -112,15 +113,29 @@ async function createSNOWTask(taskObj) {
           errMsg = 'Task [' + taskObj.taskName + ']: create or update failed!'
           needCreateRefTask = false;
         }
-        // Create reference task for running task
-        if (taskNewObj.Status == 'Drafting' || taskNewObj.Status == 'Planning') {
+        // Not create reference task for not running task
+        if (taskNewObj.Status != 'Running') {
           needCreateRefTask = false;
+          console.log('Task Status not running');
+          Logger.info('Task Status not running');
         }
+        // Not create reference task for problem
         if (taskObj.taskCategorization == 'Problem') {
           needCreateRefTask = false;
+          console.log('Task is problem');
+          Logger.info('Task is problem');
         }
+        // Not create reference task for no required skills task
         if (taskNewObj.RequiredSkills == null || taskNewObj.RequiredSkills == '') {
           needCreateRefTask = false;
+          console.log('Task has no required skills');
+          Logger.info('Task has no required skills');
+        }
+        // Not create reference task for no assignee task
+        if (taskObj.taskAssignee == '' || taskObj.taskAssignee == null) {
+          needCreateRefTask = false;
+          console.log('Task has no assignee');
+          Logger.info('Task has no assignee');
         }
         console.log('Create reference task: ' + needCreateRefTask);
         Logger.info('Create reference task: ' + needCreateRefTask);
@@ -134,17 +149,19 @@ async function createSNOWTask(taskObj) {
           taskNewObj.Creator = 'PMT:System';
           taskNewObj.Estimation = 6;
           taskNewObj.AssigneeId = await getUserMapping(taskObj.taskAssignee);
-          // Get Sprint/Leader
-          var issueDateStrArray = taskNewObj.IssueDate.split(' ');
+          // Get Sprint/Leader by skills/date
+          // Create reference task for every sprint if task status = 'Running'
+          var refTaskIssueDate = Utils.formatDate(new Date(), 'yyyy-MM-dd hh:mm:ss');
+          var issueDateStrArray = refTaskIssueDate.split(' ');
           console.log('Task issue date -> ', issueDateStrArray[0]);
           console.log('Task required skills -> ', taskNewObj.RequiredSkills);
-          var sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0]);
+          var sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow');
           // console.log('Sprints -> ', sprints);
           if (sprints != null && sprints.length > 0) {
             taskNewObj.SprintId = sprints[0].Id;
             taskNewObj.RespLeaderId = sprints[0].LeaderId;
           }
-          console.log('Sprint -> ', taskNewObj.SprintId);
+          console.log('Reference task sprint -> ', taskNewObj.SprintId);
           // End
           if (taskNewObj.SprintId != null && taskNewObj.SprintId != '' && taskNewObj.SprintId != undefined) {
             await Task.findOrCreate({
@@ -399,198 +416,4 @@ function getUserMapping (iUser) {
   });
 }
 
-function getAssignmentUser(iAssignment) {
-  return new Promise((resolve, reject) => {
-    User.findAll({
-      where: {
-        IsActive: 1,
-        Role: {[Op.ne]: 'Special'}
-      }
-    }).then(function(users) {
-      if(users != null) {
-        var result = [];
-        for(var i=0; i<users.length; i++) {
-          var assignmentStr = users[i].Assignment;
-          if(assignmentStr != '' && assignmentStr != null) {
-            var assignmentArray = assignmentStr.split(',');
-            for(var a=0; a<assignmentArray.length; a++) {
-              if(assignmentArray[a].toUpperCase() == iAssignment){
-                result.push(users[i].Id);
-                break;
-              }
-            }
-          }
-        }
-        resolve(result);
-      } else {
-        resolve([]);
-      }
-    });
-  });
-}
-
-function getReference(iRefName, iType) {
-  return new Promise((resolve, reject) => {
-    Reference.findOne({
-      where: {
-        Name: iRefName,
-        Type: iType
-      }
-    }).then(function(reference) {
-      if(reference != null){
-        resolve(reference);
-      } else {
-        resolve(null);
-      }
-    });
-  });
-}
-
-function getTaskByDescriptionKeyWord(iKeyWord, iAssignmentList) {
-  return new Promise((resolve, reject) => {
-    Task.findOne({
-      include: [{
-        model: TaskType, 
-        attributes: ['Name']
-      }],
-      where: {
-        Description: {[Op.like]: '%' + iKeyWord + '%'},
-        TaskLevel: 2,
-        RespLeaderId: {[Op.in]: iAssignmentList}
-      }
-    }).then(function(task) {
-      if(task != null) {
-        resolve(task);
-      } else {
-        resolve(null);
-      }
-    });
-  });
-}
-
-function getTaskGroupByDateAndRelateTask(iDate, iTimeType) {
-  return new Promise((resolve, reject) => {
-    TaskGroup.findOne({
-      where: {
-        StartTime: { [Op.lte]: iDate },
-        EndTime: { [Op.gte]: iDate },
-        GroupType: iTimeType
-      }
-    }).then(function(taskGroup) {
-      resolve(taskGroup);
-    });
-  });
-}
-
-function stringAddZero (iValue) {
-  if (iValue < 10) {
-    return '0' + iValue
-  } else {
-    return '' + iValue
-  }
-}
-
-function dateToString (iDate) {
-  if (iDate !== null && iDate !== '' && iDate !== 'Invalid Date') {
-    var changeDateYear = iDate.getFullYear()
-    var changeDateMonth = stringAddZero(iDate.getMonth() + 1)
-    var changeDateDay = stringAddZero(iDate.getDate())
-    var changeDateHours = stringAddZero(iDate.getHours())
-    var changeDateMinutes = stringAddZero(iDate.getMinutes())
-    var changeDateSeconds = stringAddZero(iDate.getHours())
-    return changeDateYear + '-' + changeDateMonth + '-' + changeDateDay + ' ' + changeDateHours + ':' + changeDateMinutes + ':' + changeDateSeconds
-  } else {
-    return null
-  }
-}
-
-router.get('/queryTimesheet', function(req, res, next) {
-  var reqStartDate = req.query.start_date;
-  var reqEndDate = req.query.end_date;
-  if(reqStartDate != null && reqEndDate != null && reqStartDate != '' && reqEndDate != ''){
-    var rtnResult = [];
-    var reqStartDate = reqStartDate + ' 00:00:00';
-    var reqEndDate = reqEndDate + ' 23:59:59';
-    Worklog.findAll({
-      include: [{
-          model: Task,
-          attributes: ['TaskName', 'Reference'],
-          include: [{model: TaskType, attributes: ['Name', 'Category'],}]
-      },{
-        model: User,
-        attributes: ['Name']
-      }],
-      where: {
-        [Op.or]: [
-          {createdAt: {[Op.between]: [reqStartDate, reqEndDate]}}, 
-          {updatedAt: {[Op.between]: [reqStartDate, reqEndDate]}}
-        ]
-      },
-      order: [
-        ['updatedAt', 'DESC']
-      ]
-    }).then(function(worklogs) {
-      if(worklogs != null && worklogs.length > 0){
-        for(var i=0; i<worklogs.length; i++) {
-          var resJson = {};
-          resJson.effort = worklogs[i].Effort;
-          if(worklogs[i].task.Reference != null && worklogs[i].task.Reference != ''){
-            resJson.task_number = worklogs[i].task.Reference;
-          } else {
-            resJson.task_number = worklogs[i].task.TaskName;
-          }
-          resJson.task_type = worklogs[i].task.task_type.Category;
-          resJson.user_name = worklogs[i].user.Name;
-          resJson.work_date = worklogs[i].WorklogMonth + '-' + worklogs[i].WorklogDay;
-          rtnResult.push(resJson);
-        }
-      }
-      return res.json({result:rtnResult, error:''});
-    });
-  } else {
-    return res.json({result: false, error: 'Request param invalid!'});
-  }
-});
-
-router.post('/queryTimesheetForTRLS', function(req, res, next) {
-  var reqTaskName = req.body.task_number;
-  if(reqTaskName != null & reqTaskName != ''){
-    var rtnResult = [];
-    Task.findAll({
-      where: {
-        TaskName: {
-          [Op.in]: reqTaskName
-        }
-      }
-    }).then(function(task) {
-      if(task != null && task.length > 0){
-        for(var i=0; i<task.length; i++) {
-          var resJson = {};
-          resJson.effort = task[i].Effort;
-          resJson.task_number = task[i].TaskName;
-          rtnResult.push(resJson);
-        }
-      }
-      return res.json({result: rtnResult, error: ''});
-    });
-  }
-  else {
-    return res.json({result: false, error: 'Request param invalid!'});
-  }
-});
-
-function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
-  var resJson = {}; 
-  resJson = {status: iStatusCode, data: iDataArray, message: iErrorMessage};
-  return resJson;
-}
-
-
-
 module.exports = router;
-
-// Install dependencies: cnpm install
-// Start server: set DEBUG=PMTBackend & cnpm start
-//提交代码到Github： 1.暂存文件； 2.提交已暂存的文件(add comment); 3.推送
-//同步代码：pull rebase（合并）
-// Once rebuild all tables, please expand the table column length(table "tasks")

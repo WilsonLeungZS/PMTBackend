@@ -48,7 +48,7 @@ router.get('/getActiveSprintsList', function(req, res, next) {
 
 router.get('/getActiveSprintsListBySkills', async function(req, res, next) {
   var reqRequiredSkills = req.query.reqRequiredSkills;
-  var sprints = await Utils.getSprintsByRequiredSkills(reqRequiredSkills, null);
+  var sprints = await Utils.getSprintsByRequiredSkills(reqRequiredSkills, null, null);
   if (sprints != null && sprints.length > 0) {
     var responseSprints = await generateResponseSprintsInfo(sprints);
     return res.json(Utils.responseMessage(0, responseSprints, ''));
@@ -73,6 +73,7 @@ async function generateResponseSprintsInfo(sprints) {
       resJson.sprintRequiredSkills = Utils.handleSkillsArray(sprints[i].RequiredSkills).split(',').map(Number);
       resJson.sprintRequiredSkillsStr = Utils.getSkillsByList(Utils.handleSkillsArray(sprints[i].RequiredSkills), skillsList).toString();
       resJson.sprintStatus = sprints[i].Status;
+      resJson.sprintDataSource = (sprints[i].DataSource != null && sprints[i].DataSource != '')? sprints[i].DataSource.split(','): null;
       resJson.sprintLeaderId = sprints[i].user.Id;
       resJson.sprintLeader = sprints[i].user.Name;
       rtnResult.push(resJson);
@@ -218,6 +219,7 @@ async function getSprintUsersBySprintId(iReqSprintId) {
           resJson.sprintId = sprintUsers[i].SprintId;
           resJson.sprintUserId = sprintUsers[i].UserId;
           resJson.sprintUserName = sprintUsers[i].user.Name;
+          resJson.sprintUserFullName = sprintUsers[i].user.Name + ' (' + sprintUsers[i].user.Nickname + ')';
           resJson.sprintUserLevel = sprintUsers[i].user.Level;
           resJson.sprintUserNickname = sprintUsers[i].user.Nickname;
           resJson.sprintUserCapacity = sprintUsers[i].Capacity;
@@ -254,7 +256,7 @@ router.post('/updateSprint', function(req, res, next) {
   var reqSprintObj = generateRequestSprintObject(req.body);
   Sprint.findOrCreate({
     where: {
-      Name: req.body.reqSprintName
+      Id: req.body.reqSprintId
     }, 
     defaults: reqSprintObj
   }).spread(async function(sprint, created) {
@@ -281,6 +283,7 @@ function generateRequestSprintObject (iRequest) {
     BaseCapacity: iRequest.reqSprintBaseCapacity != ''? iRequest.reqSprintBaseCapacity: null,
     RequiredSkills: iRequest.reqSprintRequiredSkills != ''? iRequest.reqSprintRequiredSkills: null,
     Status: iRequest.reqSprintStatus != ''? iRequest.reqSprintStatus: 'Active',
+    DataSource: iRequest.reqSprintDataSource != ''? iRequest.reqSprintDataSource: null,
     LeaderId: iRequest.reqSprintLeaderId != ''? iRequest.reqSprintLeaderId: null,
   }
   return reqSprintObj;

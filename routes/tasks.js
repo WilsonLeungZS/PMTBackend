@@ -402,7 +402,7 @@ router.post('/getTasksByWorklogKeyword', function(req, res, next) {
       [Op.and]: [
         { Status: {[Op.ne]: 'Drafting'}},
         { Status: {[Op.ne]: 'Planning'}},
-        { Status: {[Op.ne]: 'Done'}},
+        //{ Status: {[Op.ne]: 'Done'}},
         {[Op.or]: [
           {[Op.and]: [
               { TypeTag: 'One-Off Task' },

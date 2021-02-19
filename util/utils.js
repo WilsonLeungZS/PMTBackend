@@ -237,7 +237,7 @@ function calculateCapacity (iUserId, iStartTime, iEndTime) {
 
 // Get sprint list by require skills
 // Params: (1) iRequiredSkills = '#1#,#4#' / '1,4'    (2) iRequestTime = '2021-01-02'
-function getSprintsByRequiredSkills (iRequiredSkills, iRequestTime) {
+function getSprintsByRequiredSkills (iRequiredSkills, iRequestTime, iDataSource = null) {
   return new Promise((resolve, reject) => {
     console.log('Method: getSprintsByRequiredSkills -> ', iRequiredSkills, iRequestTime);
     var criteria = {};
@@ -264,6 +264,9 @@ function getSprintsByRequiredSkills (iRequiredSkills, iRequestTime) {
       Object.assign(criteria, timeCriteria);
     }
     criteria.Status = { [Op.ne]: 'Obsolete' }
+    if (iDataSource != null) {
+      criteria.DataSource = { [Op.like]: '%' + iDataSource + '%' }
+    }
     Sprint.findAll({
       include: [{
         model: User, 
@@ -276,7 +279,7 @@ function getSprintsByRequiredSkills (iRequiredSkills, iRequestTime) {
   });
 }
 
-function getIndexOfValueInArr(iArray, iKey, iValue) {
+function getIndexOfValueInArr (iArray, iKey, iValue) {
   for(var i=0; i<iArray.length;i++) {
     var item = iArray[i];
     if(iKey != null){
@@ -291,6 +294,27 @@ function getIndexOfValueInArr(iArray, iKey, iValue) {
     }
   }
   return -1;
+}
+
+function formatDate (date, fmt) { 
+  var o = { 
+    "M+" : date.getMonth()+1,                 
+    "d+" : date.getDate(),                     
+    "h+" : date.getHours(),                    
+    "m+" : date.getMinutes(),                 
+    "s+" : date.getSeconds(),                  
+    "q+" : Math.floor((date.getMonth()+3)/3),
+    "S"  : date.getMilliseconds()            
+  }; 
+  if(/(y+)/.test(fmt)) {
+        fmt=fmt.replace(RegExp.$1, (date.getFullYear()+"").substr(4 - RegExp.$1.length)); 
+  }
+  for(var k in o) {
+    if(new RegExp("("+ k +")").test(fmt)){
+          fmt = fmt.replace(RegExp.$1, (RegExp.$1.length==1) ? (o[k]) : (("00"+ o[k]).substr((""+ o[k]).length)));
+      }
+  }
+  return fmt; 
 }
 
 /*
@@ -322,5 +346,6 @@ module.exports = {
   getSubtaskName,
   calculateCapacity,
   getSprintsByRequiredSkills,
-  getIndexOfValueInArr
+  getIndexOfValueInArr,
+  formatDate
 }
