@@ -48,6 +48,10 @@ var Sprint = sequelize.define('sprint', {
         type: Sequelize.STRING,
         defaultValue: 'Active'
     },
+    DataSource: {
+        type: Sequelize.STRING(100),
+        defaultValue: null
+    },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
