@@ -22,6 +22,79 @@ router.get('/', function(req, res, next) {
   return res.json({message: 'Response task resource'});
 });
 
+// Get task list count
+router.get('/getTasksListCount', async function(req, res, next) {
+  var criteria = {
+    Status: {[Op.ne]: 'Obsolete'}
+  }
+  // Assignee id criteria
+  var reqAssigneeId = req.query.reqAssigneeId;
+  if (reqAssigneeId != null && reqAssigneeId != '') {
+    criteria.AssigneeId = reqAssigneeId;
+    var reqDate = req.query.reqDate;
+    if (reqDate != null && reqDate != '') {
+      var sprintIdArray = await Utils.getSprintIdByDateAndUserId(reqDate, reqAssigneeId);
+      if (sprintIdArray != null && sprintIdArray.length > 0) {
+        criteria.SprintId = {
+          [Op.in]: sprintIdArray
+        }
+      }
+    }
+  }
+  Task.count({
+    where: criteria
+  }).then(async function(result) {
+    return res.json(Utils.responseMessage(0, result, ''));
+  })
+});
+
+// Get task list
+router.get('/getTasksList', async function(req, res, next) {
+  var reqSize = Number(req.query.reqSize);
+  var reqPage = Number(req.query.reqPage);
+  var criteria = {
+    Status: {[Op.ne]: 'Obsolete'}
+  }
+  // Assignee id criteria
+  var reqAssigneeId = req.query.reqAssigneeId;
+  if (reqAssigneeId != null && reqAssigneeId != '') {
+    criteria.AssigneeId = reqAssigneeId;
+    var reqDate = req.query.reqDate;
+    if (reqDate != null && reqDate != '') {
+      var sprintIdArray = await Utils.getSprintIdByDateAndUserId(reqDate, reqAssigneeId);
+      if (sprintIdArray != null && sprintIdArray.length > 0) {
+        criteria.SprintId = {
+          [Op.in]: sprintIdArray
+        }
+      }
+    }
+  }
+  Task.findAll({
+    include: [
+      {
+        model: User, 
+        attributes: ['Id', 'Name', 'Nickname', 'WorkingHrs']
+      },
+      {
+        model: Sprint
+      },
+    ],
+    where: criteria,
+    limit: reqSize,
+    offset: reqSize * (reqPage - 1),
+    order: [
+      ['IssueDate', 'DESC']
+    ]
+  }).then(async function(tasks) {
+    if (tasks != null && tasks.length > 0) {
+      var responseTasks = await Utils.generateResponseTasksInfo(tasks);
+      return res.json(Utils.responseMessage(0, responseTasks, ''));
+    } else {
+      return res.json(Utils.responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
 // Get task list count by skill
 router.post('/getTasksListCountBySkill', function(req, res, next) {
   var criteria = {
@@ -420,6 +493,8 @@ router.post('/getTasksByWorklogKeyword', async function(req, res, next) {
     criteria.SprintId = {
       [Op.in]: sprintIdArray
     }
+  } else {
+    return res.json(Utils.responseMessage(1, null, 'Not assign to any sprint at date[' + reqDate + ']'));
   }
   Task.findAll({
     include: [{
