@@ -67,6 +67,7 @@ async function generateResponseSprintsInfo(sprints) {
       resJson.sprintName = sprints[i].Name;
       resJson.sprintStartTime = sprints[i].StartTime;
       resJson.sprintEndTime = sprints[i].EndTime;
+      resJson.sprintTimeGroup = sprints[i].StartTime + ' ~ ' + sprints[i].EndTime;
       resJson.sprintBaseline = sprints[i].Baseline;
       resJson.sprintWorkingDays = sprints[i].WorkingDays;
       resJson.sprintBaseCapacity = sprints[i].BaseCapacity;
@@ -210,7 +211,10 @@ async function getSprintUsersBySprintId(iReqSprintId) {
       }],
       where: {
         SprintId: iReqSprintId
-      }
+      },
+      order: [
+        [{ model: User, as: 'modelUser' }, 'Nickname', 'asc']
+      ],
     }).then(function(sprintUsers) {
       if (sprintUsers != null && sprintUsers.length > 0) {
         var rtnResult = [];
@@ -254,9 +258,11 @@ async function getSprintUsersCapacitySumBySprintId(iReqSprintId) {
 router.post('/updateSprint', function(req, res, next) {
   console.log('Start to create or update sprint');
   var reqSprintObj = generateRequestSprintObject(req.body);
+  // For integer type, need to format the request param to number type, otherwise the result will return string instead of integer
+  // For example, if not Number(req.body.reqSprintId), the result record sprint.Id will be string type i/o integer type 
   Sprint.findOrCreate({
     where: {
-      Id: req.body.reqSprintId
+      Id: Number(req.body.reqSprintId)
     }, 
     defaults: reqSprintObj
   }).spread(async function(sprint, created) {
@@ -284,7 +290,7 @@ function generateRequestSprintObject (iRequest) {
     RequiredSkills: iRequest.reqSprintRequiredSkills != ''? iRequest.reqSprintRequiredSkills: null,
     Status: iRequest.reqSprintStatus != ''? iRequest.reqSprintStatus: 'Active',
     DataSource: iRequest.reqSprintDataSource != ''? iRequest.reqSprintDataSource: null,
-    LeaderId: iRequest.reqSprintLeaderId != ''? iRequest.reqSprintLeaderId: null,
+    LeaderId: iRequest.reqSprintLeaderId != ''? Number(iRequest.reqSprintLeaderId): null,
   }
   return reqSprintObj;
 }
