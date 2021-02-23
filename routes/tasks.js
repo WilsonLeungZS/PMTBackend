@@ -135,6 +135,9 @@ router.get('/getTaskById', function(req, res, next) {
     include: [{
       model: User, 
       attributes: ['Id', 'Name', 'Nickname', 'WorkingHrs']
+    },
+    {
+      model: Sprint
     }],
     where: {
       Id: reqTaskId
@@ -382,38 +385,47 @@ function getPMTTaskSequenceNumber () {
 }
 
 // Get task list for worklog
-router.post('/getTasksByWorklogKeyword', function(req, res, next) {
+router.post('/getTasksByWorklogKeyword', async function(req, res, next) {
   var rtnResult = [];
   var reqKeyword = req.body.reqKeyword.trim();
   var reqTaskAssigneeId = Number(req.body.reqTaskAssigneeId);
-  console.log('Search task by keyword: ' + reqKeyword + ' for user ' + reqTaskAssigneeId);
+  var reqDate = req.body.reqDate;
+  console.log('Search task by keyword: ' + reqKeyword + ' for user ' + reqTaskAssigneeId + ', Date -> ' + reqDate);
+  var criteria = {
+    Name: {[Op.notLike]: 'Dummy - %'},
+    [Op.or]: [
+      {Name: {[Op.like]:'%' + reqKeyword + '%'}},
+      {Title: {[Op.like]:'%' + reqKeyword + '%'}},
+      {Description: {[Op.like]:'%' + reqKeyword + '%'}},
+      {ReferenceTask: {[Op.like]:'%' + reqKeyword + '%'}}
+    ],
+    [Op.and]: [
+      { Status: {[Op.ne]: 'Drafting'}},
+      { Status: {[Op.ne]: 'Planning'}},
+      //{ Status: {[Op.ne]: 'Done'}},
+      {[Op.or]: [
+        {[Op.and]: [
+            { TypeTag: 'One-Off Task' },
+            { SprintId: {[Op.ne]: null}},
+            { AssigneeId: reqTaskAssigneeId },
+        ]},
+        { TypeTag: 'Public Task' }
+      ]}
+    ],
+    Id: { [Op.ne]: null }
+  }
+  var sprintIdArray = await Utils.getSprintIdByDateAndUserId(reqDate, reqTaskAssigneeId);
+  console.log('Sprint Id Array -> ', sprintIdArray);
+  if (sprintIdArray != null && sprintIdArray.length > 0) {
+    criteria.SprintId = {
+      [Op.in]: sprintIdArray
+    }
+  }
   Task.findAll({
     include: [{
       model: Sprint
     }],
-    where: {
-      Name: {[Op.notLike]: 'Dummy - %'},
-      [Op.or]: [
-        {Name: {[Op.like]:'%' + reqKeyword + '%'}},
-        {Title: {[Op.like]:'%' + reqKeyword + '%'}},
-        {Description: {[Op.like]:'%' + reqKeyword + '%'}},
-        {ReferenceTask: {[Op.like]:'%' + reqKeyword + '%'}}
-      ],
-      [Op.and]: [
-        { Status: {[Op.ne]: 'Drafting'}},
-        { Status: {[Op.ne]: 'Planning'}},
-        //{ Status: {[Op.ne]: 'Done'}},
-        {[Op.or]: [
-          {[Op.and]: [
-              { TypeTag: 'One-Off Task' },
-              { SprintId: {[Op.ne]: null}},
-              { AssigneeId: reqTaskAssigneeId },
-          ]},
-          { TypeTag: 'Public Task' }
-        ]}
-      ],
-      Id: { [Op.ne]: null }
-    },
+    where: criteria,
     limit: 100,
     order: [
       ['IssueDate', 'DESC']

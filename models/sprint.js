@@ -11,7 +11,7 @@ var moment = require('moment');
 var User = require('./user');
 
 var Sprint = sequelize.define('sprint', {
-    Id:{ 
+    Id: { 
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true

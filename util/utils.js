@@ -101,6 +101,9 @@ async function generateResponseTasksInfo (tasks) {
       resJson.taskDeliverableTag = tasks[i].DeliverableTag != null ? tasks[i].DeliverableTag.split(','): null;
       resJson.taskCustomer = tasks[i].Customer;
       resJson.taskSprintId = tasks[i].SprintId;
+      resJson.taskSprintName = tasks[i].sprint != null? tasks[i].sprint.Name: null;
+      resJson.taskSprintStartTime = tasks[i].sprint != null? tasks[i].sprint.StartTime: null;
+      resJson.taskSprintEndTime = tasks[i].sprint != null? tasks[i].sprint.EndTime: null;
       resJson.taskCreator = tasks[i].Creator.replace('PMT:', '');
       resJson.taskRequiredSkills = this.handleSkillsArray(tasks[i].RequiredSkills).split(',').map(Number);
       resJson.taskRequiredSkillsStr = this.getSkillsByList(this.handleSkillsArray(tasks[i].RequiredSkills), skillsList).toString();
@@ -317,6 +320,34 @@ function formatDate (date, fmt) {
   return fmt; 
 }
 
+function getSprintIdByDateAndUserId (iDate, iUserId) {
+  return new Promise((resolve, reject) => {
+    SprintUserMap.findAll({
+      include: [{
+        model: Sprint,
+        where: {
+          StartTime: {[Op.lte]: iDate},
+          EndTime: {[Op.gte]: iDate},
+        }
+      }],
+      where: {
+        Id: { [Op.ne]: null },
+        UserId: iUserId
+      }
+    }).then(function(sprintUserMap) {
+      if (sprintUserMap != null && sprintUserMap.length > 0) {
+        var result = [];
+        for (var i=0; i<sprintUserMap.length; i++) {
+          result.push(sprintUserMap[i].SprintId);
+        }
+        resolve(result);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
 /*
 async function getSkillsStrByIdArray (iSkillsIdArray) {
   var skillsArray = iSkillsIdArray.split(',');
@@ -347,5 +378,6 @@ module.exports = {
   calculateCapacity,
   getSprintsByRequiredSkills,
   getIndexOfValueInArr,
-  formatDate
+  formatDate,
+  getSprintIdByDateAndUserId
 }
