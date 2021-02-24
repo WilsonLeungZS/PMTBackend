@@ -46,6 +46,61 @@ router.get('/getActiveSprintsList', function(req, res, next) {
   })
 });
 
+// Get active sprints list
+router.get('/getActiveSprintsGroup', function(req, res, next) {
+  Sprint.findAll({
+    include: [{
+      model: User, 
+      attributes: ['Id', 'Name']
+    }],
+    where: {
+      Status: { [Op.ne]: 'Obsolete' }
+    },
+    order: [
+      ['StartTime', 'DESC']
+    ]
+  })
+  .then(async function(sprints) {
+    if (sprints != null && sprints.length > 0) {
+      var sprintsArray = await generateResponseSprintsInfo(sprints);
+      var responseSprints = sortListBySprintTimeGroup(sprintsArray);
+      return res.json(Utils.responseMessage(0, responseSprints, ''));
+    } else {
+      return res.json(Utils.responseMessage(1, null, 'No sprint exist'));
+    }
+  })
+});
+
+function sortListBySprintTimeGroup (iSprintList) {
+  var result = []
+  if (iSprintList != null && iSprintList.length > 0) {
+    for (var i=0; i<iSprintList.length; i++) {
+      var timeGroup = iSprintList[i].sprintTimeGroup
+      var index = Utils.getIndexOfValueInArr(result, 'Label', timeGroup)
+      if (index == -1) {
+        result.push({
+          Label: timeGroup,
+          StartTime: iSprintList[i].sprintStartTime,
+          EndTime: iSprintList[i].sprintEndTime,
+          WorkingDays: iSprintList[i].sprintWorkingDays,
+          PlannedCapacity: iSprintList[i].sprintPlannedCapacity != null? Number(iSprintList[i].sprintPlannedCapacity): 0,
+          ContractCapacity: iSprintList[i].sprintBaseCapacity != null? Number(iSprintList[i].sprintBaseCapacity): 0,
+          Options: [iSprintList[i]]
+        })
+      } else {
+        result[index].Options.push(iSprintList[i]);
+        if (iSprintList[i].sprintBaseCapacity != null) {
+          result[index].ContractCapacity = result[index].ContractCapacity + Number(iSprintList[i].sprintBaseCapacity);
+        }
+        if (iSprintList[i].sprintPlannedCapacity != null) {
+          result[index].PlannedCapacity = result[index].PlannedCapacity + Number(iSprintList[i].sprintPlannedCapacity);
+        }
+      }
+    }
+  }
+  return result
+}
+
 router.get('/getActiveSprintsListBySkills', async function(req, res, next) {
   var reqRequiredSkills = req.query.reqRequiredSkills;
   var sprints = await Utils.getSprintsByRequiredSkills(reqRequiredSkills, null, null);
@@ -71,6 +126,9 @@ async function generateResponseSprintsInfo(sprints) {
       resJson.sprintBaseline = sprints[i].Baseline;
       resJson.sprintWorkingDays = sprints[i].WorkingDays;
       resJson.sprintBaseCapacity = sprints[i].BaseCapacity;
+      var sprintPlannedCapacityObj = await getSprintUsersCapacitySumBySprintId(sprints[i].Id);
+      var sprintPlannedCapacity = sprintPlannedCapacityObj[0].dataValues.CapacitySum != null? sprintPlannedCapacityObj[0].dataValues.CapacitySum: '0';
+      resJson.sprintPlannedCapacity = Number(sprintPlannedCapacity);
       resJson.sprintRequiredSkills = Utils.handleSkillsArray(sprints[i].RequiredSkills).split(',').map(Number);
       resJson.sprintRequiredSkillsStr = Utils.getSkillsByList(Utils.handleSkillsArray(sprints[i].RequiredSkills), skillsList).toString();
       resJson.sprintStatus = sprints[i].Status;

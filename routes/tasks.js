@@ -513,6 +513,7 @@ router.post('/getTasksByWorklogKeyword', async function(req, res, next) {
         resJson.taskName = tasks[i].Name;
         resJson.taskTitle = tasks[i].Title;
         resJson.taskSprintName = tasks[i].sprint != null? tasks[i].sprint.Name: null;
+        resJson.taskSprintTimeRange = tasks[i].sprint != null? tasks[i].sprint.StartTime + '~' + tasks[i].sprint.EndTime: null;
         rtnResult.push(resJson);
       }
       return res.json(Utils.responseMessage(0, rtnResult, ''));
