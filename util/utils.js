@@ -104,6 +104,7 @@ async function generateResponseTasksInfo (tasks) {
       resJson.taskSprintName = tasks[i].sprint != null? tasks[i].sprint.Name: null;
       resJson.taskSprintStartTime = tasks[i].sprint != null? tasks[i].sprint.StartTime: null;
       resJson.taskSprintEndTime = tasks[i].sprint != null? tasks[i].sprint.EndTime: null;
+      resJson.taskSprintStatus = tasks[i].sprint != null? tasks[i].sprint.Status: null;
       resJson.taskCreator = tasks[i].Creator.replace('PMT:', '');
       resJson.taskRequiredSkills = this.handleSkillsArray(tasks[i].RequiredSkills).split(',').map(Number);
       resJson.taskRequiredSkillsStr = this.getSkillsByList(this.handleSkillsArray(tasks[i].RequiredSkills), skillsList).toString();
