@@ -85,6 +85,7 @@ function sortListBySprintTimeGroup (iSprintList) {
           WorkingDays: iSprintList[i].sprintWorkingDays,
           PlannedCapacity: iSprintList[i].sprintPlannedCapacity != null? Number(iSprintList[i].sprintPlannedCapacity): 0,
           ContractCapacity: iSprintList[i].sprintBaseCapacity != null? Number(iSprintList[i].sprintBaseCapacity): 0,
+          SprintUsers: [],
           Options: [iSprintList[i]]
         })
       } else {
@@ -99,6 +100,110 @@ function sortListBySprintTimeGroup (iSprintList) {
     }
   }
   return result
+}
+
+router.get('/getSprintsGroupUserList', async function(req, res, next) {
+  var result = [];
+  var workingDays = Number(req.query.reqWorkingDays);
+  // Get sprint user map to calculate used capacity
+  var sprintUserMaps = await getSpringUserMap(req.query.reqStartTime, req.query.reqEndTime);
+  if (sprintUserMaps != null && sprintUserMaps.length > 0) {
+    for (var i=0; i<sprintUserMaps.length; i++) {
+      var resJson = {};
+      var sprintUserFullName = sprintUserMaps[i].user.Name + ' (' + sprintUserMaps[i].user.Nickname + ')';
+      var index = Utils.getIndexOfValueInArr(result, 'sprintUserFullName', sprintUserFullName);
+      if (index == -1) {
+        resJson.sprintUserId = sprintUserMaps[i].user.Id;
+        resJson.sprintUserFullName = sprintUserFullName;
+        resJson.sprintUserAssignToSprints = ', ' + sprintUserMaps[i].sprint.Name;
+        resJson.sprintUserPlannedCapacity = Number(sprintUserMaps[i].Capacity);
+        resJson.sprintUserWorkingHrs = Number(sprintUserMaps[i].user.WorkingHrs);
+        result.push(resJson);
+      } else {
+        result[index].sprintUserAssignToSprints = result[index].sprintUserAssignToSprints + ', ' + sprintUserMaps[i].sprint.Name;
+        result[index].sprintUserPlannedCapacity = result[index].sprintUserPlannedCapacity + Number(sprintUserMaps[i].Capacity);
+      }
+    }
+  }
+  if (result != null && result.length > 0) {
+    for (var i=0; i<result.length; i++) {
+      if(result[i].sprintUserAssignToSprints != null && result[i].sprintUserAssignToSprints != '') {
+        result[i].sprintUserAssignToSprints = result[i].sprintUserAssignToSprints.slice(2);
+      }
+      result[i].sprintUserRemainingCapacity = workingDays * result[i].sprintUserWorkingHrs - result[i].sprintUserPlannedCapacity;
+    }
+  }
+  var userList = await getUserList();
+  var skillsList = await Utils.getAllSkillsList();
+  if (userList != null && userList.length > 0) {
+    for (var i=0; i<userList.length; i++) {
+      var resJson = {};
+      var index = Utils.getIndexOfValueInArr(result, 'sprintUserId', userList[i].Id);
+      if (index == -1) {
+        resJson.sprintUserId = userList[i].Id;
+        resJson.sprintUserFullName = userList[i].Name + ' (' + userList[i].Nickname + ')';
+        resJson.sprintUserAssignToSprints = '';
+        resJson.sprintUserPlannedCapacity = 0;
+        resJson.sprintUserWorkingHrs = userList[i].WorkingHrs;
+        resJson.sprintUserRemainingCapacity = workingDays * userList[i].WorkingHrs;
+        resJson.sprintUserSkills = Utils.getSkillsByList(Utils.handleSkillsArray(userList[i].Skills), skillsList).toString();
+        result.push(resJson);
+      } else {
+        result[index].sprintUserSkills = Utils.getSkillsByList(Utils.handleSkillsArray(userList[i].Skills), skillsList).toString();
+      }
+    }
+  }
+  if (result != null && result.length > 0) {
+    return res.json(Utils.responseMessage(0, result, ''));
+  } else {
+    return res.json(Utils.responseMessage(1, null, 'No sprint user map exist'));
+  }
+});
+
+function getSpringUserMap (iStartTime, iEndTime) {
+  return new Promise((resolve,reject) =>{
+    SprintUserMap.findAll({
+      include: [{
+        model: User,
+        attributes: ['Id', 'Name', 'Nickname', 'WorkingHrs']
+      },
+      {
+        model: Sprint,
+        attributes: ['Name'],
+        where: {
+          Status: { [Op.ne]: 'Obsolete' },
+          StartTime: iStartTime,
+          EndTime: iEndTime
+        }
+      }],
+      where: {
+        Id: { [Op.ne]: null }
+      }
+    }).then(async function(sprintUserMaps) {
+      if (sprintUserMaps != null && sprintUserMaps.length > 0) {
+        resolve(sprintUserMaps);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+function getUserList () {
+  return new Promise((resolve,reject) =>{
+    User.findAll({
+      where: {
+        Level: { [Op.ne]: -1 },
+        IsActive: 1
+      }
+    }).then(async function(users) {
+      if (users != null && users.length > 0) {
+        resolve(users);
+      } else {
+        resolve(null);
+      }
+    });
+  });
 }
 
 router.get('/getActiveSprintsListBySkills', async function(req, res, next) {
@@ -135,6 +240,12 @@ async function generateResponseSprintsInfo(sprints) {
       resJson.sprintDataSource = (sprints[i].DataSource != null && sprints[i].DataSource != '')? sprints[i].DataSource.split(','): null;
       resJson.sprintLeaderId = sprints[i].user.Id;
       resJson.sprintLeader = sprints[i].user.Name;
+      var sprintTotalEffort = await getTasksEffortSumBySprintId(sprints[i].Id, null);
+      if (sprintTotalEffort != null) {
+        resJson.sprintTotalEffort = sprintTotalEffort[0].dataValues.EffortSum;
+      } else {
+        resJson.sprintTotalEffort = 0;
+      }
       rtnResult.push(resJson);
     }
     // console.log('Return result -> ', rtnResult);
@@ -214,14 +325,17 @@ async function getTasksBySprintId(iReqSprintId, iReqSprintIndicator) {
 
 async function getTasksEffortSumBySprintId(iReqSprintId, iReqSprintIndicator) {
   return new Promise((resolve,reject) =>{
+    var criteria = {
+      SprintId: iReqSprintId,
+    }
+    if (iReqSprintIndicator != null && iReqSprintIndicator != '') {
+      criteria.SprintIndicator = iReqSprintIndicator
+    }
     Task.findAll({
       attributes: [
         [Sequelize.fn('sum', Sequelize.col('Effort')), 'EffortSum']
       ],
-      where: {
-        SprintId: iReqSprintId,
-        SprintIndicator: iReqSprintIndicator
-      }
+      where: criteria
     }).then(function(result) {
       resolve(result);
     })
