@@ -101,6 +101,8 @@ router.post('/getTasksListCountBySkill', function(req, res, next) {
     Status: {[Op.ne]: 'Obsolete'},
     SprintId: null
   }
+  var andCriteria = {}
+  var andCriteriaArray = []
   // Skill criteria
   var reqSkillsArray = req.body.reqSkillsArray;
   if (reqSkillsArray != null && reqSkillsArray != '') {
@@ -112,7 +114,7 @@ router.post('/getTasksListCountBySkill', function(req, res, next) {
     var skillsCriteria = {
       [Op.or]: skills
     }
-    Object.assign(criteria, skillsCriteria);
+    andCriteriaArray.push(skillsCriteria);
   }
   // Customer criteria
   var reqTaskCustomer = req.body.reqTaskCustomer;
@@ -129,7 +131,13 @@ router.post('/getTasksListCountBySkill', function(req, res, next) {
         {Description: {[Op.like]:'%' + reqTaskKeyword + '%'}},
       ]
     }
-    Object.assign(criteria, taskKeywordCriteria);
+    andCriteriaArray.push(taskKeywordCriteria);
+  }
+  if (andCriteriaArray != null && andCriteriaArray.length > 0) {
+    andCriteria = {
+      [Op.and]: andCriteriaArray
+    }
+    Object.assign(criteria, andCriteria);
   }
   Task.count({
     where: criteria
