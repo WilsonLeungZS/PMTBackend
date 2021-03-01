@@ -34,10 +34,13 @@ router.get('/getTasksListCount', async function(req, res, next) {
     var reqDate = req.query.reqDate;
     if (reqDate != null && reqDate != '') {
       var sprintIdArray = await Utils.getSprintIdByDateAndUserId(reqDate, reqAssigneeId);
+      console.log('sprintIdArray -> ', sprintIdArray);
       if (sprintIdArray != null && sprintIdArray.length > 0) {
         criteria.SprintId = {
           [Op.in]: sprintIdArray
         }
+      } else {
+        return res.json(Utils.responseMessage(1, null, 'No sprint exist'));
       }
     }
   }
@@ -66,6 +69,8 @@ router.get('/getTasksList', async function(req, res, next) {
         criteria.SprintId = {
           [Op.in]: sprintIdArray
         }
+      } else {
+        return res.json(Utils.responseMessage(1, null, 'No sprint exist'));
       }
     }
   }
