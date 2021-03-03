@@ -102,9 +102,14 @@ router.get('/getTasksList', async function(req, res, next) {
 
 // Get task list count by skill
 router.post('/getTasksListCountBySkill', function(req, res, next) {
-  var criteria = {
-    Status: {[Op.ne]: 'Obsolete'},
-    SprintId: null
+  var criteria = { SprintId: null };
+  // Show Done task nor not
+  var reqShowDoneTask = req.body.reqShowDoneTask;
+  console.log('reqShowDoneTask -> ', reqShowDoneTask);
+  if (reqShowDoneTask == 'true') {
+    criteria.Status = {[Op.notIn]: ['Obsolete']}
+  } else {
+    criteria.Status = {[Op.notIn]: ['Done', 'Obsolete']}
   }
   var andCriteria = {}
   var andCriteriaArray = []
@@ -155,9 +160,13 @@ router.post('/getTasksListCountBySkill', function(req, res, next) {
 router.post('/getTasksListBySkill', function(req, res, next) {
   var reqSize = Number(req.body.reqSize);
   var reqPage = Number(req.body.reqPage);
-  var criteria = {
-    Status: {[Op.ne]: 'Obsolete'},
-    SprintId: null
+  var criteria = { SprintId: null };
+  // Show Done task nor not
+  var reqShowDoneTask = req.body.reqShowDoneTask;
+  if (reqShowDoneTask == 'true') {
+    criteria.Status = {[Op.notIn]: ['Obsolete']}
+  } else {
+    criteria.Status = {[Op.notIn]: ['Done', 'Obsolete']}
   }
   var andCriteria = {}
   var andCriteriaArray = []

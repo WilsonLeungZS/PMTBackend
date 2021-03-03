@@ -379,7 +379,7 @@ async function getSprintUsersBySprintId(iReqSprintId) {
     SprintUserMap.findAll({
       include: [{
         model: User, 
-        attributes: ['Id', 'Name', 'Nickname', 'WorkingHrs', 'Level']
+        attributes: ['Id', 'Name', 'Nickname', 'WorkingHrs', 'Level', 'Skills']
       }],
       where: {
         SprintId: iReqSprintId
@@ -387,9 +387,10 @@ async function getSprintUsersBySprintId(iReqSprintId) {
       order: [
         [{ model: User, as: 'modelUser' }, 'Nickname', 'asc']
       ],
-    }).then(function(sprintUsers) {
+    }).then(async function(sprintUsers) {
       if (sprintUsers != null && sprintUsers.length > 0) {
         var rtnResult = [];
+        var skillsList = await Utils.getAllSkillsList();
         for (var i=0; i<sprintUsers.length; i++) {
           var resJson = {};
           resJson.sprintId = sprintUsers[i].SprintId;
@@ -401,6 +402,7 @@ async function getSprintUsersBySprintId(iReqSprintId) {
           resJson.sprintUserCapacity = sprintUsers[i].Capacity;
           resJson.sprintUserMaxCapacity = sprintUsers[i].MaxCapacity;
           resJson.sprintUserWorkingHrs = sprintUsers[i].user.WorkingHrs;
+          resJson.sprintUserSkillsStr = Utils.getSkillsByList(Utils.handleSkillsArray(sprintUsers[i].user.Skills), skillsList).toString();
           rtnResult.push(resJson);
         }
         resolve(rtnResult);
