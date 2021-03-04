@@ -380,16 +380,22 @@ async function getSprintUsersBySprintId(iReqSprintId) {
       include: [{
         model: User, 
         attributes: ['Id', 'Name', 'Nickname', 'WorkingHrs', 'Level', 'Skills']
+      },
+      {
+        model: Sprint, 
+        attributes: ['Id', 'LeaderId']
       }],
       where: {
         SprintId: iReqSprintId
       },
       order: [
-        [{ model: User, as: 'modelUser' }, 'Nickname', 'asc']
+        ['Capacity', 'DESC'],
+        [{ model: User, as: 'modelUser' }, 'Level', 'DESC']
       ],
     }).then(async function(sprintUsers) {
       if (sprintUsers != null && sprintUsers.length > 0) {
         var rtnResult = [];
+        var leader = {};
         var skillsList = await Utils.getAllSkillsList();
         for (var i=0; i<sprintUsers.length; i++) {
           var resJson = {};
@@ -403,7 +409,14 @@ async function getSprintUsersBySprintId(iReqSprintId) {
           resJson.sprintUserMaxCapacity = sprintUsers[i].MaxCapacity;
           resJson.sprintUserWorkingHrs = sprintUsers[i].user.WorkingHrs;
           resJson.sprintUserSkillsStr = Utils.getSkillsByList(Utils.handleSkillsArray(sprintUsers[i].user.Skills), skillsList).toString();
+          if (sprintUsers[i].sprint.LeaderId == sprintUsers[i].UserId) {
+            leader = resJson;
+            continue;
+          }
           rtnResult.push(resJson);
+        }
+        if (leader != null && leader.sprintUserId > 0) {
+          rtnResult.unshift(leader)
         }
         resolve(rtnResult);
       } else {
