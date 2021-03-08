@@ -15,6 +15,7 @@ var Sprint = require('../models/sprint');
 var User = require('../models/user');
 var Task = require('../models/task');
 var SprintUserMap = require('../models/sprint_user_map');
+var DailyScrum = require('../models/daily_scrum');
 
 const Op = Sequelize.Op;
 
@@ -362,7 +363,11 @@ async function getTasksEstimationSumBySprintId(iReqSprintId, iReqSprintIndicator
 // Get Sprint User Information 
 router.get('/getSprintUsersById', async function(req, res, next) {
   var reqSprintId = Number(req.query.reqSprintId);
-  var sprintUsers = await getSprintUsersBySprintId(reqSprintId);
+  var reqScrumDate = req.query.reqScrumDate;
+  if (reqScrumDate == null || reqScrumDate == '' || reqScrumDate == undefined) {
+    reqScrumDate = null;
+  }
+  var sprintUsers = await getSprintUsersBySprintId(reqSprintId, reqScrumDate);
   var sprintUsersCapacitySum = await getSprintUsersCapacitySumBySprintId(reqSprintId);
   var result = {}
   result.sprintUsers = sprintUsers
@@ -374,7 +379,7 @@ router.get('/getSprintUsersById', async function(req, res, next) {
   }
 });
 
-async function getSprintUsersBySprintId(iReqSprintId) {
+async function getSprintUsersBySprintId(iReqSprintId, iReqScrumDate) {
   return new Promise((resolve, reject) =>{
     SprintUserMap.findAll({
       include: [{
@@ -409,6 +414,16 @@ async function getSprintUsersBySprintId(iReqSprintId) {
           resJson.sprintUserMaxCapacity = sprintUsers[i].MaxCapacity;
           resJson.sprintUserWorkingHrs = sprintUsers[i].user.WorkingHrs;
           resJson.sprintUserSkillsStr = Utils.getSkillsByList(Utils.handleSkillsArray(sprintUsers[i].user.Skills), skillsList).toString();
+          if (iReqScrumDate != null) {
+            var dailyScrum = await getSprintUserDailyScrum(iReqScrumDate, sprintUsers[i].SprintId, sprintUsers[i].UserId);
+            if (dailyScrum != null) {
+              resJson.sprintDailyScrumUserCompletion = dailyScrum.Completion;
+              resJson.sprintDailyScrumUserAttendance = dailyScrum.Attendance;
+            } else {
+              resJson.sprintDailyScrumUserCompletion = false;
+              resJson.sprintDailyScrumUserAttendance = 'Absent';
+            }
+          }
           if (sprintUsers[i].sprint.LeaderId == sprintUsers[i].UserId) {
             leader = resJson;
             continue;
@@ -423,6 +438,20 @@ async function getSprintUsersBySprintId(iReqSprintId) {
         resolve(null);
       }
     });
+  });
+}
+
+async function getSprintUserDailyScrum (iDate, iSprintId, iUserId) {
+  return new Promise((resolve, reject) =>{
+    DailyScrum.findOne({
+      where: {
+        ScrumDate: iDate,
+        SprintId: iSprintId,
+        UserId: iUserId
+      }
+    }).then(function(dailyScrum) {
+      resolve(dailyScrum);
+    })
   });
 }
 
@@ -501,6 +530,43 @@ router.post('/updateSprintStatus', function(req, res, next) {
     }
   })
 });
+
+router.post('/updateDailyScrum', async function(req, res, next) {
+  var reqSprintId = Number(req.body.reqSprintId);
+  var reqScrumDate = req.body.reqScrumDate;
+  var reqScrumList = JSON.parse(req.body.reqScrumList);
+  if (reqScrumList != null) {
+    for (var i=0; i<reqScrumList.length; i++) {
+      var result = await updateDailyScrum(reqSprintId, reqScrumList[i].sprintUserId, reqScrumDate, reqScrumList[i].sprintDailyScrumUserAttendance, reqScrumList[i].sprintDailyScrumUserCompletion);
+      reqScrumList[i].dailyScrumUpdateStatus = result;
+    }
+  }
+  return res.json(Utils.responseMessage(0, reqScrumList, ''));
+});
+
+function updateDailyScrum (iSprintId, iUserId, iDate, iAttendance, iCompletion) {
+  return new Promise((resolve,reject) =>{
+    DailyScrum.findOrCreate({
+      where: {
+        SprintId: iSprintId,
+        UserId: iUserId,
+        ScrumDate: iDate
+      }
+    }).spread(async function(dailyScrum, created) {
+      if (created) {
+        await dailyScrum.update({Attendance: iAttendance, Completion: iCompletion});
+        resolve(true);
+      }
+      else if (!created && dailyScrum != null) {
+        await dailyScrum.update({Attendance: iAttendance, Completion: iCompletion});
+        resolve(true);
+      }
+      else {
+        resolve(false);
+      }
+    });
+  });
+}
 
 // Assign user to sprint
 router.post('/assignUserToSprint', function(req, res, next) {
