@@ -423,6 +423,10 @@ async function getSprintUsersBySprintId(iReqSprintId, iReqScrumDate) {
               resJson.sprintDailyScrumUserCompletion = false;
               resJson.sprintDailyScrumUserAttendance = 'Absent';
             }
+            // Capacity <= 18 should mark as "Optional"
+            if (sprintUsers[i].Capacity <= 18) {
+              resJson.sprintDailyScrumUserAttendance = 'Optional';
+            }
           }
           if (sprintUsers[i].sprint.LeaderId == sprintUsers[i].UserId) {
             leader = resJson;

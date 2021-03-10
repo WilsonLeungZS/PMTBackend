@@ -177,7 +177,10 @@ async function createSNOWTask(taskObj) {
                 Logger.info('New reference task is created!');
               } 
               else if (refTask != null && !created) {
-                delete taskNewObj.Name
+                delete taskNewObj.Name;
+                if (refTask.Status == 'Done') {
+                  delete taskNewObj.Status;
+                }
                 await refTask.update(taskNewObj);
                 console.log('Reference task is updated!');
                 Logger.info('Reference task is updated!');
