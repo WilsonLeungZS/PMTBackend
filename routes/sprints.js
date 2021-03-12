@@ -424,7 +424,7 @@ async function getSprintUsersBySprintId(iReqSprintId, iReqScrumDate) {
               resJson.sprintDailyScrumUserAttendance = 'Absent';
             }
             // Capacity <= 18 should mark as "Optional"
-            if (sprintUsers[i].Capacity <= 18) {
+            if (sprintUsers[i].Capacity <= 18 && resJson.sprintDailyScrumUserAttendance == 'Absent') {
               resJson.sprintDailyScrumUserAttendance = 'Optional';
             }
           }
