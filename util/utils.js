@@ -241,7 +241,7 @@ function calculateCapacity (iUserId, iStartTime, iEndTime) {
 
 // Get sprint list by require skills
 // Params: (1) iRequiredSkills = '#1#,#4#' / '1,4'    (2) iRequestTime = '2021-01-02'
-function getSprintsByRequiredSkills (iRequiredSkills, iRequestTime, iDataSource = null) {
+function getSprintsByRequiredSkills (iRequiredSkills, iRequestTime, iDataSource = null, iSprintName = null) {
   return new Promise((resolve, reject) => {
     console.log('Method: getSprintsByRequiredSkills -> ', iRequiredSkills, iRequestTime);
     var criteria = {};
@@ -270,6 +270,9 @@ function getSprintsByRequiredSkills (iRequiredSkills, iRequestTime, iDataSource 
     criteria.Status = { [Op.ne]: 'Obsolete' }
     if (iDataSource != null) {
       criteria.DataSource = { [Op.like]: '%' + iDataSource + '%' }
+    }
+    if (iSprintName != null) {
+      criteria.Name = { [Op.like]: '%' + iSprintName + '%' }
     }
     Sprint.findAll({
       include: [{
