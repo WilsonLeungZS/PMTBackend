@@ -369,7 +369,7 @@ function getStatusMapping(iTaskCategorization, iStatus) {
           }
         }//End of find task type mapping
       }
-      resolve(null);
+      resolve(iStatus);
     });
   });
 }
