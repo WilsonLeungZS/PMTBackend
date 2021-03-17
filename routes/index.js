@@ -155,7 +155,17 @@ async function createSNOWTask(taskObj) {
           var issueDateStrArray = refTaskIssueDate.split(' ');
           console.log('Task issue date -> ', issueDateStrArray[0]);
           console.log('Task required skills -> ', taskNewObj.RequiredSkills);
-          var sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow');
+          var sprints = null;
+          if (taskObj.taskAssignment == 'STP') {
+            sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow', 'STP');
+          } else {
+            if (taskNewObj.RequiredSkills.indexOf('5') != -1) {
+              sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow', 'BSS');
+            }
+            if (taskNewObj.RequiredSkills.indexOf('4') != -1) {
+              sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow', 'TOS');
+            }
+          }
           // console.log('Sprints -> ', sprints);
           if (sprints != null && sprints.length > 0) {
             taskNewObj.SprintId = sprints[0].Id;
@@ -359,7 +369,7 @@ function getStatusMapping(iTaskCategorization, iStatus) {
           }
         }//End of find task type mapping
       }
-      resolve(null);
+      resolve(iStatus);
     });
   });
 }
