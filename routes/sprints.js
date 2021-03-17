@@ -16,6 +16,7 @@ var User = require('../models/user');
 var Task = require('../models/task');
 var SprintUserMap = require('../models/sprint_user_map');
 var DailyScrum = require('../models/daily_scrum');
+const { get } = require('.');
 
 const Op = Sequelize.Op;
 
@@ -278,6 +279,75 @@ router.get('/getSprintById', function(req, res, next) {
     }
   })
 });
+
+// Get Sprint Progress 
+router.get('/getSprintProgressById', async function(req, res, next) {
+  var reqSprintId = Number(req.query.reqSprintId);
+  var result = [];
+  var sprintCapacityProgressObj = await getSprintCapacityProgress(reqSprintId);
+  if (sprintCapacityProgressObj != null) {
+    result.push(sprintCapacityProgressObj);
+  }
+  var sprintTaskProgressObj = await getSprintTaskProgress(reqSprintId);
+  if (sprintTaskProgressObj != null) {
+    result.push(sprintTaskProgressObj);
+  }
+  if (result == null || (result != null && result.length ==0)) {
+    return res.json(Utils.responseMessage(1, null, 'No sprint progress exist'));
+  }
+  return res.json(Utils.responseMessage(0, result, ''));
+});
+
+function getSprintCapacityProgress (iSprintId) {
+  return new Promise(async (resolve,reject) =>{
+    var sprintPlannedCapacityResult = await getSprintUsersCapacitySumBySprintId(iSprintId);
+    var sprintEffortResult = await getTasksEffortSumBySprintId(iSprintId);
+    var sprintCapacityProgress = {};
+    if (sprintPlannedCapacityResult != null && sprintEffortResult) {
+      var sprintPlannedCapacity = sprintPlannedCapacityResult[0].dataValues.CapacitySum;
+      var sprintEffort = sprintEffortResult[0].dataValues.EffortSum;
+      sprintCapacityProgress.plannedCapacity = sprintPlannedCapacity;
+      sprintCapacityProgress.usedCapacity = sprintEffort;
+    }
+    resolve(sprintCapacityProgress);
+  });
+}
+
+function getSprintTaskProgress (iSprintId) {
+  return new Promise(async (resolve,reject) =>{
+    // Total Task Count
+    var totalTaskCount = 0;
+    await Task.findAll({
+      where: {
+        SprintId: iSprintId,
+        Status: {[Op.ne]: 'Obsolete'},
+        SprintIndicator: {[Op.ne]: 'PUBLIC'}
+      }
+    }).then(function(tasks){
+      if(tasks != null && tasks.length > 0) {
+        totalTaskCount = tasks.length;
+      }
+    });
+    // Done Task Count
+    var doneTaskCount = 0;
+    await Task.findAll({
+      where: {
+        SprintId: iSprintId,
+        Status: 'Done',
+        SprintIndicator: {[Op.ne]: 'PUBLIC'}
+      }
+    }).then(function(tasks){
+      if(tasks != null && tasks.length > 0) {
+        doneTaskCount = tasks.length;
+      }
+    });
+    var sprintTaskProgress = {};
+    sprintTaskProgress.totalTaskCount = totalTaskCount;
+    sprintTaskProgress.doneTaskCount = doneTaskCount;
+    resolve(sprintTaskProgress);
+  });
+}
+  
 
 // Get Sprint Task Information 
 router.get('/getSprintTasksById', async function(req, res, next) {
