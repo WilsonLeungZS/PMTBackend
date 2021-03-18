@@ -16,6 +16,8 @@ var User = require('../models/user');
 var Task = require('../models/task');
 var SprintUserMap = require('../models/sprint_user_map');
 var DailyScrum = require('../models/daily_scrum');
+var Worklog = require('../models/worklog');
+
 const { get } = require('.');
 
 const Op = Sequelize.Op;
@@ -284,13 +286,61 @@ router.get('/getSprintById', function(req, res, next) {
 router.get('/getSprintProgressById', async function(req, res, next) {
   var reqSprintId = Number(req.query.reqSprintId);
   var result = [];
+  // 1. Get capacity progress
   var sprintCapacityProgressObj = await getSprintCapacityProgress(reqSprintId);
   if (sprintCapacityProgressObj != null) {
     result.push(sprintCapacityProgressObj);
+  } else {
+    result.push({
+      plannedCapacity: 0,
+      usedCapacity: 0
+    })
   }
+  // 2. Get task completion progress
   var sprintTaskProgressObj = await getSprintTaskProgress(reqSprintId);
   if (sprintTaskProgressObj != null) {
     result.push(sprintTaskProgressObj);
+  } else {
+    result.push({
+      totalTaskCount: 0,
+      doneTaskCount: 0
+    })
+  }
+  // 3. Get planned task effort progress
+  var sprintPlannedTaskEffortProgressObj = await getTasksEffortSumBySprintId(reqSprintId, 'PLANNED');
+  var sprintPlannedTaskEstProgressObj = await getTasksEstimationSumBySprintId(reqSprintId, 'PLANNED');
+  if (sprintPlannedTaskEffortProgressObj != null && sprintPlannedTaskEstProgressObj != null) {
+    result.push({
+      plannedTaskEffort: sprintPlannedTaskEffortProgressObj[0].dataValues.EffortSum == null? 0: sprintPlannedTaskEffortProgressObj[0].dataValues.EffortSum,
+      plannedTaskEst: sprintPlannedTaskEstProgressObj[0].dataValues.EstimationSum == null? 0: sprintPlannedTaskEstProgressObj[0].dataValues.EstimationSum
+    })
+  } else {
+    result.push({
+      plannedTaskEst: 0,
+      plannedTaskEffort: 0
+    })
+  }
+  // 4. Get non planned task effort progress
+  var sprintUnplanTaskEffortProgressObj = await getTasksEffortSumBySprintId(reqSprintId, 'UNPLAN');
+  var sprintPublicTaskEffortProgressObj = await getTasksEffortSumBySprintId(reqSprintId, 'PUBLIC');
+  var sprintBuffer = 0;
+  if (sprintCapacityProgressObj != null && sprintCapacityProgressObj.plannedCapacity > 0) {
+    if (sprintPlannedTaskEstProgressObj != null && sprintPlannedTaskEstProgressObj[0].dataValues != null) {
+      sprintBuffer = Number(sprintCapacityProgressObj.plannedCapacity) - Number(sprintPlannedTaskEstProgressObj[0].dataValues.EstimationSum);
+    }
+  }
+  if (sprintUnplanTaskEffortProgressObj != null && sprintPublicTaskEffortProgressObj != null) {
+    result.push({
+      unplanTaskEffort: sprintUnplanTaskEffortProgressObj[0].dataValues.EffortSum == null? 0: sprintUnplanTaskEffortProgressObj[0].dataValues.EffortSum,
+      publicTaskEffort: sprintPublicTaskEffortProgressObj[0].dataValues.EffortSum == null? 0: sprintPublicTaskEffortProgressObj[0].dataValues.EffortSum,
+      sprintBuffer: sprintBuffer
+    })
+  } else {
+    result.push({
+      unplanTaskEffort: 0,
+      publicTaskEffort: 0,
+      sprintBuffer: sprintBuffer
+    })
   }
   if (result == null || (result != null && result.length ==0)) {
     return res.json(Utils.responseMessage(1, null, 'No sprint progress exist'));
@@ -347,7 +397,6 @@ function getSprintTaskProgress (iSprintId) {
     resolve(sprintTaskProgress);
   });
 }
-  
 
 // Get Sprint Task Information 
 router.get('/getSprintTasksById', async function(req, res, next) {
@@ -481,6 +530,7 @@ async function getSprintUsersBySprintId(iReqSprintId, iReqScrumDate) {
           resJson.sprintUserLevel = sprintUsers[i].user.Level;
           resJson.sprintUserNickname = sprintUsers[i].user.Nickname;
           resJson.sprintUserCapacity = sprintUsers[i].Capacity;
+          resJson.sprintUserActualCapacity = await getSprintUserActualCapacity(sprintUsers[i].SprintId, sprintUsers[i].UserId);
           resJson.sprintUserMaxCapacity = sprintUsers[i].MaxCapacity;
           resJson.sprintUserWorkingHrs = sprintUsers[i].user.WorkingHrs;
           resJson.sprintUserSkillsStr = Utils.getSkillsByList(Utils.handleSkillsArray(sprintUsers[i].user.Skills), skillsList).toString();
@@ -512,6 +562,34 @@ async function getSprintUsersBySprintId(iReqSprintId, iReqScrumDate) {
         resolve(null);
       }
     });
+  });
+}
+
+async function getSprintUserActualCapacity (iSprintId, iUserId) {
+  return new Promise((resolve, reject) =>{
+    Worklog.findAll({
+      include: [{
+        model: Task,
+        attributes: ['Id', 'Name', 'SprintId'],
+        where: {
+          SprintId: iSprintId
+        }
+      }],
+      where: {
+        UserId: iUserId,
+        Id: { [Op.ne]: null }
+      }
+    }).then(function(worklogs) {
+      if (worklogs != null && worklogs.length > 0) {
+        var effortSum = 0;
+        for (var i=0; i<worklogs.length; i++) {
+          effortSum = effortSum + worklogs[i].Effort
+        }
+        resolve(effortSum);
+      } else {
+        resolve(0);
+      }
+    })
   });
 }
 
