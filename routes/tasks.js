@@ -127,9 +127,10 @@ router.post('/getTasksListCountBySkill', function(req, res, next) {
     andCriteriaArray.push(skillsCriteria);
   }
   // Customer criteria
-  var reqTaskCustomer = req.body.reqTaskCustomer;
-  if (reqTaskCustomer != null && reqTaskCustomer != '') {
-    criteria.Customer = {[Op.like]: '%' + reqTaskCustomer + '%'}
+  var reqCustomersArray = req.body.reqTaskCustomer;
+  if (reqCustomersArray != null && reqCustomersArray != '') {
+    var customersArray = reqCustomersArray.split(',');
+    criteria.CustomerId = {[Op.in]: customersArray}
   }
   // Keyword criteria
   var reqTaskKeyword = req.body.reqTaskKeyword;
@@ -184,9 +185,10 @@ router.post('/getTasksListBySkill', function(req, res, next) {
     andCriteriaArray.push(skillsCriteria);
   }
   // Customer criteria
-  var reqTaskCustomer = req.body.reqTaskCustomer;
-  if (reqTaskCustomer != null && reqTaskCustomer != '') {
-    criteria.Customer = {[Op.like]: '%' + reqTaskCustomer + '%'}
+  var reqCustomersArray = req.body.reqTaskCustomer;
+  if (reqCustomersArray != null && reqCustomersArray != '') {
+    var customersArray = reqCustomersArray.split(',');
+    criteria.CustomerId = {[Op.in]: customersArray}
   }
   // Keyword criteria
   var reqTaskKeyword = req.body.reqTaskKeyword;
@@ -421,7 +423,7 @@ async function generateRequestTaskObject (iRequest) {
     DeliverableTag: iRequest.reqTaskDeliverableTag != ''? iRequest.reqTaskDeliverableTag: null,
     Creator: iRequest.reqTaskCreator != ''? iRequest.reqTaskCreator: null,
     RequiredSkills: iRequest.reqTaskRequiredSkills != ''? iRequest.reqTaskRequiredSkills: null,
-    Customer: iRequest.reqTaskCustomer != ''? iRequest.reqTaskCustomer: null,
+    CustomerId: iRequest.reqTaskCustomerId != ''? iRequest.reqTaskCustomerId: null,
     Status: iRequest.reqTaskStatus != ''? iRequest.reqTaskStatus: 'Drafting',
     Estimation: iRequest.reqTaskEstimation != ''? iRequest.reqTaskEstimation: 0,
     IssueDate: iRequest.reqTaskIssueDate != ''? iRequest.reqTaskIssueDate: new Date(),
