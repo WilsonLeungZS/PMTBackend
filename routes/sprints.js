@@ -17,6 +17,7 @@ var Task = require('../models/task');
 var SprintUserMap = require('../models/sprint_user_map');
 var DailyScrum = require('../models/daily_scrum');
 var Worklog = require('../models/worklog');
+var Customer = require('../models/customer');
 
 const { get } = require('.');
 
@@ -225,6 +226,7 @@ async function generateResponseSprintsInfo(sprints) {
   if (sprints != null && sprints.length > 0) {
     var rtnResult = [];
     var skillsList = await Utils.getAllSkillsList();
+    var customersList = await Utils.getAllCustomersList();
     for(var i=0; i<sprints.length; i++){
       var resJson = {};
       resJson.sprintId = sprints[i].Id;
@@ -240,6 +242,8 @@ async function generateResponseSprintsInfo(sprints) {
       resJson.sprintPlannedCapacity = Number(sprintPlannedCapacity);
       resJson.sprintRequiredSkills = Utils.handleSkillsArray(sprints[i].RequiredSkills).split(',').map(Number);
       resJson.sprintRequiredSkillsStr = Utils.getSkillsByList(Utils.handleSkillsArray(sprints[i].RequiredSkills), skillsList).toString();
+      resJson.sprintCustomers = Utils.handleCustomersArray(sprints[i].Customers) != ''? Utils.handleCustomersArray(sprints[i].Customers).split(',').map(Number): null;
+      resJson.sprintCustomersStr = Utils.getCustomersByList(Utils.handleCustomersArray(sprints[i].Customers), customersList).toString();
       resJson.sprintStatus = sprints[i].Status;
       resJson.sprintDataSource = (sprints[i].DataSource != null && sprints[i].DataSource != '')? sprints[i].DataSource.split(','): null;
       resJson.sprintLeaderId = sprints[i].user.Id;
@@ -659,6 +663,7 @@ function generateRequestSprintObject (iRequest) {
     Status: iRequest.reqSprintStatus != ''? iRequest.reqSprintStatus: 'Active',
     DataSource: iRequest.reqSprintDataSource != ''? iRequest.reqSprintDataSource: null,
     LeaderId: iRequest.reqSprintLeaderId != ''? Number(iRequest.reqSprintLeaderId): null,
+    Customers: iRequest.reqSprintCustomers != ''? iRequest.reqSprintCustomers: null
   }
   return reqSprintObj;
 }
@@ -771,6 +776,53 @@ router.post('/removeUserFromSprint', function(req, res, next) {
     }
     else {
       return res.json(Utils.responseMessage(1, null, 'Remove sprint user map fail!'));
+    }
+  })
+});
+
+// Customers Method
+router.get('/getAllCustomersList', async function(req, res, next) {
+  var result = await Utils.getAllCustomersList();
+  if (result != null && result.length > 0) {
+    return res.json(Utils.responseMessage(0, result, ''));
+  } else {
+    return res.json(Utils.responseMessage(1, null, 'No customer exist'));
+  }
+});
+
+router.post('/updateCustomer', function(req, res, next) {
+  console.log('Start to create or update customer');
+  var reqCustomerId = Number(req.body.reqCustomerId);
+  var reqCustomerName = req.body.reqCustomerName;
+  var reqCustomerDescription = req.body.reqCustomerDescription;
+  var reqCustomerHomepage = req.body.reqCustomerHomepage;
+  var reqCustomerEmailDomain = req.body.reqCustomerEmailDomain;
+  Customer.findOrCreate({
+    where: {
+      Id: reqCustomerId
+    }, 
+    defaults: {
+      Name: reqCustomerName,
+      Description: reqCustomerDescription,
+      Homepage: reqCustomerHomepage,
+      EmailDomain: reqCustomerEmailDomain
+    }
+  }).spread(async function(customer, created) {
+    if(created) {
+      console.log('Customer -> ', customer)
+      return res.json(Utils.responseMessage(0, customer, 'Create customer successfully!'));
+    } 
+    else if(customer != null && !created) {
+      await customer.update({
+        Name: reqCustomerName,
+        Description: reqCustomerDescription,
+        Homepage: reqCustomerHomepage,
+        EmailDomain: reqCustomerEmailDomain
+      });
+      return res.json(Utils.responseMessage(0, customer, 'Update customer successfully!'));
+    }
+    else {
+      return res.json(Utils.responseMessage(1, null, 'Created or updated customer fail!'));
     }
   })
 });

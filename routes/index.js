@@ -10,6 +10,7 @@ var User = require('../models/user');
 var Sprint = require('../models/sprint');
 var SprintUserMap = require('../models/sprint_user_map');
 var Reference = require('../models/reference');
+var Customer = require('../models/customer');
 
 var Utils = require('../util/utils');
 
@@ -90,6 +91,7 @@ async function createSNOWTask(taskObj) {
       }
       taskNewObj.Status = await getStatusMapping(taskObj.taskCategorization, taskObj.taskStatus);
       taskNewObj.RequiredSkills = await getGroupSkillsMapping(taskObj.taskAssignment);
+      taskNewObj.CustomerId = await getCustomerMapping(taskObj.taskCustomer);
       console.log('Start to create/Update task');
       Task.findOrCreate({
         where: {
@@ -251,6 +253,7 @@ async function createTRLSTask(taskObj) {
       }
       taskNewObj.Status = await getStatusMapping(taskObj.taskCategorization, taskObj.taskStatus);
       taskNewObj.RequiredSkills = await getGroupSkillsMapping(taskObj.taskAssignment);
+      taskNewObj.CustomerId = await getCustomerMapping(taskObj.taskCustomer);
       console.log('Start to create/Update task');
       Task.findOrCreate({
         where: {
@@ -426,6 +429,25 @@ function getUserMapping (iUser) {
         resolve(null);
       }
     });
+  });
+}
+
+function getCustomerMapping (iCustomer) {
+  return new Promise((resolve, reject) => {
+    if(iCustomer == '' || iCustomer == null){
+      resolve(null);
+    }
+    Customer.findOne({
+      where: {
+        Name: iCustomer
+      }
+    }).then(function(customer) {
+      if (customer != null) {
+        resolve(customer.Id);
+      } else {
+        resolve(null);
+      }
+    })
   });
 }
 

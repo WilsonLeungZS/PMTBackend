@@ -52,6 +52,10 @@ var Sprint = sequelize.define('sprint', {
         type: Sequelize.STRING(100),
         defaultValue: null
     },
+    Customers: {
+        type: Sequelize.STRING(500),
+        defaultValue: null
+    },
     createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
