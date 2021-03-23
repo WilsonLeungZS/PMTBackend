@@ -10,7 +10,8 @@ var sequelize = require('../config/db');
 var moment = require('moment');
 
 var User = require('./user');
-var Sprint = require('./sprint')
+var Sprint = require('./sprint');
+var Customer = require('./customer');
 
 var Task = sequelize.define('task', {
     Id:{ 
@@ -61,6 +62,7 @@ var Task = sequelize.define('task', {
 Task.belongsTo(User, {foreignKey: 'RespLeaderId'});
 Task.belongsTo(User, {foreignKey: 'AssigneeId'});
 Task.belongsTo(Sprint, {foreignKey: 'SprintId'});
+Task.belongsTo(Customer, {foreignKey: 'CustomerId'});
 
 Task.sync();
 module.exports = Task;

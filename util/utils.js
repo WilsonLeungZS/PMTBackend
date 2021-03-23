@@ -6,6 +6,7 @@ var Sprint = require('../models/sprint');
 var User = require('../models/user');
 var Task = require('../models/task');
 var SprintUserMap = require('../models/sprint_user_map');
+var Customer = require('../models/customer');
 
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
   var resJson = {}; 
@@ -86,6 +87,7 @@ async function generateResponseTasksInfo (tasks) {
   if (tasks != null && tasks.length > 0) {
     var rtnResult = [];
     var skillsList = await this.getAllSkillsList();
+    var customersList = await this.getAllCustomersList();
     for(var i=0; i<tasks.length; i++){
       var resJson = {};
       resJson.taskId = tasks[i].Id;
@@ -94,12 +96,29 @@ async function generateResponseTasksInfo (tasks) {
       resJson.taskName = tasks[i].Name;
       resJson.taskCategory = tasks[i].Category;
       resJson.taskType = tasks[i].Type;
+      // Set up task background color
+      if (tasks[i].Type == 'Development') {
+        resJson.taskBackgroundColor = 'rgb(246,253,254)';
+      } else if (tasks[i].Type == 'Maintenance') {
+        resJson.taskBackgroundColor = 'rgb(255,245,246)';
+      } else if (tasks[i].Type == 'Others') {
+        resJson.taskBackgroundColor = 'rgb(248,251,243)';
+      } else {
+        resJson.taskBackgroundColor = '';
+      }
       resJson.taskTitle = tasks[i].Title;
       resJson.taskDescription = tasks[i].Description;
       resJson.taskReferenceTask = tasks[i].ReferenceTask;
       resJson.taskTypeTag = tasks[i].TypeTag;
       resJson.taskDeliverableTag = tasks[i].DeliverableTag != null ? tasks[i].DeliverableTag.split(','): null;
-      resJson.taskCustomer = tasks[i].Customer;
+      resJson.taskCustomerId = tasks[i].CustomerId;
+      resJson.taskCustomer = null;
+      if (tasks[i].CustomerId != null) {
+        var index = this.getIndexOfValueInArr(customersList, 'customerId', tasks[i].CustomerId);
+        if (index != -1) {
+          resJson.taskCustomer = customersList[index].customerName;
+        }
+      }
       resJson.taskSprintId = tasks[i].SprintId;
       resJson.taskSprintName = tasks[i].sprint != null? tasks[i].sprint.Name: null;
       resJson.taskSprintStartTime = tasks[i].sprint != null? tasks[i].sprint.StartTime: null;
@@ -352,25 +371,59 @@ function getSprintIdByDateAndUserId (iDate, iUserId) {
   });
 }
 
-/*
-async function getSkillsStrByIdArray (iSkillsIdArray) {
-  var skillsArray = iSkillsIdArray.split(',');
-  await Skill.findAll({
-    where: {
-      Id: { [Op.in]: skillsArray }
-    }
-  }).then(function(skills) {
-    var skillsStr = '';
-    if (skills != null && skills.length > 0) {
-      for (let i=0; i<skills.length; i++) {
-        skillsStr = skillsStr + skills[i].Name + ', ';
+// Customers Related Function
+function getAllCustomersList() {
+  return new Promise((resolve,reject) =>{
+    console.log('Start getAllCustomersList')
+    var rtnResult = [];
+    Customer.findAll({
+      order: [
+        ['createdAt', 'DESC']
+      ]
+    }).then(function(customers) {
+      if (customers != null && customers.length > 0) {
+        for (var i=0; i<customers.length; i++) {
+          var resJson = {};
+          resJson.customerId = customers[i].Id;
+          resJson.customerName = customers[i].Name;
+          resJson.customerDescription = customers[i].Description;
+          resJson.customerHomepage = customers[i].Homepage;
+          resJson.customerEmailDomain = customers[i].EmailDomain;
+          rtnResult.push(resJson);
+        }
       }
-      skillsStr.substring(0, skillsStr.length - 1);
-    }
-    return skillsStr;
-  })
+      resolve(rtnResult);
+    })
+  });
 }
-*/
+
+function handleCustomersArray (iCustomers) {
+  if (iCustomers != null && iCustomers != '') {
+    var customersArray = iCustomers.split(',');
+    for (var i=0; i<customersArray.length; i++) {
+      customersArray[i] = customersArray[i].replace(new RegExp('#','g'),'');
+    }
+    return customersArray.toString();
+  } else {
+    return '';
+  }
+}
+
+function getCustomersByList (iCustomersIdArray, iCustomersList) {
+  var customers = [];
+  var customersIdArray = iCustomersIdArray.split(',');
+  if (iCustomersList != null && iCustomersList.length > 0) {
+    for(var i=0; i<customersIdArray.length; i++) {
+      for (var j=0; j<iCustomersList.length; j++) {
+        if (Number(customersIdArray[i]) == iCustomersList[j].customerId) {
+          customers.push(iCustomersList[j].customerName);
+        }
+      }
+    }
+  }
+  return customers;
+}
+
 
 module.exports = {
   responseMessage,
@@ -383,5 +436,8 @@ module.exports = {
   getSprintsByRequiredSkills,
   getIndexOfValueInArr,
   formatDate,
-  getSprintIdByDateAndUserId
+  getSprintIdByDateAndUserId,
+  getAllCustomersList,
+  handleCustomersArray,
+  getCustomersByList
 }
