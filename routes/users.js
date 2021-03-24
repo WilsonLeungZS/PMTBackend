@@ -244,7 +244,7 @@ router.post('/updateUser', function(req, res, next) {
   var reqUserObj = generateRequestUserObject(req.body);
   User.findOrCreate({
     where: {
-      Name: req.body.reqUserName
+      Id: req.body.reqUserId
     }, 
     defaults: reqUserObj
   }).spread(async function(user, created) {
