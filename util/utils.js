@@ -7,6 +7,7 @@ var User = require('../models/user');
 var Task = require('../models/task');
 var SprintUserMap = require('../models/sprint_user_map');
 var Customer = require('../models/customer');
+var Timeline = require('../models/timeline');
 
 function responseMessage(iStatusCode, iDataArray, iErrorMessage) {
   var resJson = {}; 
@@ -297,6 +298,8 @@ function getSprintsByRequiredSkills (iRequiredSkills, iRequestTime, iDataSource 
       include: [{
         model: User, 
         attributes: ['Id', 'Name']
+      },{
+        model: Timeline
       }],
       where: criteria
     }).then(function(sprints) {
@@ -424,6 +427,34 @@ function getCustomersByList (iCustomersIdArray, iCustomersList) {
   return customers;
 }
 
+function getAllTimelinesList() {
+  return new Promise((resolve,reject) =>{
+    console.log('Start getAllTimelinesList')
+    var rtnResult = [];
+    Timeline.findAll({
+      where: {
+        Status: {[Op.ne]: 'obsolete'}
+      },
+      order: [
+        ['StartTime', 'ASC']
+      ]
+    }).then(async function(timelines) {
+      if (timelines != null && timelines.length > 0) {
+        for (var i=0; i<timelines.length; i++) {
+          var resJson = {};
+          resJson.timelineId = timelines[i].Id;
+          resJson.timelineName = timelines[i].Name;
+          resJson.timelineStartTime = timelines[i].StartTime;
+          resJson.timelineEndTime = timelines[i].EndTime;
+          resJson.timelineWorkingDays = timelines[i].WorkingDays;
+          resJson.timelineStatus = timelines[i].Status;
+          rtnResult.push(resJson);
+        }
+      }
+      resolve(rtnResult);
+    })
+  });
+}
 
 module.exports = {
   responseMessage,
@@ -439,5 +470,6 @@ module.exports = {
   getSprintIdByDateAndUserId,
   getAllCustomersList,
   handleCustomersArray,
-  getCustomersByList
+  getCustomersByList,
+  getAllTimelinesList
 }
