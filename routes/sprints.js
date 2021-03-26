@@ -18,6 +18,7 @@ var SprintUserMap = require('../models/sprint_user_map');
 var DailyScrum = require('../models/daily_scrum');
 var Worklog = require('../models/worklog');
 var Customer = require('../models/customer');
+var Timeline = require('../models/timeline');
 
 const { get } = require('.');
 
@@ -33,6 +34,9 @@ router.get('/getActiveSprintsList', function(req, res, next) {
     include: [{
       model: User, 
       attributes: ['Id', 'Name']
+    },
+    {
+      model: Timeline
     }],
     where: {
       Status: { [Op.ne]: 'Obsolete' }
@@ -57,6 +61,8 @@ router.get('/getActiveSprintsGroup', function(req, res, next) {
     include: [{
       model: User, 
       attributes: ['Id', 'Name']
+    },{
+      model: Timeline
     }],
     where: {
       Status: { [Op.ne]: 'Obsolete' }
@@ -231,11 +237,11 @@ async function generateResponseSprintsInfo(sprints) {
       var resJson = {};
       resJson.sprintId = sprints[i].Id;
       resJson.sprintName = sprints[i].Name;
-      resJson.sprintStartTime = sprints[i].StartTime;
-      resJson.sprintEndTime = sprints[i].EndTime;
+      resJson.sprintStartTime = sprints[i].timeline.StartTime;
+      resJson.sprintEndTime = sprints[i].timeline.EndTime;
       resJson.sprintTimeGroup = sprints[i].StartTime + ' ~ ' + sprints[i].EndTime;
       resJson.sprintBaseline = sprints[i].Baseline;
-      resJson.sprintWorkingDays = sprints[i].WorkingDays;
+      resJson.sprintWorkingDays = sprints[i].timeline.WorkingDays;
       resJson.sprintBaseCapacity = sprints[i].BaseCapacity;
       var sprintPlannedCapacityObj = await getSprintUsersCapacitySumBySprintId(sprints[i].Id);
       var sprintPlannedCapacity = sprintPlannedCapacityObj[0].dataValues.CapacitySum != null? sprintPlannedCapacityObj[0].dataValues.CapacitySum: '0';
@@ -246,8 +252,8 @@ async function generateResponseSprintsInfo(sprints) {
       resJson.sprintCustomersStr = Utils.getCustomersByList(Utils.handleCustomersArray(sprints[i].Customers), customersList).toString();
       resJson.sprintStatus = sprints[i].Status;
       resJson.sprintDataSource = (sprints[i].DataSource != null && sprints[i].DataSource != '')? sprints[i].DataSource.split(','): null;
-      resJson.sprintLeaderId = sprints[i].user.Id;
-      resJson.sprintLeader = sprints[i].user.Name;
+      resJson.sprintLeaderId = sprints[i].user != null? sprints[i].user.Id: null;
+      resJson.sprintLeader = sprints[i].user != null? sprints[i].user.Name: null;
       var sprintTotalEffort = await getTasksEffortSumBySprintId(sprints[i].Id, null);
       if (sprintTotalEffort != null) {
         resJson.sprintTotalEffort = sprintTotalEffort[0].dataValues.EffortSum;
@@ -270,6 +276,8 @@ router.get('/getSprintById', function(req, res, next) {
     include: [{
       model: User, 
       attributes: ['Id', 'Name']
+    },{
+      model: Timeline
     }],
     where: {
       Id: reqSprintId
@@ -663,7 +671,8 @@ function generateRequestSprintObject (iRequest) {
     Status: iRequest.reqSprintStatus != ''? iRequest.reqSprintStatus: 'Active',
     DataSource: iRequest.reqSprintDataSource != ''? iRequest.reqSprintDataSource: null,
     LeaderId: iRequest.reqSprintLeaderId != ''? Number(iRequest.reqSprintLeaderId): null,
-    Customers: iRequest.reqSprintCustomers != ''? iRequest.reqSprintCustomers: null
+    Customers: iRequest.reqSprintCustomers != ''? iRequest.reqSprintCustomers: null,
+    TimelineId: iRequest.reqSprintTimelineId != ''? iRequest.reqSprintTimelineId: null,
   }
   return reqSprintObj;
 }
@@ -823,6 +832,94 @@ router.post('/updateCustomer', function(req, res, next) {
     }
     else {
       return res.json(Utils.responseMessage(1, null, 'Created or updated customer fail!'));
+    }
+  })
+});
+
+// Timeline Method
+router.get('/getAllTimelinesList', async function(req, res, next) {
+  var result = await Utils.getAllTimelinesList();
+  if (result != null && result.length > 0) {
+    for (var i=0; i<result.length; i++) {
+      var sprintsArray = await getSprintsByTimelineId(result[i].timelineId);
+      result[i].timelineSprints = sprintsArray;
+      result[i].timelineContractCapacity = 0;
+      result[i].timelinePlannedCapacity = 0;
+      if (sprintsArray != null && sprintsArray.length > 0) {  
+        for (var j=0; j<sprintsArray.length; j++) {
+          if (sprintsArray[j].sprintBaseCapacity != null) {
+            result[i].timelineContractCapacity = result[i].timelineContractCapacity + Number(sprintsArray[j].sprintBaseCapacity);
+          }
+          if (sprintsArray[j].sprintPlannedCapacity != null) {
+            result[i].timelinePlannedCapacity = result[i].timelinePlannedCapacity + Number(sprintsArray[j].sprintPlannedCapacity);
+          }
+        }
+      }
+    }
+    return res.json(Utils.responseMessage(0, result, ''));
+  } else {
+    return res.json(Utils.responseMessage(1, null, 'No timeline exist'));
+  }
+});
+
+function getSprintsByTimelineId (iTimelineId) {
+  return new Promise((resolve,reject) =>{
+    Sprint.findAll({
+      include: [{
+        model: User, 
+        attributes: ['Id', 'Name']
+      },{
+        model: Timeline
+      }],
+      where: {
+        TimelineId: iTimelineId
+      }
+    }).then(function (sprints) {
+      if (sprints != null && sprints.length > 0) {
+        resolve(generateResponseSprintsInfo(sprints));
+      } else {
+        resolve(null);
+      }
+    })
+  });
+}
+
+router.post('/updateTimeline', function(req, res, next) {
+  console.log('Start to create or update timeline');
+  var reqTimelineId = Number(req.body.reqTimelineId);
+  var reqTimelineName = req.body.reqTimelineName;
+  var reqTimelineStartTime = req.body.reqTimelineStartTime;
+  var reqTimelineEndTime = req.body.reqTimelineEndTime;
+  var reqTimelineWorkingDays = req.body.reqTimelineWorkingDays;
+  var reqTimelineStatus = req.body.reqTimelineStatus;
+  Timeline.findOrCreate({
+    where: {
+      Id: reqTimelineId
+    }, 
+    defaults: {
+      Name: reqTimelineName,
+      StartTime: reqTimelineStartTime,
+      EndTime: reqTimelineEndTime,
+      WorkingDays: reqTimelineWorkingDays,
+      Status: reqTimelineStatus
+    }
+  }).spread(async function(timeline, created) {
+    if(created) {
+      console.log('Customer -> ', timeline)
+      return res.json(Utils.responseMessage(0, timeline, 'Create timeline successfully!'));
+    } 
+    else if(timeline != null && !created) {
+      await timeline.update({
+        Name: reqTimelineName,
+        StartTime: reqTimelineStartTime,
+        EndTime: reqTimelineEndTime,
+        WorkingDays: reqTimelineWorkingDays,
+        Status: reqTimelineStatus
+      });
+      return res.json(Utils.responseMessage(0, timeline, 'Update timeline successfully!'));
+    }
+    else {
+      return res.json(Utils.responseMessage(1, null, 'Created or updated timeline fail!'));
     }
   })
 });

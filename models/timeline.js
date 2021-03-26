@@ -1,61 +1,39 @@
 /*
- * @Description: Sprint table in database
+ * @Description: Timeline table in database
  * @Author: Wilson Liang
- * @Date: 2021-01-12
- * @LastEditTime: 2021-01-12
+ * @Date: 2021-03-25
+ * @LastEditTime: 2021-03-25
  * @LastEditors: Wilson Liang
  */ 
 var Sequelize = require('sequelize');
 var sequelize = require('../config/db');
 var moment = require('moment');
-var User = require('./user');
-var Timeline = require('./timeline');
 
-var Sprint = sequelize.define('sprint', {
-    Id: { 
+var Timeline = sequelize.define('timeline', {
+    Id:{ 
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true
     },
     Name: {
-        type: Sequelize.STRING,
+        type: Sequelize.STRING(255),
         allowNull: false
     },
     StartTime: {
-        type: Sequelize.STRING,
+        type: Sequelize.STRING(50),
         allowNull: false
     },
     EndTime: {
-        type: Sequelize.STRING,
+        type: Sequelize.STRING(50),
         allowNull: false
-    },
-    Baseline: {
-        type: Sequelize.STRING,
-        defaultValue: null
     },
     WorkingDays: {
         type: Sequelize.INTEGER,
         defaultValue: 0
     },
-    BaseCapacity: {
-        type: Sequelize.INTEGER,
-        defaultValue: 0
-    },
-    RequiredSkills: {
-        type: Sequelize.STRING,
-        defaultValue: null
-    },
     Status: {
-        type: Sequelize.STRING,
+        type: Sequelize.STRING(20),
         defaultValue: 'Active'
-    },
-    DataSource: {
-        type: Sequelize.STRING(100),
-        defaultValue: null
-    },
-    Customers: {
-        type: Sequelize.STRING(500),
-        defaultValue: null
     },
     createdAt: {
         type: Sequelize.DATE,
@@ -77,9 +55,6 @@ var Sprint = sequelize.define('sprint', {
     freezeTableName: false
 });
 
-// Create foreign Key with user id
-Sprint.belongsTo(User, {foreignKey: 'LeaderId'});
-Sprint.belongsTo(Timeline, {foreignKey: 'TimelineId'});
+Timeline.sync();
+module.exports = Timeline;
 
-Sprint.sync();
-module.exports = Sprint;
