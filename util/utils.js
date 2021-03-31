@@ -87,6 +87,7 @@ function getSkillsByList (iSkillsIdArray, iSkillsList) {
 async function generateResponseTasksInfo (tasks) {
   if (tasks != null && tasks.length > 0) {
     var rtnResult = [];
+    var taskNameArray = [];
     var skillsList = await this.getAllSkillsList();
     var customersList = await this.getAllCustomersList();
     for(var i=0; i<tasks.length; i++){
@@ -95,6 +96,8 @@ async function generateResponseTasksInfo (tasks) {
       resJson.taskHasSubtask = tasks[i].HasSubtask;
       resJson.taskParentTaskName = tasks[i].ParentTaskName;
       resJson.taskName = tasks[i].Name;
+      // To get sub task effort
+      taskNameArray.push(tasks[i].Name); 
       resJson.taskCategory = tasks[i].Category;
       resJson.taskType = tasks[i].Type;
       // Set up task background color
@@ -130,6 +133,7 @@ async function generateResponseTasksInfo (tasks) {
       resJson.taskRequiredSkillsStr = this.getSkillsByList(this.handleSkillsArray(tasks[i].RequiredSkills), skillsList).toString();
       resJson.taskStatus = tasks[i].Status;
       resJson.taskEffort = tasks[i].Effort;
+      resJson.taskSubTaskEffort = 0;
       resJson.taskEstimation = tasks[i].Estimation;
       resJson.taskIssueDate = tasks[i].IssueDate;
       resJson.taskTargetComplete = tasks[i].TargetComplete;
@@ -137,14 +141,77 @@ async function generateResponseTasksInfo (tasks) {
       resJson.taskRespLeaderId = tasks[i].RespLeaderId;
       resJson.taskAssigneeId = tasks[i].AssigneeId;
       resJson.taskAssignee = tasks[i].user != null? tasks[i].user.Name: null;
+      resJson.taskAssigneeFullNickname = tasks[i].user != null? getUserFullNickname(tasks[i].user): null;
       resJson.taskSprintIndicator = tasks[i].SprintIndicator;
       rtnResult.push(resJson);
     }
     // console.log('Return result -> ', rtnResult);
+    // Get task subtask effort
+    if (rtnResult.length > 0 && taskNameArray.length > 0) {
+      var subTaskEffortArray = await getSubTaskTotalEffort(taskNameArray);
+      if (subTaskEffortArray != null && subTaskEffortArray.length > 0) {
+        for (var j=0; j<rtnResult.length; j++) {
+          var index = getIndexOfValueInArr(subTaskEffortArray, 'subTaskParent', rtnResult[j].taskName);
+          if (index != -1) {
+            rtnResult[j].taskSubTaskEffort = subTaskEffortArray[index].subTaskEffort;
+          }
+        }
+      }
+    }
     return rtnResult;
   } else {
     return null;
   }
+}
+
+function getUserFullNickname (iUser) {
+  console.log('User ->', iUser);
+  var userFullNickname = '';
+  if (iUser != null) {
+    var userName = iUser.Name;
+    var userNickname = iUser.Nickname;
+    var userNameArray = userName.split('.');
+    if (userNameArray != null && userNameArray.length > 0) {
+      var userLastName = userNameArray[userNameArray.length - 1];
+      if(userLastName != null && userLastName != '' && userNickname != null && userNickname != '') {
+        userLastName = userLastName.replace(userLastName[0],userLastName[0].toUpperCase());
+        userNickname = userNickname.replace(userNickname[0],userNickname[0].toUpperCase());
+        userFullNickname = userNickname + '.' + userLastName;
+      }
+    }
+  }
+  return userFullNickname;
+}
+
+function getSubTaskTotalEffort (iTaskNameArray) {
+  return new Promise((resolve, reject) => {
+    Task.findAll({
+      where: {
+        ParentTaskName: { [Op.in]: iTaskNameArray }
+      },
+      order: [
+        ['ParentTaskName', 'DESC']
+      ]
+    }).then(function(tasks) {
+      if(tasks != null && tasks.length > 0) {
+        var result = [];
+        for (var i=0; i<tasks.length; i++) {
+          var resJson = {};
+          var index = getIndexOfValueInArr(result, 'subTaskParent', tasks[i].ParentTaskName);
+          if (index != -1) {
+            result[index].subTaskEffort = Number(result[index].subTaskEffort) + Number(tasks[i].Effort); 
+          } else {
+            resJson.subTaskParent = tasks[i].ParentTaskName;
+            resJson.subTaskEffort = tasks[i].Effort;
+            result.push(resJson);
+          }
+        }
+        resolve(result);
+      } else {
+        resolve(null);
+      }
+    })
+  });
 }
 
 // Get sub task name
