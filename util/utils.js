@@ -507,6 +507,7 @@ function getAllTimelinesList() {
       ]
     }).then(async function(timelines) {
       if (timelines != null && timelines.length > 0) {
+        var currentDate = formatDate(new Date(), 'yyyy-MM-dd');
         for (var i=0; i<timelines.length; i++) {
           var resJson = {};
           resJson.timelineId = timelines[i].Id;
@@ -515,6 +516,14 @@ function getAllTimelinesList() {
           resJson.timelineEndTime = timelines[i].EndTime;
           resJson.timelineWorkingDays = timelines[i].WorkingDays;
           resJson.timelineStatus = timelines[i].Status;
+          if (timelines[i].EndTime < currentDate) {
+            resJson.timelineCanObsolete = true;
+            resJson.timelineCanCreate = false;
+          } else {
+            resJson.timelineCanObsolete = false;
+            resJson.timelineCanCreate = true;
+          }
+          
           rtnResult.push(resJson);
         }
       }
