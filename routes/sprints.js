@@ -260,6 +260,7 @@ async function generateResponseSprintsInfo(sprints) {
       } else {
         resJson.sprintTotalEffort = 0;
       }
+      resJson.sprintExistIndicator = 'Exist';
       rtnResult.push(resJson);
     }
     // console.log('Return result -> ', rtnResult);
@@ -734,6 +735,84 @@ function updateDailyScrum (iSprintId, iUserId, iDate, iAttendance, iCompletion) 
   });
 }
 
+router.post('/copySprints', async function(req, res, next) {
+  var reqTargetTimelineId = Number(req.body.reqTargetTimelineId);
+  var reqSourceTimelineId = Number(req.body.reqSourceTimelineId);
+  var reqSprintIdArrayStr = req.body.reqSprintIdArray;
+  if (reqSprintIdArrayStr != null) {
+    var reqSprintIdArray = reqSprintIdArrayStr.split(',');
+    // 1. Get source sprints as temples
+    var targetSprintsInfo = [];
+    await Sprint.findAll({
+      where: {
+        Id: {[Op.in]: reqSprintIdArray},
+        TimelineId: reqSourceTimelineId
+      }
+    }).then(function (sprints) {
+      if (sprints != null && sprints.length > 0) {
+        for (let i=0; i<sprints.length; i++) {
+          targetSprintsInfo.push(sprints[i].dataValues);
+        }
+        console.log('targetSprintsInfo -> ', targetSprintsInfo);
+      }
+    });
+    // 2. Get target timeline info
+    var targetTimelineStartTime = null;
+    var targetTimelineEndTime = null;
+    var targetTimelineWorkingDays = 0;
+    await Timeline.findOne({
+      where: {
+        Id: reqTargetTimelineId
+      }
+    }).then(function (timeline) {
+      if (timeline != null) {
+        targetTimelineStartTime = timeline.StartTime;
+        targetTimelineEndTime = timeline.EndTime;
+        targetTimelineWorkingDays = timeline.WorkingDays;
+      }
+    });
+    // 3. Copy sprints to target timeline
+    if (targetSprintsInfo != null && targetSprintsInfo.length > 0) {
+      if (targetTimelineStartTime != null && targetTimelineEndTime != null && targetTimelineWorkingDays != null) {
+        console.log('Copy Sprints -> ', targetSprintsInfo);
+        console.log('Target Timeline ', targetTimelineStartTime, targetTimelineEndTime, targetTimelineWorkingDays);
+        for (var i=0; i<targetSprintsInfo.length; i++) {
+          var targetSprint = targetSprintsInfo[i];
+          targetSprint.StartTime = targetTimelineStartTime;
+          targetSprint.EndTime = targetTimelineEndTime;
+          targetSprint.WorkingDays = targetTimelineWorkingDays;
+          targetSprint.Status = 'Active';
+          targetSprint.TimelineId = reqTargetTimelineId;
+          delete targetSprint.Id;
+          delete targetSprint.createdAt;
+          delete targetSprint.updatedAt;
+          console.log('Target sprint -> ', targetSprint);
+          await Sprint.findOrCreate({
+            where: {
+              Name: targetSprint.Name,
+              TimelineId: reqTargetTimelineId
+            },
+            defaults: targetSprint
+          }).spread(async function(sprint, created) {
+            if (created) {
+              console.log('Copy to create new sprint done');
+            }
+            else if (sprint != null && !created) {
+              await sprint.update(targetSprint);
+              console.log('Copy to update new sprint done');
+            }
+            else {
+              console.log('Error to not create or update')
+            }
+          });
+        }
+        return res.json(Utils.responseMessage(0, null, 'Success to copy sprints!'));
+      }
+    }
+  }
+  return res.json(Utils.responseMessage(1, null, 'Fail to copy sprints!'));
+});
+
 // Assign user to sprint
 router.post('/assignUserToSprint', function(req, res, next) {
   var reqSprintId = Number(req.body.reqSprintId);
@@ -883,6 +962,16 @@ function getSprintsByTimelineId (iTimelineId) {
     })
   });
 }
+
+router.get('/getSprintsListByTimelineId', async function(req, res, next) {
+  var reqTimelineId = Number(req.query.reqTimelineId);
+  var sprintsArray = await getSprintsByTimelineId(reqTimelineId);
+  if (sprintsArray != null && sprintsArray.length > 0) {
+    return res.json(Utils.responseMessage(0, sprintsArray, ''));
+  } else {
+    return res.json(Utils.responseMessage(1, null, 'No sprint exist of this timeline'));
+  }
+});
 
 router.post('/updateTimeline', function(req, res, next) {
   console.log('Start to create or update timeline');
