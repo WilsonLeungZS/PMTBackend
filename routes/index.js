@@ -92,6 +92,9 @@ async function createSNOWTask(taskObj) {
       taskNewObj.Status = await getStatusMapping(taskObj.taskCategorization, taskObj.taskStatus);
       taskNewObj.RequiredSkills = await getGroupSkillsMapping(taskObj.taskAssignment);
       taskNewObj.CustomerId = await getCustomerMapping(taskObj.taskCustomer);
+      // console.log('taskNewObj.RequiredSkills----------------------');
+      // console.log(taskNewObj.RequiredSkills);
+      // console.log('taskNewObj.RequiredSkills----------------------');
       console.log('Start to create/Update task');
       Task.findOrCreate({
         where: {
@@ -158,9 +161,19 @@ async function createSNOWTask(taskObj) {
           console.log('Task issue date -> ', issueDateStrArray[0]);
           console.log('Task required skills -> ', taskNewObj.RequiredSkills);
           var sprints = null;
+          // console.log('taskObj.taskAssignment--------------------');
+          // console.log(taskObj.taskAssignment);
+          // console.log(taskObj.taskAssignment == 'ACN-APP-BSS');
+          // console.log('taskObj.taskAssignment--------------------');
           if (taskObj.taskAssignment == 'STP') {
             sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow', 'STP');
+          } else if(taskObj.taskAssignment == 'ACN-APP-BSS'){
+            sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow', 'SAP Functional');
+            // console.log('进入了if ACN-APP-BSS---------------');
+            // console.log(sprints);
+            // console.log('进入了if ACN-APP-BSS---------------');
           } else {
+            // console.log('进入了else------');
             if (taskNewObj.RequiredSkills.indexOf('5') != -1) {
               sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow', 'BSS');
             }
@@ -287,6 +300,9 @@ async function createTRLSTask(taskObj) {
 }
 
 function processRequest(Request) {
+  // console.log('Request-----------------');
+  // console.log(Request);
+  // console.log('Request-----------------');
   var nameArray = Request.number;
   var titleArray = Request.short_description;
   var categorizationPathArray = Request.path;
@@ -351,6 +367,9 @@ function processRequest(Request) {
     taskArray.push(taskJson);
   }
   //console.log('Result ', taskArray);
+  // console.log('taskArray--------');
+  // console.log(taskArray);
+  // console.log('taskArray--------');
   return taskArray;
 }
 
