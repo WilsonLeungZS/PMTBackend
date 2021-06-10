@@ -33,7 +33,7 @@ router.get('/getActiveSprintsList', function(req, res, next) {
   Sprint.findAll({
     include: [{
       model: User, 
-      attributes: ['Id', 'Name']
+      attributes: ['Id', 'Name','Nickname']
     },
     {
       model: Timeline
@@ -254,6 +254,7 @@ async function generateResponseSprintsInfo(sprints) {
       resJson.sprintDataSource = (sprints[i].DataSource != null && sprints[i].DataSource != '')? sprints[i].DataSource.split(','): null;
       resJson.sprintLeaderId = sprints[i].user != null? sprints[i].user.Id: null;
       resJson.sprintLeader = sprints[i].user != null? sprints[i].user.Name: null;
+      resJson.sprintNickname = sprints[i].user.Nickname || null
       var sprintTotalEffort = await getTasksEffortSumBySprintId(sprints[i].Id, null);
       if (sprintTotalEffort != null) {
         resJson.sprintTotalEffort = sprintTotalEffort[0].dataValues.EffortSum;
@@ -877,7 +878,6 @@ router.get('/getAllCustomersList', async function(req, res, next) {
     return res.json(Utils.responseMessage(1, null, 'No customer exist'));
   }
 });
-
 router.post('/updateCustomer', function(req, res, next) {
   console.log('Start to create or update customer');
   var reqCustomerId = Number(req.body.reqCustomerId);
@@ -885,6 +885,8 @@ router.post('/updateCustomer', function(req, res, next) {
   var reqCustomerDescription = req.body.reqCustomerDescription;
   var reqCustomerHomepage = req.body.reqCustomerHomepage;
   var reqCustomerEmailDomain = req.body.reqCustomerEmailDomain;
+  var reqCustomerRoleClientLeadId = req.body.reqCustomerRoleClientLeadId;
+  var reqCustomerSprintLeadId = req.body.reqCustomerSprintLeadId;
   Customer.findOrCreate({
     where: {
       Id: reqCustomerId
@@ -893,7 +895,9 @@ router.post('/updateCustomer', function(req, res, next) {
       Name: reqCustomerName,
       Description: reqCustomerDescription,
       Homepage: reqCustomerHomepage,
-      EmailDomain: reqCustomerEmailDomain
+      EmailDomain: reqCustomerEmailDomain,
+      RoleClientLeadId: reqCustomerRoleClientLeadId,
+      SprintLeadId: reqCustomerSprintLeadId
     }
   }).spread(async function(customer, created) {
     if(created) {
@@ -905,7 +909,9 @@ router.post('/updateCustomer', function(req, res, next) {
         Name: reqCustomerName,
         Description: reqCustomerDescription,
         Homepage: reqCustomerHomepage,
-        EmailDomain: reqCustomerEmailDomain
+        EmailDomain: reqCustomerEmailDomain,
+        RoleClientLeadId: reqCustomerRoleClientLeadId,
+        SprintLeadId: reqCustomerSprintLeadId
       });
       return res.json(Utils.responseMessage(0, customer, 'Update customer successfully!'));
     }

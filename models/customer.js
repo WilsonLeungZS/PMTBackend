@@ -9,6 +9,8 @@ var Sequelize = require('sequelize');
 var sequelize = require('../config/db');
 var moment = require('moment');
 
+var User = require('./user');
+
 var Customer = sequelize.define('customer', {
     Id:{ 
         type: Sequelize.INTEGER,
@@ -50,6 +52,9 @@ var Customer = sequelize.define('customer', {
 }, {
     freezeTableName: false
 });
+
+Customer.belongsTo(User, {foreignKey: 'RoleClientLeadId'});
+Customer.belongsTo(User, {foreignKey: 'SprintLeadId'});
 
 Customer.sync();
 module.exports = Customer;
