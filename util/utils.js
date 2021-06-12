@@ -459,8 +459,8 @@ function getAllCustomersList() {
           resJson.customerDescription = customers[i].Description;
           resJson.customerHomepage = customers[i].Homepage;
           resJson.customerEmailDomain = customers[i].EmailDomain;
-          resJson.customerRoleClientLeadId = customers[i].RoleClientLeadId;
-          resJson.customerSprintLeadId = customers[i].SprintLeadId;
+          resJson.customerOnSiteClientLeadId = customers[i].OnSiteClientLeadId;
+          resJson.customerOffSiteClientLeadId = customers[i].OffSiteClientLeadId;
           rtnResult.push(resJson);
         }
       }

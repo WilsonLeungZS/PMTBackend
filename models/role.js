@@ -1,36 +1,23 @@
-/*
- * @Description: Customer table in database
- * @Author: Wilson Liang
- * @Date: 2021-03-22
- * @LastEditTime: 2021-03-22
- * @LastEditors: Wilson Liang
- */ 
 var Sequelize = require('sequelize');
 var sequelize = require('../config/db');
 var moment = require('moment');
 
-var User = require('./user');
-
-var Customer = sequelize.define('customer', {
+var Role = sequelize.define('role', {
     Id:{ 
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true
     },
     Name: {
-        type: Sequelize.STRING(255),
+        type: Sequelize.STRING,
         allowNull: false
     },
-    Description: {
-        type: Sequelize.STRING(1000),
+    level: {
+        type: Sequelize.STRING,
         defaultValue: null
     },
-    Homepage: {
-        type: Sequelize.STRING(1000),
-        defaultValue: null
-    },
-    EmailDomain: {
-        type: Sequelize.STRING(255),
+    remark: {
+        type: Sequelize.STRING,
         defaultValue: null
     },
     createdAt: {
@@ -53,9 +40,5 @@ var Customer = sequelize.define('customer', {
     freezeTableName: false
 });
 
-Customer.belongsTo(User, {foreignKey: 'OnSiteClientLeadId'});
-Customer.belongsTo(User, {foreignKey: 'OffSiteClientLeadId'});
-
-Customer.sync();
-module.exports = Customer;
-
+Role.sync();
+module.exports = Role;
