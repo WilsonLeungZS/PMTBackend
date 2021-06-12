@@ -19,6 +19,8 @@ var tasksRouter = require('./routes/tasks');
 var worklogRouter = require('./routes/worklogs');
 //var formatRouter = require('./routes/formats');
 //var scheduleRouter = require('./routes/schedules')
+var skillRouter = require('./routes/skill');
+var roleRouter = require('./routes/role');
 
 var app = express();
 
@@ -44,6 +46,9 @@ app.use('/tasks', tasksRouter);
 app.use('/worklogs', worklogRouter);
 //app.use('/schedules', scheduleRouter);
 //app.use('/formats', formatRouter);
+app.use('/skills', skillRouter);
+app.use('/roles', roleRouter);
+
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

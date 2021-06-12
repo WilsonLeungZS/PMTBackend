@@ -885,8 +885,9 @@ router.post('/updateCustomer', function(req, res, next) {
   var reqCustomerDescription = req.body.reqCustomerDescription;
   var reqCustomerHomepage = req.body.reqCustomerHomepage;
   var reqCustomerEmailDomain = req.body.reqCustomerEmailDomain;
-  var reqCustomerRoleClientLeadId = req.body.reqCustomerRoleClientLeadId;
-  var reqCustomerSprintLeadId = req.body.reqCustomerSprintLeadId;
+
+  var reqCustomerOnSiteClientLeadId = req.body.reqCustomerOnSiteClientLeadId || null;
+  var reqCustomerOffSiteClientLeadId = req.body.reqCustomerOffSiteClientLeadId || null;
   Customer.findOrCreate({
     where: {
       Id: reqCustomerId
@@ -896,8 +897,8 @@ router.post('/updateCustomer', function(req, res, next) {
       Description: reqCustomerDescription,
       Homepage: reqCustomerHomepage,
       EmailDomain: reqCustomerEmailDomain,
-      RoleClientLeadId: reqCustomerRoleClientLeadId,
-      SprintLeadId: reqCustomerSprintLeadId
+      OnSiteClientLeadId: reqCustomerOnSiteClientLeadId,
+      OffSiteClientLeadId: reqCustomerOffSiteClientLeadId
     }
   }).spread(async function(customer, created) {
     if(created) {
@@ -910,8 +911,8 @@ router.post('/updateCustomer', function(req, res, next) {
         Description: reqCustomerDescription,
         Homepage: reqCustomerHomepage,
         EmailDomain: reqCustomerEmailDomain,
-        RoleClientLeadId: reqCustomerRoleClientLeadId,
-        SprintLeadId: reqCustomerSprintLeadId
+        OnSiteClientLeadId: reqCustomerOnSiteClientLeadId,
+        OffSiteClientLeadId: reqCustomerOffSiteClientLeadId
       });
       return res.json(Utils.responseMessage(0, customer, 'Update customer successfully!'));
     }
