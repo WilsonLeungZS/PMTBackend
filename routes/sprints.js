@@ -740,6 +740,7 @@ router.post('/copySprints', async function(req, res, next) {
   var reqTargetTimelineId = Number(req.body.reqTargetTimelineId);
   var reqSourceTimelineId = Number(req.body.reqSourceTimelineId);
   var reqSprintIdArrayStr = req.body.reqSprintIdArray;
+  let resDataList = [];
   if (reqSprintIdArrayStr != null) {
     var reqSprintIdArray = reqSprintIdArrayStr.split(',');
     // 1. Get source sprints as temples
@@ -795,6 +796,7 @@ router.post('/copySprints', async function(req, res, next) {
             },
             defaults: targetSprint
           }).spread(async function(sprint, created) {
+            resDataList.push(sprint)
             if (created) {
               console.log('Copy to create new sprint done');
             }
@@ -807,7 +809,7 @@ router.post('/copySprints', async function(req, res, next) {
             }
           });
         }
-        return res.json(Utils.responseMessage(0, null, 'Success to copy sprints!'));
+        return res.json(Utils.responseMessage(0, resDataList, 'Success to copy sprints!'));
       }
     }
   }
