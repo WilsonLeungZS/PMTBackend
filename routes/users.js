@@ -37,7 +37,7 @@ router.get('/login', function(req, res, next) {
   User.findOne({
     where: {
       Name: req.query.reqUserName,
-      IsActive: true  
+      // IsActive: true  
     },
   }).then(function(user) {
     if(user != null && user.Name == req.query.reqUserName) {
@@ -270,7 +270,7 @@ function generateRequestUserObject (iRequest) {
     Nickname: iRequest.reqUserNickname != ''? iRequest.reqUserNickname: null,
     EmployeeNbr: iRequest.reqUserEmployeeNbr != ''? iRequest.reqUserEmployeeNbr: null,
     Email: iRequest.reqUserEmail != ''? iRequest.reqUserEmail: null,
-    Role: iRequest.reqUserRols != ''? iRequest.reqUserRole: 'General',
+    Role: iRequest.reqUserRols != ''? iRequest.reqUserRole: 'Users',
     ThemeStyle: iRequest.reqUserThemeStyle != ''? iRequest.reqUserThemeStyle: 0,
     NameMappings: iRequest.reqUserNameMappings != ''? iRequest.reqUserNameMappings: null,
     Level: iRequest.reqUserLevel != ''? iRequest.reqUserLevel: -1,
