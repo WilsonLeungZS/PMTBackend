@@ -33,7 +33,7 @@ var User = sequelize.define('user', {
     },
     Role: {
         type: Sequelize.STRING,
-        defaultValue: 'General'
+        defaultValue: 'Users'
     },
     ThemeStyle: {
         type:Sequelize.INTEGER,
