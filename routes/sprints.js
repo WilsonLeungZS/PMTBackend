@@ -1022,4 +1022,27 @@ router.post('/updateTimeline', function(req, res, next) {
   })
 });
 
+router.post('/checkClientLead',async (req,res,next)=>{
+  let customerList = await Customer.findAll({ where:{
+    [Op.or]: [
+      {OnSiteClientLeadId: {[Op.or]:Object.values(req.body)}},
+      {OffSiteClientLeadId: {[Op.or]:Object.values(req.body)}},
+    ]
+  }})
+
+  if (customerList != null && customerList.length > 0) {
+    let userList = []
+    customerList.forEach((item)=>{
+      if(item.OnSiteClientLeadId && Object.values(req.body).indexOf(`${item.OnSiteClientLeadId}`) != -1){
+        userList.push(item.OnSiteClientLeadId)
+      }
+      if(item.OffSiteClientLeadId && Object.values(req.body).indexOf(`${item.OffSiteClientLeadId}`) != -1){
+        userList.push(item.OffSiteClientLeadId)
+      }
+    })
+    return res.json(Utils.responseMessage(0,[...new Set(userList)], ''));
+  } else {
+    return res.json(Utils.responseMessage(1, null, 'This user no longer has Client Lead'));
+  }
+})
 module.exports = router;

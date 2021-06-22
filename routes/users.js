@@ -179,6 +179,7 @@ async function generateResponseUsersInfo(users, reqSprintStartTime, reqSprintEnd
       resJson.userWorkingHrs = users[i].WorkingHrs;
       resJson.userIsActive = users[i].IsActive;
       resJson.userUsedCapacity = await Utils.calculateCapacity(users[i].Id, reqSprintStartTime, reqSprintEndTime);
+      resJson.userRole= users[i].Role;
       rtnResult.push(resJson);
     }
     //console.log('Return result -> ', rtnResult);
