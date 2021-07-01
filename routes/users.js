@@ -102,7 +102,7 @@ router.get('/getActiveUsersListByLevelLimit', function(req, res, next) {
   var reqUserLevelLimit = Number(req.query.reqUserLevelLimit);
   User.findAll({
     where: {
-      IsActive: 1,
+      // IsActive: 1,
       Role: { [Op.ne]: 'Special' },
       [Op.and]: [
         {Level: { [Op.lte]: reqUserLevelLimit }},
@@ -137,7 +137,7 @@ router.post('/getActiveUsersListBySkill', function(req, res, next) {
   }
   User.findAll({
     where: {
-      IsActive: 1,
+      // IsActive: 1,
       Role: { [Op.ne]: 'Special' },
       Level: { [Op.ne]: -1 },
       [Op.or]: skillsCriteria
