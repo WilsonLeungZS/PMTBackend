@@ -2885,7 +2885,8 @@ function getUserList() {
     User.findAll({
       attributes: ['Id', 'Name', 'Level', 'Nickname'],
       where: {
-        IsActive: 1
+      Role: { [Op.notLike]: '%Guests%'},
+      // IsActive: 1
       }
     }).then(async function(users){
       if (users != null && users.length > 0) {
@@ -2901,7 +2902,8 @@ function getUserListForGenerateTaskList() {
   return new Promise((resolve,reject) =>{
     User.findAll({
       where: {
-        IsActive: 1
+      Role: { [Op.notLike]: '%Guests%'},
+      // IsActive: 1
       }
     }).then(async function(users){
       if (users != null && users.length > 0) {

@@ -205,7 +205,8 @@ function getUserList () {
     User.findAll({
       where: {
         Level: { [Op.ne]: -1 },
-        IsActive: 1
+        Role: { [Op.notLike]: '%Guests%'},
+      // IsActive: 1
       }
     }).then(async function(users) {
       if (users != null && users.length > 0) {
