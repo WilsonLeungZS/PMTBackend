@@ -15,6 +15,7 @@ var Task = require('../models/task');
 var User = require('../models/user');
 var Sprint = require('../models/sprint');
 var Reference = require('../models/reference');
+var Timeline = require('../models/timeline');
 
 const Op = Sequelize.Op;
 
@@ -268,7 +269,41 @@ router.get('/getTaskByName', function(req, res, next) {
   })
 });
 
-// Get sub tasks list by name
+// Get task list by ReferenceTask
+router.get('/getTaskListByReferenceTask', function(req, res, next) {
+  Task.findAll({
+    include: [{
+      model: Sprint,
+      include: [{
+          model: Timeline, 
+        },
+      ],
+    }],
+    where: {
+      ReferenceTask: req.query.referenceTask
+    },
+  }).then(async function(tasks) {
+    if (tasks != null && tasks.length > 0) {
+      let data = [];
+      let record = {};
+      tasks.forEach((item)=>{
+        item['SprintName'] = `【${item.sprint.timeline.StartTime} ~ ${item.sprint.timeline.EndTime}】${item.sprint.Name}`
+        console.log(item.SprintName);
+        if(record[item.SprintId] || record[item.SprintId] == 0){
+          data[record[item.SprintId]].push(item)
+        }else{
+          record[item.SprintId] = data.length
+          data.push([item])
+        }
+      })
+      return res.json(Utils.responseMessage(0, data, ''));
+    } else {
+      return res.json(Utils.responseMessage(1, null, 'No task exist'));
+    }
+  })
+});
+
+// Get tasks list by name
 router.get('/getSubtasksListByName', function(req, res, next) {
   var reqTaskName = req.query.reqTaskName;
   Task.findAll({
