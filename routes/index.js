@@ -92,9 +92,6 @@ async function createSNOWTask(taskObj) {
       taskNewObj.Status = await getStatusMapping(taskObj.taskCategorization, taskObj.taskStatus);
       taskNewObj.RequiredSkills = await getGroupSkillsMapping(taskObj.taskAssignment);
       taskNewObj.CustomerId = await getCustomerMapping(taskObj.taskCustomer);
-      // console.log('taskNewObj.RequiredSkills----------------------');
-      // console.log(taskNewObj.RequiredSkills);
-      // console.log('taskNewObj.RequiredSkills----------------------');
       console.log('Start to create/Update task');
       Task.findOrCreate({
         where: {
@@ -154,6 +151,7 @@ async function createSNOWTask(taskObj) {
           taskNewObj.Creator = 'PMT:System';
           taskNewObj.Estimation = 6;
           taskNewObj.AssigneeId = await getUserMapping(taskObj.taskAssignee);
+          taskNewObj.TargetComplete = setTargetComplete(taskObj.taskPriority,taskObj.taskIssueDate)
           // Get Sprint/Leader by skills/date
           // Create reference task for every sprint if task status = 'Running'
           var refTaskIssueDate = Utils.formatDate(new Date(), 'yyyy-MM-dd hh:mm:ss');
@@ -161,19 +159,11 @@ async function createSNOWTask(taskObj) {
           console.log('Task issue date -> ', issueDateStrArray[0]);
           console.log('Task required skills -> ', taskNewObj.RequiredSkills);
           var sprints = null;
-          // console.log('taskObj.taskAssignment--------------------');
-          // console.log(taskObj.taskAssignment);
-          // console.log(taskObj.taskAssignment == 'ACN-APP-BSS');
-          // console.log('taskObj.taskAssignment--------------------');
           if (taskObj.taskAssignment == 'STP') {
             sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow', 'STP');
           } else if(taskObj.taskAssignment == 'ACN-APP-BSS'){
             sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow', 'SAP Functional');
-            // console.log('进入了if ACN-APP-BSS---------------');
-            // console.log(sprints);
-            // console.log('进入了if ACN-APP-BSS---------------');
           } else {
-            // console.log('进入了else------');
             if (taskNewObj.RequiredSkills.indexOf('5') != -1) {
               sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow', 'BSS');
             }
@@ -300,13 +290,10 @@ async function createTRLSTask(taskObj) {
 }
 
 function processRequest(Request) {
-  // console.log('Request-----------------');
-  // console.log(Request);
-  // console.log('Request-----------------');
   var nameArray = Request.number;
   var titleArray = Request.short_description;
   var categorizationPathArray = Request.path;
-  // var priorityArray = Request.priority;
+  var priorityArray = Request.priority;
   var statusArray = Request.state;
   var assignmentArray = Request.assignment_group;
   var assigneeArray = Request.assigned_to;
@@ -329,6 +316,7 @@ function processRequest(Request) {
     taskJson.taskEstimation = estimationArray != null? estimationArray[i] != ''? Number(estimationArray[i]) * 8: 0: 0;
     taskJson.taskBusinessArea = businessAreaArray != null? businessAreaArray[i]: null;
     taskJson.taskCustomer = customerArray != null? customerArray[i]: null;
+    taskJson.taskPriority = priorityArray != null? priorityArray[i]: null;
     if (taskJson.taskCustomer == 'MTL HK') {
       taskJson.taskCustomer = 'MTL'
     }
@@ -367,9 +355,6 @@ function processRequest(Request) {
     taskArray.push(taskJson);
   }
   //console.log('Result ', taskArray);
-  // console.log('taskArray--------');
-  // console.log(taskArray);
-  // console.log('taskArray--------');
   return taskArray;
 }
 
@@ -468,6 +453,43 @@ function getCustomerMapping (iCustomer) {
       }
     })
   });
+}
+
+// Set the target complete according to the priority
+function setTargetComplete (priority,createdDate) {
+ let num = priority.slice(0,1)
+ return {
+    1: createdDate,
+    2: createdDate,
+    3: format(new Date(createdDate).getTime() + 86400000 * 3,'yyyy-MM-dd hh:mm:ss'),
+    4: format(new Date(createdDate).getTime() + 86400000 * 7,'yyyy-MM-dd hh:mm:ss'),
+  }[num]
+}
+
+function format(timestamp, fmt) {
+  //yyyy-MM-dd hh:mm:ss
+  let getDate = new Date(timestamp);
+  let o = {
+    "M+": getDate.getMonth() + 1, // Month
+    "d+": getDate.getDate(), // date
+    "h+": getDate.getHours(), // hours
+    "m+": getDate.getMinutes(), // minutes
+    "s+": getDate.getSeconds(), // seconds
+    "q+": Math.floor((getDate.getMonth() + 3) / 3), // quarter
+    S: getDate.getMilliseconds() // millisecond
+  };
+  if (/(y+)/.test(fmt))
+    fmt = fmt.replace(
+      RegExp.$1,
+      (getDate.getFullYear() + "").substr(4 - RegExp.$1.length)
+    );
+  for (let k in o)
+    if (new RegExp("(" + k + ")").test(fmt))
+      fmt = fmt.replace(
+        RegExp.$1,
+        RegExp.$1.length == 1 ? o[k] : ("00" + o[k]).substr(("" + o[k]).length)
+      );
+  return fmt;
 }
 
 module.exports = router;
