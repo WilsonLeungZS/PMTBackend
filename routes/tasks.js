@@ -287,8 +287,6 @@ router.get('/getTaskListByReferenceTask', function(req, res, next) {
       let data = [];
       let record = {};
       tasks.forEach((item)=>{
-        item['SprintName'] = `【${item.sprint.timeline.StartTime} ~ ${item.sprint.timeline.EndTime}】${item.sprint.Name}`
-        console.log(item.SprintName);
         if(record[item.SprintId] || record[item.SprintId] == 0){
           data[record[item.SprintId]].push(item)
         }else{
