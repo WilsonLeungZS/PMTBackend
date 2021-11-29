@@ -234,6 +234,21 @@ router.post('/receiveTaskListForTRLS', async function(req, res, next) {
   return res.json({result: true, error: ""});    
 });
 
+
+router.post('/getReport',async function (req,res,next) {
+  let sql = {
+    "Daily scrum status": `select pds.ScrumDate Date, pds.Attendance Attendance, pds.Completion PMT_Completion,ps.Name Sprint,pu.Name User FROM pmt.daily_scrums pds, pmt.sprints ps, pmt.users pu where 1=1 and pds.SprintId = ps.Id and pds.UserId = pu.Id and pds.ScrumDate >= '${req.body['date[0]']}' and pds.ScrumDate <= '${req.body['date[1]']}' order by pds.ScrumDate asc, ps.Name desc, pu.Name desc; `,
+    "Worklog - performance": `select pu2.Name User_Name, concat(pw.WorklogMonth, '-', pw.WorklogDay) Date, pt.Name Task_Number, pt.ReferenceTask Ref_Pool, pt2.Title Ref_Pool_Description, pt.Title Task_Title, pw.Remark Worklog_Description, pw.Effort Man_hours, pt.Estimation Estimation, pt.IssueDate Issue_Date, pc.Name Customer, pu1.Name Leader_Name, pt.Type Task_type from pmt.tasks pt left join pmt.users pu1 on pt.RespLeaderId = pu1.Id left join pmt.tasks pt2 on pt.ReferenceTask = pt2.Name left join pmt.customers pc on pt.CustomerId = pc.Id, pmt.worklogs pw left join pmt.users pu2 on pw.UserId = pu2.Id, pmt.sprints ps where 1=1 and pw.TaskId = pt.Id and pt.SprintId = ps.Id and pw.WorklogMonth = '${req.body.date}' and pw.Effort > 0 order by Date asc, User_Name asc;`,
+    "Task list": `select pt.Name Task_Number, pt.Customer Customer, pt.Status Status, pt.Title Task_Title, pt.ReferenceTask Ref_Pool, pu1.Name Leader, pu1.Level Leader_Level, pu2.Name Assignee, pu2.Level Assignee_Level, pt.IssueDate Issue_Date, pt.Estimation Task_Estimation, pt.Effort Actual_Effort, pt.SprintIndicator Task_Indicator, pt.TargetComplete Target_Complete_Date, pt.ActualComplete Actual_Complete_Date, ps.Name Sprint_Name, ptline.StartTime Sprint_Start_Time, ptline.EndTime Sprint_End_Time from pmt.sprints ps, pmt.timelines ptline, pmt.tasks pt left join pmt.users pu1 on pt.RespLeaderId = pu1.Id left join pmt.users pu2 on pt.AssigneeId = pu2.Id where 1=1 and pt.SprintId is not null and pt.SprintId = ps.Id and ps.TimelineId = ptline.Id and ptline.StartTime >= '${req.body['date[0]']}' and ptline.EndTime <= '${req.body['date[1]']}' and pt.Category in ('PMT-TASK-REF', 'PMT-TASK-SUB') order by Sprint_Start_Time asc, Sprint_Name asc;`,
+    "Worklog - timesheet": `select pu2.Name User_Name, concat(pw.WorklogMonth, '-', pw.WorklogDay) Date, pt.Name Task_Number, pt.ReferenceTask Ref_Pool, pt2.Title Ref_Pool_Description, pt.Title Task_Title, pw.Remark Worklog_Description, pw.Effort Man_hours, pt.Estimation Estimation, pt.IssueDate Issue_Date, pt.Customer Customer, pu1.Name Leader_Name from pmt.tasks pt left join pmt.users pu1 on pt.RespLeaderId = pu1.Id left join pmt.tasks pt2 on pt.ReferenceTask = pt2.Name, pmt.worklogs pw left join pmt.users pu2 on pw.UserId = pu2.Id, pmt.sprints ps where 1=1 and pw.TaskId = pt.Id and pt.SprintId = ps.Id and pw.WorklogMonth = '${req.body.date}' and pw.Effort > 0 order by Date asc, User_Name asc;`
+  }[req.body.value]
+  console.log(req.body)
+  console.log(sql)
+  db.query(sql).then(async (result) => {
+    return res.json(result[0]);
+  })
+})
+
 async function createTRLSTask(taskObj) {
   return new Promise(async (resolve, reject) => {
     console.log('Start to create task: ', taskObj);
