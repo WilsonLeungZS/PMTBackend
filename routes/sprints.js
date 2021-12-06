@@ -386,7 +386,8 @@ function getSprintTaskProgress (iSprintId) {
       where: {
         SprintId: iSprintId,
         Status: {[Op.ne]: 'Obsolete'},
-        SprintIndicator: {[Op.ne]: 'PUBLIC'}
+        SprintIndicator: {[Op.ne]: 'PUBLIC'},
+        Title: {[Op.notLike]: '%Retrospective%'},
       }
     }).then(function(tasks){
       if(tasks != null && tasks.length > 0) {
@@ -399,7 +400,8 @@ function getSprintTaskProgress (iSprintId) {
       where: {
         SprintId: iSprintId,
         Status: 'Done',
-        SprintIndicator: {[Op.ne]: 'PUBLIC'}
+        SprintIndicator: {[Op.ne]: 'PUBLIC'},
+        Title: {[Op.notLike]: '%Retrospective%'},
       }
     }).then(function(tasks){
       if(tasks != null && tasks.length > 0) {
