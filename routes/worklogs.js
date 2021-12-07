@@ -83,7 +83,7 @@ router.post('/getWorklogForTimesheet', function(req, res, next) {
   Worklog.findAll({
     include: [{
       model: Task,
-      attributes: ['Id', 'Name', 'Title']
+      attributes: ['Id', 'Name', 'Title','CustomerId']
     }],
     where: {
       UserId: reqUserId,
@@ -102,6 +102,7 @@ router.post('/getWorklogForTimesheet', function(req, res, next) {
           resJson['taskId'] = worklogs[i].task.Id;
           resJson['taskName'] = worklogs[i].task.Name;
           resJson['taskTitle'] = worklogs[i].task.Title;
+          resJson['taskCustomerId'] = worklogs[i].task.CustomerId;
           resJson['day' + worklogs[i].WorklogMonth + '-' + worklogs[i].WorklogDay] = worklogs[i].Effort;
           rtnResult.push(resJson);
         } else {
