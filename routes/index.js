@@ -162,7 +162,7 @@ async function createSNOWTask(taskObj) {
           if (taskObj.taskAssignment == 'STP') {
             sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow', 'STP');
           } else if(taskObj.taskAssignment == 'ACN-APP-BSS'){
-            sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow', 'SAP Functional');
+            sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow', 'SAP');
           } else {
             if (taskNewObj.RequiredSkills.indexOf('5') != -1) {
               sprints = await Utils.getSprintsByRequiredSkills(taskNewObj.RequiredSkills, issueDateStrArray[0], 'ServiceNow', 'BSS');
