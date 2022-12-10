@@ -13,7 +13,7 @@
     "dateformat": "^3.0.3",
     "debug": "~2.6.9",
     "ejs": "~2.6.1",
-    "express": "~4.16.1",
+    "express": "~4.17.3",
     "http-errors": "~1.6.3",
     "log4js": "^4.3.2",
     "moment": "^2.24.0",
